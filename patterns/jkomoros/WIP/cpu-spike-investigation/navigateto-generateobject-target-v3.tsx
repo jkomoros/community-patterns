@@ -13,10 +13,10 @@ import {
   handler,
   NAME,
   pattern,
+  safeDateNow,
   toSchema,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 // Inline the diff utilities to avoid import issues
 type DiffChunk = {
@@ -46,7 +46,10 @@ function computeWordDiff(from: string, to: string): DiffChunk[] {
     } else {
       const fromLookAhead = toWords.slice(j).indexOf(fromWords[i]);
       const toLookAhead = fromWords.slice(i).indexOf(toWords[j]);
-      if (fromLookAhead !== -1 && (toLookAhead === -1 || fromLookAhead <= toLookAhead)) {
+      if (
+        fromLookAhead !== -1 &&
+        (toLookAhead === -1 || fromLookAhead <= toLookAhead)
+      ) {
         for (let k = 0; k < fromLookAhead; k++) {
           result.push({ type: "added", word: toWords[j] });
           j++;
@@ -69,7 +72,7 @@ function computeWordDiff(from: string, to: string): DiffChunk[] {
 
 function compareFields<T extends Record<string, any>>(
   extracted: Partial<T> | null | undefined,
-  fieldMappings: { [K in keyof T]?: { current: string; label: string; }; },
+  fieldMappings: { [K in keyof T]?: { current: string; label: string } },
 ): Array<{ field: string; from: string; to: string }> {
   if (!extracted || Object.keys(extracted).length === 0) {
     return [];
@@ -117,7 +120,9 @@ const triggerExtraction = handler<
   (_, { extractTrigger, startTimeMs }) => {
     console.log("[V3-CHANGES] Starting extraction...");
     startTimeMs.set(safeDateNow());
-    extractTrigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford who works on AI safety.\n---EXTRACT-${safeDateNow()}---`);
+    extractTrigger.set(
+      `Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford who works on AI safety.\n---EXTRACT-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -198,8 +203,10 @@ const ExtractTargetV3 = pattern<Input, Output>(
     // TEST 2: Add notesDiffChunks computed like person.tsx
     const notesDiffChunks = computed(() => {
       const notesChange = changesPreview.find((c) => c.field === "Notes");
-      if (!notesChange || !notesChange.from || !notesChange.to ||
-          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
+      if (
+        !notesChange || !notesChange.from || !notesChange.to ||
+        notesChange.from === "(empty)" || notesChange.to === "(empty)"
+      ) {
         return [];
       }
       return computeWordDiff(notesChange.from, notesChange.to);
@@ -223,17 +230,35 @@ const ExtractTargetV3 = pattern<Input, Output>(
         <div style={{ padding: "1rem", fontFamily: "monospace" }}>
           <h1>Extract Target V3 (changesPreview)</h1>
 
-          <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST 2:</strong> Using pattern() + changesPreview + notesDiffChunks computed
+          <div
+            style={{
+              backgroundColor: "#fef3c7",
+              padding: "0.5rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <strong>TEST 2:</strong>{" "}
+            Using pattern() + changesPreview + notesDiffChunks computed
           </div>
 
-          <cf-button onClick={triggerExtraction({ extractTrigger, startTimeMs })} disabled={pending}>
+          <cf-button
+            onClick={triggerExtraction({ extractTrigger, startTimeMs })}
+            disabled={pending}
+          >
             {pending ? "Extracting..." : "Run Extraction"}
           </cf-button>
 
           {hasExtractionResults && (
-            <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#f0fdf4" }}>
-              <strong>Changes Preview ({changesPreview.length} changes):</strong>
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.5rem",
+                backgroundColor: "#f0fdf4",
+              }}
+            >
+              <strong>
+                Changes Preview ({changesPreview.length} changes):
+              </strong>
               <ul>
                 {changesPreview.map((change) => (
                   <li>
@@ -246,10 +271,18 @@ const ExtractTargetV3 = pattern<Input, Output>(
                   <strong>Notes Diff:</strong>
                   <div>
                     {notesDiffChunks.map((chunk: DiffChunk) => (
-                      <span style={{
-                        color: chunk.type === "removed" ? "red" : chunk.type === "added" ? "green" : "inherit",
-                        textDecoration: chunk.type === "removed" ? "line-through" : "none",
-                      }}>
+                      <span
+                        style={{
+                          color: chunk.type === "removed"
+                            ? "red"
+                            : chunk.type === "added"
+                            ? "green"
+                            : "inherit",
+                          textDecoration: chunk.type === "removed"
+                            ? "line-through"
+                            : "none",
+                        }}
+                      >
                         {chunk.word}
                       </span>
                     ))}

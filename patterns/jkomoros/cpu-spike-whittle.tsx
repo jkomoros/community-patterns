@@ -46,7 +46,9 @@ type Auth = {
 
 interface GoogleAuthCharm {
   auth: Auth;
-  refreshToken: { send: (event: Record<string, never>, callback?: (tx: any) => void) => void };
+  refreshToken: {
+    send: (event: Record<string, never>, callback?: (tx: any) => void) => void;
+  };
 }
 
 // =============================================================================
@@ -137,8 +139,12 @@ export default pattern<Input, Output>(
     // Auth status indicator
     const authStatusDot = computed(() => {
       const state = authState;
-      if (state === "authenticated") return "var(--ct-color-green-500, #22c55e)";
-      if (state === "not-found" || state === "found-not-authenticated") return "var(--ct-color-red-500, #ef4444)";
+      if (state === "authenticated") {
+        return "var(--ct-color-green-500, #22c55e)";
+      }
+      if (state === "not-found" || state === "found-not-authenticated") {
+        return "var(--ct-color-red-500, #ef4444)";
+      }
       return "var(--ct-color-yellow-500, #eab308)";
     });
 
@@ -147,8 +153,12 @@ export default pattern<Input, Output>(
       if (state === "authenticated") {
         return "Signed in";
       }
-      if (state === "not-found") return "No Google Auth charm found - please favorite one";
-      if (state === "found-not-authenticated") return "Please sign in to your Google Auth charm";
+      if (state === "not-found") {
+        return "No Google Auth charm found - please favorite one";
+      }
+      if (state === "found-not-authenticated") {
+        return "Please sign in to your Google Auth charm";
+      }
       return "Loading auth...";
     });
 
@@ -163,15 +173,17 @@ export default pattern<Input, Output>(
           </p>
 
           {/* Auth status display */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "16px",
-            padding: "12px",
-            background: "#f5f5f5",
-            borderRadius: "8px"
-          }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "16px",
+              padding: "12px",
+              background: "#f5f5f5",
+              borderRadius: "8px",
+            }}
+          >
             <span
               style={{
                 width: "8px",
@@ -187,21 +199,35 @@ export default pattern<Input, Output>(
 
           {/* Auth Setup Card - THE UI WITH THE SUSPECT BUTTON */}
           {ifElse(
-            computed(() => authState === "not-found" || authState === "found-not-authenticated"),
-            <div style={{
-              padding: "16px",
-              background: "#fef3c7",
-              borderRadius: "8px",
-              border: "2px solid #f59e0b",
-              marginBottom: "16px"
-            }}>
-              <h3 style={{ margin: "0 0 12px 0" }}>Google Authentication Required</h3>
+            computed(() =>
+              authState === "not-found" ||
+              authState === "found-not-authenticated"
+            ),
+            <div
+              style={{
+                padding: "16px",
+                background: "#fef3c7",
+                borderRadius: "8px",
+                border: "2px solid #f59e0b",
+                marginBottom: "16px",
+              }}
+            >
+              <h3 style={{ margin: "0 0 12px 0" }}>
+                Google Authentication Required
+              </h3>
 
               {ifElse(
                 computed(() => authState === "not-found"),
                 <div>
-                  <p style={{ fontSize: "13px", color: "#666", margin: "0 0 12px 0" }}>
-                    No Google Auth charm found. Create one to connect to Google Docs.
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#666",
+                      margin: "0 0 12px 0",
+                    }}
+                  >
+                    No Google Auth charm found. Create one to connect to Google
+                    Docs.
                   </p>
                   <cf-button
                     variant="primary"
@@ -209,12 +235,25 @@ export default pattern<Input, Output>(
                   >
                     Create Google Auth ⚠️ (May spike CPU)
                   </cf-button>
-                  <p style={{ fontSize: "11px", color: "#999", margin: "12px 0 0 0" }}>
-                    After signing in, favorite the charm (star icon) to use it across patterns.
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#999",
+                      margin: "12px 0 0 0",
+                    }}
+                  >
+                    After signing in, favorite the charm (star icon) to use it
+                    across patterns.
                   </p>
                 </div>,
                 <div>
-                  <p style={{ fontSize: "13px", color: "#666", margin: "0 0 12px 0" }}>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#666",
+                      margin: "0 0 12px 0",
+                    }}
+                  >
                     Found a Google Auth charm but you're not signed in.
                   </p>
                   <div style={{ display: "flex", gap: "8px" }}>
@@ -231,19 +270,21 @@ export default pattern<Input, Output>(
                       Create New Auth ⚠️
                     </cf-button>
                   </div>
-                </div>
+                </div>,
               )}
             </div>,
-            <div style={{
-              padding: "16px",
-              background: "#d1fae5",
-              borderRadius: "8px",
-              border: "1px solid #10b981"
-            }}>
+            <div
+              style={{
+                padding: "16px",
+                background: "#d1fae5",
+                borderRadius: "8px",
+                border: "1px solid #10b981",
+              }}
+            >
               <p style={{ margin: 0, color: "#047857" }}>
                 ✅ Authenticated! The button is not shown when auth is working.
               </p>
-            </div>
+            </div>,
           )}
 
           {/* Error display */}
@@ -262,11 +303,11 @@ export default pattern<Input, Output>(
             >
               {lastError}
             </div>,
-            null
+            null,
           )}
         </div>
       ),
       testName: "CPU Spike Whittle Test",
     };
-  }
+  },
 );

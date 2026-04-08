@@ -2,32 +2,45 @@
 
 ## Summary
 
-When a **composed pattern** (one that uses another pattern internally) uses `wish()` with a query that matches its own exported data, the framework enters an infinite loop with 100% CPU usage and no error message.
+When a **composed pattern** (one that uses another pattern internally) uses
+`wish()` with a query that matches its own exported data, the framework enters
+an infinite loop with 100% CPU usage and no error message.
 
-**Important nuance:** A standalone pattern with the same self-referential wish worked fine for months. The infinite loop only manifested when the pattern was refactored to **compose** another pattern (GmailAgenticSearch). This suggests the issue is related to the interaction between pattern composition and wish, not self-referential wish alone.
+**Important nuance:** A standalone pattern with the same self-referential wish
+worked fine for months. The infinite loop only manifested when the pattern was
+refactored to **compose** another pattern (GmailAgenticSearch). This suggests
+the issue is related to the interaction between pattern composition and wish,
+not self-referential wish alone.
 
 ## Priority
 
-**High** - Silent failure with no diagnostic information. Causes 100% CPU and hangs deployment. Very difficult to debug without knowing this specific pitfall.
+**High** - Silent failure with no diagnostic information. Causes 100% CPU and
+hangs deployment. Very difficult to debug without knowing this specific pitfall.
 
 ## Reproduction Steps
 
-1. Create a base pattern (e.g., `GmailAgenticSearch`) with its own reactive cells
+1. Create a base pattern (e.g., `GmailAgenticSearch`) with its own reactive
+   cells
 2. Create a parent pattern that **composes** the base pattern
-3. In the parent pattern, export typed data (e.g., `memberships: HotelMembership[]`)
+3. In the parent pattern, export typed data (e.g.,
+   `memberships: HotelMembership[]`)
 4. In the same parent pattern, use `wish()` to query for that data type:
    ```typescript
-   const wishedCharms = wish<HotelMembershipOutput>({ query: "#hotelMemberships" });
+   const wishedCharms = wish<HotelMembershipOutput>({
+     query: "#hotelMemberships",
+   });
    ```
 5. Try to deploy with `charm new`
 
 **Result:** Deployment hangs, Deno CPU goes to 100%, no error message
 
-**Note:** The same self-referential wish in a **non-composed** pattern (hotel-membership-extractor.tsx) worked fine.
+**Note:** The same self-referential wish in a **non-composed** pattern
+(hotel-membership-extractor.tsx) worked fine.
 
 ## Expected Behavior
 
 The framework should either:
+
 1. **Detect and prevent** self-referential wishes at compile/deploy time
 2. **Automatically exclude** the current charm from wish results
 3. **Throw a clear error** explaining the self-reference issue
@@ -46,7 +59,7 @@ The framework should either:
 ## Minimal Reproduction
 
 ```typescript
-import { recipe, schema, wish, derive, type Cell, NAME } from "commonfabric";
+import { type Cell, derive, NAME, recipe, schema, wish } from "commonfabric";
 import { z } from "zod";
 
 const DataSchema = schema({
@@ -71,13 +84,15 @@ export default recipe(DataSchema, ({ items }) => {
 
 ## Workaround
 
-Remove the self-referential wish. Don't wish for data types that your pattern exports.
+Remove the self-referential wish. Don't wish for data types that your pattern
+exports.
 
 ## Technical Analysis
 
 ### The Loop (Hypothesis)
 
-When a composed pattern has a self-referential wish, the reactive graph may create a loop:
+When a composed pattern has a self-referential wish, the reactive graph may
+create a loop:
 
 1. Parent pattern P composes child pattern C (which has its own reactive cells)
 2. Parent pattern P exports data matching query Q
@@ -88,7 +103,9 @@ When a composed pattern has a self-referential wish, the reactive graph may crea
 7. Something in this composition causes the wish to re-evaluate
 8. Go to step 4 (infinite loop)
 
-**Key unknown:** Why does composition trigger the loop when standalone doesn't? Possibilities:
+**Key unknown:** Why does composition trigger the loop when standalone doesn't?
+Possibilities:
+
 - Child pattern's reactive cells create additional dependencies
 - Timing of initialization differs in composed patterns
 - The composed pattern's reactive graph has cycles the standalone didn't
@@ -96,11 +113,13 @@ When a composed pattern has a self-referential wish, the reactive graph may crea
 ### Possible Fixes
 
 **Option A: Automatic Self-Exclusion**
+
 - Wish results should automatically exclude the calling charm
 - Pros: Zero-config fix, matches intuition
 - Cons: May break legitimate self-reference use cases (if any exist)
 
 **Option B: Cycle Detection**
+
 - Track wish resolution chain, detect cycles
 - Break cycle by returning empty/cached result
 - Log warning about detected cycle
@@ -108,14 +127,17 @@ When a composed pattern has a self-referential wish, the reactive graph may crea
 - Cons: More complex to implement
 
 **Option C: Compile-Time Detection**
+
 - Analyze pattern exports vs wish queries
 - Error if pattern wishes for own export type
 - Pros: Fails fast with clear error
 - Cons: May have false positives, doesn't catch runtime-generated queries
 
 **Option D: Clear Error Message**
+
 - At minimum, detect the infinite loop condition at runtime
-- Throw descriptive error: "Self-referential wish detected: pattern X wishes for data it exports"
+- Throw descriptive error: "Self-referential wish detected: pattern X wishes for
+  data it exports"
 - Pros: Easy to implement, helps debugging
 - Cons: Doesn't prevent the issue
 
@@ -128,22 +150,32 @@ When a composed pattern has a self-referential wish, the reactive graph may crea
 
 ## Framework Author Feedback (2025-12-04)
 
-> "Unrelated observation: The createReportTool handler factory won't work as expected once we do proper sandboxing (in particular the passing of functions and then creating handlers by closing over the passed in config). Interesting signal, we need some other way to generate these."
+> "Unrelated observation: The createReportTool handler factory won't work as
+> expected once we do proper sandboxing (in particular the passing of functions
+> and then creating handlers by closing over the passed in config). Interesting
+> signal, we need some other way to generate these."
 >
-> "There's a lot going on here, but IIUC what happens is that we keep merging the local list with the merged list (that also includes the locals after one run) and maybe the result is unstable and so not idempotent and thus we indeed have an infinite loop. However, those kinds we would detect (and you get the 101 iterations error)."
+> "There's a lot going on here, but IIUC what happens is that we keep merging
+> the local list with the merged list (that also includes the locals after one
+> run) and maybe the result is unstable and so not idempotent and thus we indeed
+> have an infinite loop. However, those kinds we would detect (and you get the
+> 101 iterations error)."
 
 **Key insight:** The merge operation may produce unstable results because:
+
 1. First run: merge(local, wished=[]) → merged contains local
 2. Wish resolves to this charm's output (which now contains merged)
 3. Second run: merge(local, wished=merged) → new merged with duplicates handled
 4. If the result differs from step 1, the reactive system re-runs
 5. Repeat...
 
-The framework normally detects these with "101 iterations error" but something about this case may bypass that detection.
+The framework normally detects these with "101 iterations error" but something
+about this case may bypass that detection.
 
 ## Related
 
-- Superstition: `community-docs/superstitions/2025-12-04-self-referential-wish-causes-infinite-loop.md`
+- Superstition:
+  `community-docs/superstitions/2025-12-04-self-referential-wish-causes-infinite-loop.md`
 - Original pattern: `patterns/jkomoros/hotel-membership-gmail-agent.tsx`
 - Minimal repro: `patterns/jkomoros/WIP/self-referential-wish-repro.tsx`
 - Full problematic code: `~/Downloads/hotel-membership-problematic.tsx`
@@ -159,5 +191,5 @@ The framework normally detects these with "101 iterations error" but something a
 ---
 
 **Filed by:** Claude Code session (hotel-membership-migration-check-recent)
-**Date:** 2025-12-04
-**Updated:** 2025-12-04 (added framework author feedback and minimal repro)
+**Date:** 2025-12-04 **Updated:** 2025-12-04 (added framework author feedback
+and minimal repro)

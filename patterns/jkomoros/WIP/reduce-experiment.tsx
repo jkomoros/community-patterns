@@ -11,14 +11,7 @@
  * 3. Array of LLM results (pending/result pattern)
  */
 
-import {
-  computed,
-  derive,
-  NAME,
-  UI,
-  pattern,
-  Writable,
-} from "commonfabric";
+import { computed, derive, NAME, pattern, UI, Writable } from "commonfabric";
 
 // Utility to check if something is a Cell/proxy
 function isProxy(value: any): boolean {
@@ -101,10 +94,12 @@ export default pattern<{}, { experiments: any }>(({}) => {
   // Map to transform items - items.map() returns Cell-wrapped items
   // NOTE: The callback receives Cell-wrapped items at runtime, use 'any'
   // Wrap in computed() to handle reactive property access
-  const doubled = items.map((item: any) => computed(() => ({
-    id: item.id,
-    doubled: item.value * 2,
-  })));
+  const doubled = items.map((item: any) =>
+    computed(() => ({
+      id: item.id,
+      doubled: item.value * 2,
+    }))
+  );
 
   // Try to reduce the mapped results
   // NOTE: derive() receives Cell-wrapped array, items inside are also Cell-wrapped
@@ -174,7 +169,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
           "[Exp3] reduce item.pending:",
           item?.pending,
           "type:",
-          typeof item?.pending
+          typeof item?.pending,
         );
 
         if (item.pending) {
@@ -189,7 +184,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
           totalScore: acc.totalScore + (item.result?.score ?? 0),
         };
       },
-      { completed: 0, pending: 0, errors: 0, totalScore: 0, debug: "success" }
+      { completed: 0, pending: 0, errors: 0, totalScore: 0, debug: "success" },
     );
   });
 
@@ -202,11 +197,13 @@ export default pattern<{}, { experiments: any }>(({}) => {
   // This creates Cell references in the array
   // NOTE: urls.map() callback receives Cell-wrapped items at runtime
   // Wrap in computed() to handle reactive property access
-  const fetched = urls.map((url: any) => computed(() => ({
-    url,
-    status: url === "url2" ? "pending" : "done",
-    data: url === "url2" ? null : `data for ${url}`,
-  })));
+  const fetched = urls.map((url: any) =>
+    computed(() => ({
+      url,
+      status: url === "url2" ? "pending" : "done",
+      data: url === "url2" ? null : `data for ${url}`,
+    }))
+  );
 
   // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
   const fetchAggregated = derive([fetched], (results: any) => {
@@ -229,7 +226,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
         }
         return { ...acc, done: acc.done + 1 };
       },
-      { done: 0, pending: 0, debug: "success" }
+      { done: 0, pending: 0, debug: "success" },
     );
   });
 

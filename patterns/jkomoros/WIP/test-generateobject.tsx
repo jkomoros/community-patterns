@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { generateObject, pattern, UI, NAME, toSchema } from "commonfabric";
+import { generateObject, NAME, pattern, toSchema, UI } from "commonfabric";
 
 interface TestResult {
   message: string;
@@ -11,7 +11,7 @@ export default pattern(() => {
   const result = generateObject({
     system: "You are a test assistant. Generate a simple response.",
     prompt: "Say hello and tell me the current timestamp",
-    schema: toSchema<TestResult>()
+    schema: toSchema<TestResult>(),
   });
 
   return {
@@ -19,23 +19,32 @@ export default pattern(() => {
     [UI]: (
       <div style={{ padding: "1rem" }}>
         <h1>Test generateObject</h1>
-        <p>Testing with static prompt: "Say hello and tell me the current timestamp"</p>
+        <p>
+          Testing with static prompt: "Say hello and tell me the current
+          timestamp"
+        </p>
 
-        {result.pending ? (
-          <div style={{ padding: "1rem", backgroundColor: "#fef3c7" }}>
-            ⏳ Generating...
-          </div>
-        ) : result.error ? (
-          <div style={{ padding: "1rem", backgroundColor: "#fee2e2" }}>
-            ❌ Error: {result.error}
-          </div>
-        ) : result.result ? (
-          <div style={{ padding: "1rem", backgroundColor: "#d1fae5" }}>
-            ✅ Success!
-            <div>Message: {result.result.message}</div>
-            <div>Timestamp: {result.result.timestamp}</div>
-          </div>
-        ) : <></>}
+        {result.pending
+          ? (
+            <div style={{ padding: "1rem", backgroundColor: "#fef3c7" }}>
+              ⏳ Generating...
+            </div>
+          )
+          : result.error
+          ? (
+            <div style={{ padding: "1rem", backgroundColor: "#fee2e2" }}>
+              ❌ Error: {result.error}
+            </div>
+          )
+          : result.result
+          ? (
+            <div style={{ padding: "1rem", backgroundColor: "#d1fae5" }}>
+              ✅ Success!
+              <div>Message: {result.result.message}</div>
+              <div>Timestamp: {result.result.timestamp}</div>
+            </div>
+          )
+          : <></>}
       </div>
     ),
   };

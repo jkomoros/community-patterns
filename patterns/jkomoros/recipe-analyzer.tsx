@@ -1,11 +1,5 @@
 /// <cts-enable />
-import {
-  computed,
-  Default,
-  generateObject,
-  pattern,
-  UI,
-} from "commonfabric";
+import { computed, Default, generateObject, pattern, UI } from "commonfabric";
 
 interface Ingredient {
   item: string;
@@ -134,26 +128,40 @@ ${ingredients.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
           {computed(() => {
             const dc = dietaryCompatibility;
             if (dc.compatible.length === 0 && dc.incompatible.length === 0) {
-              return <div style={{ fontStyle: "italic", color: "#666" }}>
-                Add ingredients to see dietary analysis
-              </div>;
+              return (
+                <div style={{ fontStyle: "italic", color: "#666" }}>
+                  Add ingredients to see dietary analysis
+                </div>
+              );
             }
 
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
                 {dc.compatible.length > 0 && (
                   <div>
-                    <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
+                    <div
+                      style={{
+                        fontWeight: "600",
+                        color: "#059669",
+                        marginBottom: "4px",
+                      }}
+                    >
                       ✓ Compatible:
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}
+                    >
                       {dc.compatible.map((tag: string) => (
-                        <span style={{
-                          padding: "2px 8px",
-                          background: "#d1fae5",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                        }}>
+                        <span
+                          style={{
+                            padding: "2px 8px",
+                            background: "#d1fae5",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}
+                        >
                           {tag}
                         </span>
                       ))}
@@ -163,13 +171,23 @@ ${ingredients.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
 
                 {dc.warnings.length > 0 && (
                   <div>
-                    <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                    <div
+                      style={{
+                        fontWeight: "600",
+                        color: "#dc2626",
+                        marginBottom: "4px",
+                      }}
+                    >
                       ⚠️ Warnings:
                     </div>
-                    <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
-                      {dc.warnings.map((warning: string) => (
-                        <li>{warning}</li>
-                      ))}
+                    <ul
+                      style={{
+                        margin: "0",
+                        paddingLeft: "20px",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {dc.warnings.map((warning: string) => <li>{warning}</li>)}
                     </ul>
                   </div>
                 )}

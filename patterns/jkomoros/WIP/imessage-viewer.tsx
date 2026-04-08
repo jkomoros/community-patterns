@@ -44,7 +44,10 @@ function formatDate(dateStr: string): string {
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } else if (diffDays === 1) {
       return "Yesterday";
     } else if (diffDays < 7) {
@@ -108,10 +111,14 @@ export default pattern<{
   // Group messages into conversations
   const conversationList = derive(messages, (msgs: Message[]) => {
     const byChat = groupByChat(msgs || []);
-    const convos: Array<{ chatId: string; lastMessage: Message; count: number }> = [];
+    const convos: Array<
+      { chatId: string; lastMessage: Message; count: number }
+    > = [];
 
     for (const [chatId, chatMsgs] of byChat) {
-      chatMsgs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      chatMsgs.sort((a, b) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
       convos.push({
         chatId,
         lastMessage: chatMsgs[chatMsgs.length - 1],
@@ -120,7 +127,8 @@ export default pattern<{
     }
 
     convos.sort((a, b) =>
-      new Date(b.lastMessage.date).getTime() - new Date(a.lastMessage.date).getTime()
+      new Date(b.lastMessage.date).getTime() -
+      new Date(a.lastMessage.date).getTime()
     );
 
     return convos;
@@ -131,28 +139,48 @@ export default pattern<{
   // Get messages for selected conversation
   const selectedMessages = derive(
     { messages, selectedChatId },
-    ({ messages, selectedChatId }: { messages: Message[]; selectedChatId: string | null }) => {
+    (
+      { messages, selectedChatId }: {
+        messages: Message[];
+        selectedChatId: string | null;
+      },
+    ) => {
       if (!selectedChatId || !messages) return [];
       // Filter out null messages and match chatId
-      const filtered = messages.filter((m: Message) => m && m.chatId === selectedChatId);
-      filtered.sort((a: Message, b: Message) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const filtered = messages.filter((m: Message) =>
+        m && m.chatId === selectedChatId
+      );
+      filtered.sort((a: Message, b: Message) =>
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
       return filtered;
-    }
+    },
   );
 
   return {
-    [NAME]: derive(messageCount, (count: number) => `iMessage (${count} messages)`),
+    [NAME]: derive(
+      messageCount,
+      (count: number) => `iMessage (${count} messages)`,
+    ),
     [UI]: (
-      <cf-screen style={{ display: "flex", flexDirection: "column", backgroundColor: "#f5f5f5" }}>
-        {/* Header */}
-        <div style={{
-          padding: "12px 16px",
-          backgroundColor: "#fff",
-          borderBottom: "1px solid #e0e0e0",
+      <cf-screen
+        style={{
           display: "flex",
-          alignItems: "center",
-          gap: "12px",
-        }}>
+          flexDirection: "column",
+          backgroundColor: "#f5f5f5",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#fff",
+            borderBottom: "1px solid #e0e0e0",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
           {ifElse(
             derive(selectedChatId, (id: string | null) => id !== null),
             <button
@@ -167,7 +195,7 @@ export default pattern<{
             >
               Back
             </button>,
-            <span style={{ fontSize: "24px" }}>Messages</span>
+            <span style={{ fontSize: "24px" }}>Messages</span>,
           )}
         </div>
 
@@ -176,29 +204,41 @@ export default pattern<{
           {ifElse(
             derive(messageCount, (c: number) => c === 0),
             // Empty state
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "#666",
-              padding: "20px",
-              textAlign: "center",
-            }}>
-              <div style={{ fontSize: "48px", marginBottom: "16px" }}>Messages</div>
-              <div style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: "#666",
+                padding: "20px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                Messages
+              </div>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  marginBottom: "8px",
+                }}
+              >
                 No Messages Yet
               </div>
               <div style={{ fontSize: "14px", maxWidth: "300px" }}>
                 Run the apple-sync CLI to import your iMessages:
-                <pre style={{
-                  backgroundColor: "#e0e0e0",
-                  padding: "8px 12px",
-                  borderRadius: "4px",
-                  marginTop: "12px",
-                  fontSize: "12px",
-                }}>
+                <pre
+                  style={{
+                    backgroundColor: "#e0e0e0",
+                    padding: "8px 12px",
+                    borderRadius: "4px",
+                    marginTop: "12px",
+                    fontSize: "12px",
+                  }}
+                >
                   ./tools/apple-sync.ts imessage
                 </pre>
               </div>
@@ -212,7 +252,10 @@ export default pattern<{
                   convos.map((convo, idx: number) => (
                     <div
                       key={idx}
-                      onClick={selectConversation({ chatId: convo.chatId, selectedChatId })}
+                      onClick={selectConversation({
+                        chatId: convo.chatId,
+                        selectedChatId,
+                      })}
                       style={{
                         padding: "12px 16px",
                         backgroundColor: "#fff",
@@ -228,11 +271,12 @@ export default pattern<{
                         {convo.lastMessage.text || "(attachment)"}
                       </div>
                       <div style={{ fontSize: "12px", color: "#999" }}>
-                        {formatDate(convo.lastMessage.date)} - {convo.count} messages
+                        {formatDate(convo.lastMessage.date)} - {convo.count}
+                        {" "}
+                        messages
                       </div>
                     </div>
-                  ))
-                )}
+                  )))}
               </div>,
               // Conversation detail view
               <div style={{ padding: "16px", backgroundColor: "#e5ddd5" }}>
@@ -242,31 +286,38 @@ export default pattern<{
                       key={idx}
                       style={{
                         display: "flex",
-                        justifyContent: msg.isFromMe ? "flex-end" : "flex-start",
+                        justifyContent: msg.isFromMe
+                          ? "flex-end"
+                          : "flex-start",
                         marginBottom: "8px",
                       }}
                     >
-                      <div style={{
-                        maxWidth: "70%",
-                        padding: "8px 12px",
-                        borderRadius: "18px",
-                        backgroundColor: msg.isFromMe ? "#007AFF" : "#fff",
-                        color: msg.isFromMe ? "#fff" : "#000",
-                      }}>
+                      <div
+                        style={{
+                          maxWidth: "70%",
+                          padding: "8px 12px",
+                          borderRadius: "18px",
+                          backgroundColor: msg.isFromMe ? "#007AFF" : "#fff",
+                          color: msg.isFromMe ? "#fff" : "#000",
+                        }}
+                      >
                         <div>{msg.text || "(attachment)"}</div>
-                        <div style={{
-                          fontSize: "11px",
-                          color: msg.isFromMe ? "rgba(255,255,255,0.7)" : "#999",
-                          marginTop: "4px",
-                        }}>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: msg.isFromMe
+                              ? "rgba(255,255,255,0.7)"
+                              : "#999",
+                            marginTop: "4px",
+                          }}
+                        >
                           {formatDate(msg.date)}
                         </div>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            )
+                  )))}
+              </div>,
+            ),
           )}
         </div>
       </cf-screen>

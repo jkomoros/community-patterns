@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Writable,
   computed,
   Default,
   handler,
@@ -8,6 +7,7 @@ import {
   pattern,
   str,
   UI,
+  Writable,
 } from "commonfabric";
 
 // Import types from food-recipe (these should match exactly)
@@ -77,7 +77,7 @@ const toggleStepCompletion = handler<
 >((_event, { completedSteps, groupId, stepIndex }) => {
   const steps = completedSteps.get();
   const existingIndex = steps.findIndex(
-    (s) => s.groupId === groupId && s.stepIndex === stepIndex
+    (s) => s.groupId === groupId && s.stepIndex === stepIndex,
   );
 
   if (existingIndex >= 0) {
@@ -107,7 +107,7 @@ const toggleGroupCompletion = handler<
     // Uncheck group and all its steps
     completedGroups.set(groups.filter((_, idx) => idx !== existingGroupIndex));
     completedSteps.set(
-      steps.filter((s) => s.groupId !== groupId)
+      steps.filter((s) => s.groupId !== groupId),
     );
   } else {
     // Check group and all its steps
@@ -116,7 +116,7 @@ const toggleGroupCompletion = handler<
     // Add all steps in this group
     group.steps.forEach((_, stepIndex) => {
       const stepExists = steps.find(
-        (s) => s.groupId === groupId && s.stepIndex === stepIndex
+        (s) => s.groupId === groupId && s.stepIndex === stepIndex,
       );
       if (!stepExists) {
         completedSteps.push({ groupId, stepIndex, completed: true });
@@ -131,7 +131,9 @@ const toggleGroupCompletion = handler<
 
 // Format timing display
 function formatTiming(group: StepGroup): string {
-  if (group.nightsBeforeServing !== undefined && group.nightsBeforeServing > 0) {
+  if (
+    group.nightsBeforeServing !== undefined && group.nightsBeforeServing > 0
+  ) {
     return `${group.nightsBeforeServing} night(s) before serving`;
   } else if (group.minutesBeforeServing !== undefined) {
     if (group.minutesBeforeServing === 0) return "Serve immediately";
@@ -149,12 +151,19 @@ function formatTiming(group: StepGroup): string {
 // ============================================================================
 
 export default pattern<ViewerInput, ViewerOutput>(
-  ({ recipeName, recipeServings, recipeIngredients, recipeStepGroups, completedSteps, completedGroups }) => {
+  (
+    {
+      recipeName,
+      recipeServings,
+      recipeIngredients,
+      recipeStepGroups,
+      completedSteps,
+      completedGroups,
+    },
+  ) => {
     // Recipe data is passed in directly as cells from the source recipe
 
-    const displayName = computed(() =>
-      recipeName.trim() || "Untitled Recipe"
-    );
+    const displayName = computed(() => recipeName.trim() || "Untitled Recipe");
 
     return {
       [NAME]: str`👨‍🍳 ${displayName} - Cooking View`,
@@ -187,31 +196,31 @@ export default pattern<ViewerInput, ViewerOutput>(
                 {computed(() =>
                   recipeIngredients.length > 0
                     ? recipeIngredients.map((ing) => (
-                        <div
-                          style={{
-                            padding: "6px 0",
-                            fontSize: "14px",
-                            borderBottom: "1px solid #f0f0f0",
-                          }}
-                        >
-                          <span style={{ fontWeight: "500" }}>
-                            {ing.amount} {ing.unit}
-                          </span>{" "}
-                          {ing.item}
-                        </div>
-                      ))
+                      <div
+                        style={{
+                          padding: "6px 0",
+                          fontSize: "14px",
+                          borderBottom: "1px solid #f0f0f0",
+                        }}
+                      >
+                        <span style={{ fontWeight: "500" }}>
+                          {ing.amount} {ing.unit}
+                        </span>{" "}
+                        {ing.item}
+                      </div>
+                    ))
                     : (
-                        <p
-                          style={{
-                            margin: "8px 0",
-                            fontSize: "14px",
-                            color: "#999",
-                            fontStyle: "italic",
-                          }}
-                        >
-                          No ingredients
-                        </p>
-                      )
+                      <p
+                        style={{
+                          margin: "8px 0",
+                          fontSize: "14px",
+                          color: "#999",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No ingredients
+                      </p>
+                    )
                 )}
               </cf-vstack>
             </cf-vstack>
@@ -222,157 +231,160 @@ export default pattern<ViewerInput, ViewerOutput>(
             {computed(() =>
               recipeStepGroups.length > 0
                 ? recipeStepGroups.map((group) => {
-                    const groupCompleted = computed(() =>
-                      completedGroups.some((g) => g.groupId === group.id)
-                    );
+                  const groupCompleted = computed(() =>
+                    completedGroups.some((g) => g.groupId === group.id)
+                  );
 
-                    return (
-                      <cf-card>
-                        <cf-vstack gap={1}>
-                          {/* Group header with checkbox */}
-                          <div
+                  return (
+                    <cf-card>
+                      <cf-vstack gap={1}>
+                        {/* Group header with checkbox */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "12px",
+                            paddingBottom: "8px",
+                            borderBottom: "2px solid #e5e7eb",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={groupCompleted}
+                            onClick={toggleGroupCompletion({
+                              completedSteps,
+                              completedGroups,
+                              groupId: group.id,
+                              group,
+                            })}
                             style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: "12px",
-                              paddingBottom: "8px",
-                              borderBottom: "2px solid #e5e7eb",
+                              width: "20px",
+                              height: "20px",
+                              cursor: "pointer",
+                              marginTop: "2px",
                             }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={groupCompleted}
-                              onClick={toggleGroupCompletion({
-                                completedSteps,
-                                completedGroups,
-                                groupId: group.id,
-                                group,
-                              })}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <h4
                               style={{
-                                width: "20px",
-                                height: "20px",
-                                cursor: "pointer",
-                                marginTop: "2px",
+                                margin: "0 0 4px 0",
+                                fontSize: "16px",
+                                fontWeight: "600",
                               }}
-                            />
-                            <div style={{ flex: 1 }}>
-                              <h4
-                                style={{
-                                  margin: "0 0 4px 0",
-                                  fontSize: "16px",
-                                  fontWeight: "600",
-                                }}
-                              >
-                                {group.name}
-                              </h4>
+                            >
+                              {group.name}
+                            </h4>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "16px",
+                                fontSize: "13px",
+                                color: "#666",
+                              }}
+                            >
+                              <span>⏱️ {formatTiming(group)}</span>
+                              {group.duration && (
+                                <span>📏 {group.duration} min duration</span>
+                              )}
+                              {group.maxWaitMinutes !== undefined &&
+                                group.maxWaitMinutes > 0 && (
+                                <span>
+                                  ⏳ Can wait {group.maxWaitMinutes} min
+                                </span>
+                              )}
+                              {group.requiresOven &&
+                                group.requiresOven.temperature > 0 && (
+                                <span>
+                                  🔥 {group.requiresOven.temperature}°F for{" "}
+                                  {group.requiresOven.duration} min
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Steps with individual checkboxes */}
+                        <cf-vstack gap={0}>
+                          {group.steps.map((step, stepIndex) => {
+                            const stepCompleted = computed(() =>
+                              completedSteps.some((s) =>
+                                s.groupId === group.id &&
+                                s.stepIndex === stepIndex
+                              )
+                            );
+
+                            return (
                               <div
                                 style={{
                                   display: "flex",
-                                  gap: "16px",
-                                  fontSize: "13px",
-                                  color: "#666",
+                                  alignItems: "flex-start",
+                                  gap: "12px",
+                                  padding: "8px 0",
+                                  borderBottom: "1px solid #f0f0f0",
                                 }}
                               >
-                                <span>⏱️ {formatTiming(group)}</span>
-                                {group.duration && (
-                                  <span>📏 {group.duration} min duration</span>
-                                )}
-                                {group.maxWaitMinutes !== undefined && group.maxWaitMinutes > 0 && (
-                                  <span>
-                                    ⏳ Can wait {group.maxWaitMinutes} min
-                                  </span>
-                                )}
-                                {group.requiresOven && group.requiresOven.temperature > 0 && (
-                                  <span>
-                                    🔥 {group.requiresOven.temperature}°F for{" "}
-                                    {group.requiresOven.duration} min
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Steps with individual checkboxes */}
-                          <cf-vstack gap={0}>
-                            {group.steps.map((step, stepIndex) => {
-                              const stepCompleted = computed(() =>
-                                completedSteps.some((s) => s.groupId === group.id && s.stepIndex === stepIndex)
-                              );
-
-                              return (
-                                <div
+                                <input
+                                  type="checkbox"
+                                  checked={stepCompleted}
+                                  onClick={toggleStepCompletion({
+                                    completedSteps,
+                                    groupId: group.id,
+                                    stepIndex,
+                                  })}
                                   style={{
-                                    display: "flex",
-                                    alignItems: "flex-start",
-                                    gap: "12px",
-                                    padding: "8px 0",
-                                    borderBottom: "1px solid #f0f0f0",
+                                    width: "18px",
+                                    height: "18px",
+                                    cursor: "pointer",
+                                    marginTop: "2px",
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontWeight: "bold",
+                                    color: "#999",
+                                    minWidth: "24px",
                                   }}
                                 >
-                                  <input
-                                    type="checkbox"
-                                    checked={stepCompleted}
-                                    onClick={toggleStepCompletion({
-                                      completedSteps,
-                                      groupId: group.id,
-                                      stepIndex,
-                                    })}
-                                    style={{
-                                      width: "18px",
-                                      height: "18px",
-                                      cursor: "pointer",
-                                      marginTop: "2px",
-                                    }}
-                                  />
-                                  <span
-                                    style={{
-                                      fontWeight: "bold",
-                                      color: "#999",
-                                      minWidth: "24px",
-                                    }}
-                                  >
-                                    {stepIndex + 1}.
-                                  </span>
-                                  <span
-                                    style={{
-                                      flex: 1,
-                                      fontSize: "14px",
-                                      lineHeight: "1.5",
-                                      textDecoration: computed(() =>
-                                        stepCompleted
-                                          ? "line-through"
-                                          : "none"
-                                      ),
-                                      opacity: computed(() =>
-                                        stepCompleted ? "0.6" : "1"
-                                      ),
-                                    }}
-                                  >
-                                    {step.description}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </cf-vstack>
+                                  {stepIndex + 1}.
+                                </span>
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    fontSize: "14px",
+                                    lineHeight: "1.5",
+                                    textDecoration: computed(() =>
+                                      stepCompleted ? "line-through" : "none"
+                                    ),
+                                    opacity: computed(() =>
+                                      stepCompleted ? "0.6" : "1"
+                                    ),
+                                  }}
+                                >
+                                  {step.description}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </cf-vstack>
-                      </cf-card>
-                    );
-                  })
-                : (
-                    <cf-card>
-                      <p
-                        style={{
-                          margin: "0",
-                          fontSize: "14px",
-                          color: "#999",
-                          fontStyle: "italic",
-                          textAlign: "center",
-                        }}
-                      >
-                        No step groups in this recipe
-                      </p>
+                      </cf-vstack>
                     </cf-card>
-                  )
+                  );
+                })
+                : (
+                  <cf-card>
+                    <p
+                      style={{
+                        margin: "0",
+                        fontSize: "14px",
+                        color: "#999",
+                        fontStyle: "italic",
+                        textAlign: "center",
+                      }}
+                    >
+                      No step groups in this recipe
+                    </p>
+                  </cf-card>
+                )
             )}
           </cf-vstack>
         </cf-vstack>
@@ -384,5 +396,5 @@ export default pattern<ViewerInput, ViewerOutput>(
       completedSteps,
       completedGroups,
     };
-  }
+  },
 );

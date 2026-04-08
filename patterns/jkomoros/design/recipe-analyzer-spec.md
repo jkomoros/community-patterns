@@ -24,10 +24,10 @@ interface RecipeAnalyzerInput {
 
 interface RecipeAnalyzerOutput {
   dietaryCompatibility: {
-    compatible: string[];           // Tags this recipe IS compatible with
-    incompatible: string[];         // Tags this recipe is NOT compatible with
-    warnings: string[];             // Human-readable warnings
-    primaryIngredients: string[];   // 5-10 main ingredients for "no-X" matching
+    compatible: string[]; // Tags this recipe IS compatible with
+    incompatible: string[]; // Tags this recipe is NOT compatible with
+    warnings: string[]; // Human-readable warnings
+    primaryIngredients: string[]; // 5-10 main ingredients for "no-X" matching
   };
 }
 ```
@@ -42,42 +42,42 @@ The analyzer should recognize these standard tags:
 const STANDARD_DIETARY_TAGS = {
   // Allergies & Intolerances
   allergies: [
-    "nut-free",           // All nuts
-    "peanut-free",        // Peanuts specifically
-    "tree-nut-free",      // Almonds, cashews, walnuts, etc.
-    "shellfish-free",     // Shrimp, crab, lobster
-    "fish-free",          // All fish
-    "dairy-free",         // Milk, cheese, butter, cream
-    "lactose-free",       // Dairy but lactose removed
-    "egg-free",           // Eggs and egg products
-    "soy-free",           // Soybeans, tofu, soy sauce
-    "gluten-free",        // Wheat, barley, rye
-    "nightshade-free"     // Tomatoes, peppers, potatoes, eggplant
+    "nut-free", // All nuts
+    "peanut-free", // Peanuts specifically
+    "tree-nut-free", // Almonds, cashews, walnuts, etc.
+    "shellfish-free", // Shrimp, crab, lobster
+    "fish-free", // All fish
+    "dairy-free", // Milk, cheese, butter, cream
+    "lactose-free", // Dairy but lactose removed
+    "egg-free", // Eggs and egg products
+    "soy-free", // Soybeans, tofu, soy sauce
+    "gluten-free", // Wheat, barley, rye
+    "nightshade-free", // Tomatoes, peppers, potatoes, eggplant
   ],
 
   // Lifestyle & Ethics
   lifestyle: [
-    "vegan",              // No animal products at all
-    "vegetarian",         // No meat, but dairy/eggs OK
-    "pescatarian",        // No meat except fish
-    "kosher",             // Jewish dietary laws
-    "halal",              // Islamic dietary laws
-    "pork-free",          // No pork
-    "beef-free",          // No beef
-    "lamb-free"           // No lamb
+    "vegan", // No animal products at all
+    "vegetarian", // No meat, but dairy/eggs OK
+    "pescatarian", // No meat except fish
+    "kosher", // Jewish dietary laws
+    "halal", // Islamic dietary laws
+    "pork-free", // No pork
+    "beef-free", // No beef
+    "lamb-free", // No lamb
   ],
 
   // Health Conditions
   health: [
-    "diabetic-friendly",  // Low sugar, controlled carbs
-    "low-sugar",          // Minimal added sugar
-    "low-sodium",         // Reduced salt
-    "heart-healthy",      // Low saturated fat, cholesterol
-    "kidney-friendly",    // Low potassium, phosphorus, protein
-    "low-FODMAP",         // IBS-friendly, no fermentable carbs
-    "keto",               // Very low carb, high fat
-    "low-carb"            // Reduced carbohydrates
-  ]
+    "diabetic-friendly", // Low sugar, controlled carbs
+    "low-sugar", // Minimal added sugar
+    "low-sodium", // Reduced salt
+    "heart-healthy", // Low saturated fat, cholesterol
+    "kidney-friendly", // Low potassium, phosphorus, protein
+    "low-FODMAP", // IBS-friendly, no fermentable carbs
+    "keto", // Very low carb, high fat
+    "low-carb", // Reduced carbohydrates
+  ],
 };
 ```
 
@@ -125,16 +125,10 @@ These are used for custom "no-X" matching (e.g., "no-mushrooms", "no-cilantro").
 ### Pattern Structure
 
 ```typescript
-import {
-  Default,
-  derive,
-  generateObject,
-  pattern
-} from "commonfabric";
+import { Default, derive, generateObject, pattern } from "commonfabric";
 
 export default pattern<RecipeAnalyzerInput, RecipeAnalyzerOutput>(
   ({ recipeName, ingredients, category, tags }) => {
-
     // Trigger re-analysis when ingredients change
     const analysisPrompt = derive(
       [recipeName, ingredients, category, tags],
@@ -150,8 +144,8 @@ Category: ${cat || "other"}
 Tags: ${tags.join(", ") || "none"}
 
 Ingredients:
-${ings.map(i => `- ${i.amount} ${i.unit} ${i.item}`).join('\n')}`;
-      }
+${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
+      },
     );
 
     const { result: analysis, pending } = generateObject({
@@ -164,42 +158,49 @@ ${ings.map(i => `- ${i.amount} ${i.unit} ${i.item}`).join('\n')}`;
           compatible: {
             type: "array",
             items: { type: "string" },
-            description: "Dietary tags this recipe IS compatible with"
+            description: "Dietary tags this recipe IS compatible with",
           },
           incompatible: {
             type: "array",
             items: { type: "string" },
-            description: "Dietary tags this recipe is NOT compatible with"
+            description: "Dietary tags this recipe is NOT compatible with",
           },
           warnings: {
             type: "array",
             items: { type: "string" },
-            description: "Human-readable warnings (e.g., 'Contains dairy - not vegan')"
+            description:
+              "Human-readable warnings (e.g., 'Contains dairy - not vegan')",
           },
           primaryIngredients: {
             type: "array",
             items: { type: "string" },
-            description: "5-10 main ingredients that define the dish"
-          }
+            description: "5-10 main ingredients that define the dish",
+          },
         },
-        required: ["compatible", "incompatible", "warnings", "primaryIngredients"]
-      }
+        required: [
+          "compatible",
+          "incompatible",
+          "warnings",
+          "primaryIngredients",
+        ],
+      },
     });
 
     const dietaryCompatibility = derive(
       analysis,
-      (result) => result || {
-        compatible: [],
-        incompatible: [],
-        warnings: [],
-        primaryIngredients: []
-      }
+      (result) =>
+        result || {
+          compatible: [],
+          incompatible: [],
+          warnings: [],
+          primaryIngredients: [],
+        },
     );
 
     return {
-      dietaryCompatibility
+      dietaryCompatibility,
     };
-  }
+  },
 );
 ```
 
@@ -248,6 +249,7 @@ export default pattern<RecipeInput, RecipeOutput>(
 ### Example 1: Simple Vegan Recipe
 
 **Input:**
+
 ```typescript
 {
   recipeName: "Tomato Basil Pasta",
@@ -263,6 +265,7 @@ export default pattern<RecipeInput, RecipeOutput>(
 ```
 
 **Expected Output:**
+
 ```typescript
 {
   compatible: [
@@ -283,6 +286,7 @@ export default pattern<RecipeInput, RecipeOutput>(
 ### Example 2: Complex Allergy Case
 
 **Input:**
+
 ```typescript
 {
   recipeName: "Thai Peanut Chicken",
@@ -298,6 +302,7 @@ export default pattern<RecipeInput, RecipeOutput>(
 ```
 
 **Expected Output:**
+
 ```typescript
 {
   compatible: [

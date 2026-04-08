@@ -8,13 +8,7 @@
  * If this is fast, the problem is the wish() interaction with the handler.
  * If this is also slow, the problem is purely in GoogleAuth instantiation.
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 // Import GoogleAuth pattern for creating new auth charms
 import GoogleAuth from "../../../labs/packages/patterns/google/core/google-auth.tsx";
@@ -91,5 +85,5 @@ export default pattern<Input, Output>(
       ),
       testName: "CPU Spike Whittle 2",
     };
-  }
+  },
 );

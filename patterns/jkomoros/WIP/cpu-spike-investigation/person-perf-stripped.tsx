@@ -14,15 +14,15 @@
  * - If ~6 seconds: Need to add more complexity
  */
 import {
-  Writable,
   computed,
   generateObject,
   handler,
   ifElse,
   NAME,
   pattern,
-  UI,
   safeDateNow,
+  UI,
+  Writable,
 } from "commonfabric";
 // Inline the diff utilities to avoid import path issues
 type DiffChunk = {
@@ -53,7 +53,10 @@ function computeWordDiff(from: string, to: string): DiffChunk[] {
       const fromLookAhead = toWords.slice(j).indexOf(fromWords[i]);
       const toLookAhead = fromWords.slice(i).indexOf(toWords[j]);
 
-      if (fromLookAhead !== -1 && (toLookAhead === -1 || fromLookAhead <= toLookAhead)) {
+      if (
+        fromLookAhead !== -1 &&
+        (toLookAhead === -1 || fromLookAhead <= toLookAhead)
+      ) {
         for (let k = 0; k < fromLookAhead; k++) {
           result.push({ type: "added", word: toWords[j] });
           j++;
@@ -107,7 +110,9 @@ const triggerExtraction = handler<
     console.log("[PERF-STRIPPED] Starting extraction...");
     console.log("[PERF-STRIPPED] Start time:", safeDateNow());
     startTimeMs.set(safeDateNow());
-    trigger.set(`Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${safeDateNow()}---`);
+    trigger.set(
+      `Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -186,30 +191,32 @@ export default pattern(() => {
   });
 
   // The extraction call - same schema as person.tsx
-  const { result: extractionResult, pending: extractionPending } = generateObject({
-    system: `You are a profile data extraction assistant. Extract structured information from unstructured notes.`,
-    prompt: guardedPrompt,
-    model: "anthropic:claude-sonnet-4-5",
-    schema: {
-      type: "object",
-      properties: {
-        displayName: { type: "string" },
-        givenName: { type: "string" },
-        familyName: { type: "string" },
-        nickname: { type: "string" },
-        pronouns: { type: "string" },
-        email: { type: "string" },
-        phone: { type: "string" },
-        birthday: { type: "string" },
-        twitter: { type: "string" },
-        linkedin: { type: "string" },
-        github: { type: "string" },
-        instagram: { type: "string" },
-        mastodon: { type: "string" },
-        remainingNotes: { type: "string" },
+  const { result: extractionResult, pending: extractionPending } =
+    generateObject({
+      system:
+        `You are a profile data extraction assistant. Extract structured information from unstructured notes.`,
+      prompt: guardedPrompt,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object",
+        properties: {
+          displayName: { type: "string" },
+          givenName: { type: "string" },
+          familyName: { type: "string" },
+          nickname: { type: "string" },
+          pronouns: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+          birthday: { type: "string" },
+          twitter: { type: "string" },
+          linkedin: { type: "string" },
+          github: { type: "string" },
+          instagram: { type: "string" },
+          mastodon: { type: "string" },
+          remainingNotes: { type: "string" },
+        },
       },
-    },
-  });
+    });
 
   // ============================================================
   // THIS IS THE KEY PART WE'RE TESTING
@@ -234,7 +241,11 @@ export default pattern(() => {
       mastodon: { current: mastodonHandle.get(), label: "Mastodon" },
       remainingNotes: { current: notes.get(), label: "Notes" },
     });
-    console.log(`[PERF-STRIPPED] changesPreview computed: ${safeDateNow() - t0}ms, ${changes.length} changes`);
+    console.log(
+      `[PERF-STRIPPED] changesPreview computed: ${
+        safeDateNow() - t0
+      }ms, ${changes.length} changes`,
+    );
     return changes;
   });
 
@@ -242,7 +253,9 @@ export default pattern(() => {
   // NOTE: changesPreview is a computed, so CTS passes its VALUE (not Cell) to downstream computeds
   const hasExtractionResults = computed(() => {
     // changesPreview here is already the array value, not a Cell
-    const preview = changesPreview as Array<{field: string; from: string; to: string}>;
+    const preview = changesPreview as Array<
+      { field: string; from: string; to: string }
+    >;
     const has = preview.length > 0;
     console.log(`[PERF-STRIPPED] hasExtractionResults: ${has}`);
     return has;
@@ -253,15 +266,23 @@ export default pattern(() => {
   const notesDiffChunks = computed(() => {
     const t0 = safeDateNow();
     // changesPreview here is already the array value, not a Cell
-    const preview = changesPreview as Array<{field: string; from: string; to: string}>;
+    const preview = changesPreview as Array<
+      { field: string; from: string; to: string }
+    >;
     const notesChange = preview.find((c) => c.field === "Notes");
-    if (!notesChange || !notesChange.from || !notesChange.to ||
-        notesChange.from === "(empty)" || notesChange.to === "(empty)") {
+    if (
+      !notesChange || !notesChange.from || !notesChange.to ||
+      notesChange.from === "(empty)" || notesChange.to === "(empty)"
+    ) {
       console.log(`[PERF-STRIPPED] notesDiffChunks: skipped (no diff needed)`);
       return [] as DiffChunk[];
     }
     const result = computeWordDiff(notesChange.from, notesChange.to);
-    console.log(`[PERF-STRIPPED] notesDiffChunks: ${safeDateNow() - t0}ms, ${result.length} chunks`);
+    console.log(
+      `[PERF-STRIPPED] notesDiffChunks: ${
+        safeDateNow() - t0
+      }ms, ${result.length} chunks`,
+    );
     return result;
   });
 
@@ -323,11 +344,19 @@ export default pattern(() => {
               }}
             >
               <h3 style={{ margin: "0 0 8px 0" }}>Review Extracted Changes</h3>
-              <p style={{ margin: "0 0 12px 0", color: "#666", fontSize: "13px" }}>
+              <p
+                style={{
+                  margin: "0 0 12px 0",
+                  color: "#666",
+                  fontSize: "13px",
+                }}
+              >
                 The following changes will be applied:
               </p>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
                 {changesPreview.map((change) => (
                   <div
                     style={{
@@ -337,7 +366,13 @@ export default pattern(() => {
                       borderRadius: "4px",
                     }}
                   >
-                    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "2px",
+                      }}
+                    >
                       <strong style={{ fontSize: "12px" }}>
                         {change.field}
                       </strong>
@@ -404,12 +439,16 @@ export default pattern(() => {
                 }}
               >
                 <cf-button
-                  onClick={cancelExtraction({ extractedData: extractionResult })}
+                  onClick={cancelExtraction({
+                    extractedData: extractionResult,
+                  })}
                 >
                   Cancel
                 </cf-button>
                 <cf-button
-                  onClick={applyExtractedData({ extractedData: extractionResult })}
+                  onClick={applyExtractedData({
+                    extractedData: extractionResult,
+                  })}
                 >
                   Accept Changes
                 </cf-button>
@@ -425,32 +464,48 @@ export default pattern(() => {
           (
             // Not showing results yet
             <div>
-              {!hasStarted ? (
-                <p>Click the button to start extraction</p>
-              ) : extractionPending ? (
-                <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem" }}>
-                  Extracting... (check console for timing)
-                </div>
-              ) : (
-                <p>Ready</p>
-              )}
+              {!hasStarted
+                ? <p>Click the button to start extraction</p>
+                : extractionPending
+                ? (
+                  <div
+                    style={{ backgroundColor: "#fef3c7", padding: "0.5rem" }}
+                  >
+                    Extracting... (check console for timing)
+                  </div>
+                )
+                : <p>Ready</p>}
             </div>
           ),
         )}
 
         <h2>What This Tests</h2>
         <ul>
-          <li><code>changesPreview</code> computed cell (14 field comparisons)</li>
-          <li><code>hasExtractionResults</code> computed cell</li>
-          <li><code>notesDiffChunks</code> computed cell</li>
-          <li><code>.map()</code> rendering in modal</li>
-          <li><code>ifElse</code> conditional rendering</li>
+          <li>
+            <code>changesPreview</code> computed cell (14 field comparisons)
+          </li>
+          <li>
+            <code>hasExtractionResults</code> computed cell
+          </li>
+          <li>
+            <code>notesDiffChunks</code> computed cell
+          </li>
+          <li>
+            <code>.map()</code> rendering in modal
+          </li>
+          <li>
+            <code>ifElse</code> conditional rendering
+          </li>
         </ul>
 
         <h2>What This Does NOT Have</h2>
         <ul>
-          <li><code>ct-autolayout</code> component</li>
-          <li><code>ct-code-editor</code> component</li>
+          <li>
+            <code>ct-autolayout</code> component
+          </li>
+          <li>
+            <code>ct-code-editor</code> component
+          </li>
           <li>Multiple tabs</li>
           <li>All the input handlers</li>
           <li>Relationship type pickers</li>

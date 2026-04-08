@@ -4,7 +4,9 @@
 
 **"A contact manager that learns from how you actually describe people."**
 
-Most contact apps force you into rigid fields. CommonTools Person learns what matters to *you* by watching what you write in notes, then adapts its data model automatically. It's personal data that grows with you.
+Most contact apps force you into rigid fields. CommonTools Person learns what
+matters to _you_ by watching what you write in notes, then adapts its data model
+automatically. It's personal data that grows with you.
 
 ## Current State (Already Built ✓)
 
@@ -19,6 +21,7 @@ Most contact apps force you into rigid fields. CommonTools Person learns what ma
 ## The Demo Story (5 minutes)
 
 ### Act 1: Natural Data Entry (1 min)
+
 "Watch me add a contact the way I actually think about people..."
 
 ```
@@ -48,11 +51,13 @@ Result: Fields populate, notes cleaned to just unstructured parts
 ```
 
 **Investor sees:**
+
 - Natural text → structured data
 - No forms to fill out
 - AI extracts, human approves
 
 ### Act 2: The System Learns (2 min)
+
 "Now I'll add a few more people..."
 
 ```
@@ -107,12 +112,14 @@ Result: Modal appears:
 ```
 
 **Investor sees:**
+
 - System analyzes patterns across all contacts
 - Suggests new structured fields based on YOUR usage
 - Data model adapts to how you think
 - "This is like a CRM that learns your business"
 
 ### Act 3: Network Effects (1.5 min)
+
 "Notice how Sarah mentioned 'Phoenix project'..."
 
 ```
@@ -131,12 +138,14 @@ Result: Shows "Mentions" section:
 ```
 
 **Investor sees:**
+
 - Building a personal knowledge graph
 - Bi-directional linking (like Roam/Obsidian)
 - Network of relationships emerges naturally
 - "This is personal CRM meets second brain"
 
 ### Act 4: Voice of the User (30 sec)
+
 "Now ask the system about these people..."
 
 ```
@@ -152,12 +161,14 @@ Result: *updates Marcus's notes*
 ```
 
 **Investor sees:**
+
 - Natural language over personal data
 - No query language to learn
 - Context-aware responses
 - "ChatGPT for my contacts, but actually useful"
 
 ### Act 5: The Import Story (30 sec)
+
 "This works with existing data too..."
 
 ```
@@ -174,6 +185,7 @@ Result: Fields populate from vCard
 ```
 
 **Investor sees:**
+
 - Interoperable with existing systems
 - Drag-and-drop simplicity
 - Migration path from other CRMs
@@ -181,37 +193,49 @@ Result: Fields populate from vCard
 ## Feature Roadmap
 
 ### Phase 1: Polish Existing (1-2 days)
-*Goal: Fix the rough edges on what's already built*
+
+_Goal: Fix the rough edges on what's already built_
 
 #### 1.1 Extraction UX Improvements
+
 - [x] Extract button exists
-- [ ] **Auto-extract on paste** - Trigger extraction automatically when text is pasted into notes
-- [ ] **Extract button above fold** - Move to header area with lightning bolt icon
-- [ ] **Preserve exact remaining text** - Extraction should return EXACTLY the text that wasn't pulled out, character-for-character
-- [ ] **Better diff rendering** - Current word-diff works, ensure it's prominent in preview modal
+- [ ] **Auto-extract on paste** - Trigger extraction automatically when text is
+      pasted into notes
+- [ ] **Extract button above fold** - Move to header area with lightning bolt
+      icon
+- [ ] **Preserve exact remaining text** - Extraction should return EXACTLY the
+      text that wasn't pulled out, character-for-character
+- [ ] **Better diff rendering** - Current word-diff works, ensure it's prominent
+      in preview modal
 
 #### 1.2 Name Display Polish
+
 - [x] displayName defaults to "First 'Nick' Last" computed value
 - [ ] **Show nickname in quotes** - "Sarah 'Chef' Chen" format in [NAME]
 - [ ] **Empty state handling** - If no name at all, show "Unnamed Person"
 
 #### 1.3 Omnibot Integration
+
 - [x] patternTool exists for extraction
 - [ ] **Test omnibot commands**:
   - "Extract data from Sarah's notes"
   - "Update Marcus's email to xyz@example.com"
   - "Add a note to David that he recommended a restaurant"
-- [ ] **Return meaningful results** - patternTool should return updated data, not just status
+- [ ] **Return meaningful results** - patternTool should return updated data,
+      not just status
 
 **Demo Impact:** Extraction feels magical, not clunky. Investors see polish.
 
 ---
 
 ### Phase 2: Meta-Analysis (2-3 days)
-*Goal: System learns what fields matter based on actual usage*
+
+_Goal: System learns what fields matter based on actual usage_
 
 #### 2.1 Pattern Discovery Engine
-- [ ] **Cross-profile analyzer** - Scan all Person charms in space for repeated patterns
+
+- [ ] **Cross-profile analyzer** - Scan all Person charms in space for repeated
+      patterns
 - [ ] **Smart extraction** - Use LLM to identify common concepts:
   ```
   Prompt: "Analyze these note excerpts and identify fields that appear
@@ -226,6 +250,7 @@ Result: Fields populate from vCard
   - Preview of what would change
 
 #### 2.2 Dynamic Schema Extension
+
 - [ ] **Add fields to pattern dynamically** - When user accepts suggestions:
   ```typescript
   // This is the hard part - patterns have static schemas
@@ -234,55 +259,74 @@ Result: Fields populate from vCard
   // B) Generate a new pattern with extended schema (advanced)
   // C) Use a flexible "properties: { [key]: { label, value } }[]" array
   ```
-- [ ] **Backward compatibility** - Old Person charms still work after schema changes
-- [ ] **Re-extraction** - After adding field, offer to re-extract all notes to populate it
+- [ ] **Backward compatibility** - Old Person charms still work after schema
+      changes
+- [ ] **Re-extraction** - After adding field, offer to re-extract all notes to
+      populate it
 
 #### 2.3 Meta-Analysis patternTool
+
 - [ ] **Omnibot access** - "Suggest new person fields based on my contacts"
-- [ ] **Continuous learning** - Suggestion button shows count: "3 new suggestions"
+- [ ] **Continuous learning** - Suggestion button shows count: "3 new
+      suggestions"
 
-**Demo Impact:** "The CRM adapts to my business, not vice versa." This is the killer feature.
+**Demo Impact:** "The CRM adapts to my business, not vice versa." This is the
+killer feature.
 
-**Technical Challenge:** Dynamic schema extension is non-trivial in CTS. Consider using:
+**Technical Challenge:** Dynamic schema extension is non-trivial in CTS.
+Consider using:
+
 ```typescript
 type ProfileData = {
   // ... existing fields ...
-  customFields: Default<Array<{ key: string; label: string; value: string }>, []>;
+  customFields: Default<
+    Array<{ key: string; label: string; value: string }>,
+    []
+  >;
 };
 ```
 
 ---
 
 ### Phase 3: Network Effects (2-3 days)
-*Goal: Build a personal knowledge graph*
+
+_Goal: Build a personal knowledge graph_
 
 #### 3.1 @ Mentions in Notes
+
 - [ ] **Integration with backlinks-index.tsx** - Use existing mentionable system
 - [ ] **Autocomplete** - When typing `[[` or `@`, show list of Person charms
 - [ ] **Clickable links** - Mentioned people are navigable
-- [ ] **Backlinks section** - Show "Referenced by: [list of people who mention this person]"
+- [ ] **Backlinks section** - Show "Referenced by: [list of people who mention
+      this person]"
 - [ ] **Bi-directional updates** - Adding/removing mentions updates both ends
 
 #### 3.2 Visual Network
+
 - [ ] **Mentions section** - Show all people this person mentions
 - [ ] **Shared connections** - "Sarah and Marcus both mention: David"
 - [ ] **Visual graph (optional)** - D3.js network visualization of connections
 
 #### 3.3 Omnibot Queries
+
 - [ ] "Who knows Sarah?" → returns people who mention Sarah
 - [ ] "Who do Sarah and Marcus both know?" → shared connections
 - [ ] "Show me everyone from Acme Corp" → search across notes
 
-**Demo Impact:** Personal CRM becomes personal knowledge graph. Investors see network effects.
+**Demo Impact:** Personal CRM becomes personal knowledge graph. Investors see
+network effects.
 
-**Technical Note:** Much of this already exists in backlinks-index.tsx. Need to integrate.
+**Technical Note:** Much of this already exists in backlinks-index.tsx. Need to
+integrate.
 
 ---
 
 ### Phase 4: Import/Export (1-2 days)
-*Goal: Interoperability with existing systems*
+
+_Goal: Interoperability with existing systems_
 
 #### 4.1 Drag-and-Drop Import
+
 - [ ] **vCard support** - Drag .vcf file onto Person charm
 - [ ] **Parse vCard** - Extract FN, EMAIL, TEL, BDAY, URL fields
 - [ ] **Preview modal** - Show what will be imported before accepting
@@ -290,12 +334,15 @@ type ProfileData = {
 - [ ] **Google Contacts** - Parse Google Contacts CSV
 
 #### 4.2 Bulk Import
+
 - [ ] **Import pattern** - Separate pattern for "Import Contacts"
 - [ ] **Upload CSV** - Drag entire contact database
-- [ ] **Mapping UI** - "CSV column 'Company' → Person field 'customFields.company'"
+- [ ] **Mapping UI** - "CSV column 'Company' → Person field
+      'customFields.company'"
 - [ ] **Batch creation** - Create multiple Person charms at once
 
 #### 4.3 Export
+
 - [ ] **Export to vCard** - Single person or entire space
 - [ ] **Export to CSV** - For spreadsheet analysis
 - [ ] **Export to JSON** - For developers
@@ -305,36 +352,43 @@ type ProfileData = {
 ---
 
 ### Phase 5: Advanced Features (Nice-to-have)
-*Goal: Differentiate from traditional CRM*
+
+_Goal: Differentiate from traditional CRM_
 
 #### 5.1 Smart Reminders
+
 - [ ] **Last contact tracking** - "You haven't talked to Sarah in 6 months"
 - [ ] **Birthday reminders** - "Marcus's birthday is next week"
 - [ ] **Follow-up prompts** - "You mentioned following up with David about X"
 
 #### 5.2 Relationship Scoring
+
 - [ ] **Strength indicator** - Based on mentions, recency, note length
 - [ ] **Prioritization** - "Top 10 connections this month"
 - [ ] **Decay detection** - "Connections at risk" (haven't contacted in >1 year)
 
 #### 5.3 Context Enrichment
+
 - [ ] **LinkedIn scraping** (with MCP?) - Auto-fill job history
 - [ ] **Gmail integration** - Last email date, email count
 - [ ] **Calendar integration** - Last meeting date
 - [ ] **Social media** - Auto-fetch profile pictures from Twitter/GitHub
 
 #### 5.4 Collaboration
+
 - [ ] **Shared contacts** - Team members can see/edit shared Person charms
 - [ ] **Activity log** - "Marcus updated by: Alex (2 hours ago)"
 - [ ] **Permissions** - Some fields private, some shared
 
-**Demo Impact:** Goes beyond "better contact manager" to "intelligent relationship OS."
+**Demo Impact:** Goes beyond "better contact manager" to "intelligent
+relationship OS."
 
 ---
 
 ## Implementation Priority for Investor Demo
 
 ### Must Have (Before Demo)
+
 1. **Auto-extract on paste** (Phase 1.1) - Makes entry feel magical
 2. **Meta-analysis suggestions** (Phase 2) - The "wow" moment
 3. **@ Mentions** (Phase 3.1) - Shows network effects
@@ -342,11 +396,13 @@ type ProfileData = {
 5. **Polish existing extraction** (Phase 1) - No rough edges
 
 ### Should Have (Nice to demo)
+
 6. **Visual network graph** (Phase 3.2) - Eye candy for investors
 7. **Omnibot integration tests** (Phase 1.3 & 3.3) - Shows voice UI
 8. **Birthday reminders** (Phase 5.1) - Practical feature
 
 ### Can Defer (Post-demo)
+
 - Bulk import (Phase 4.2)
 - Relationship scoring (Phase 5.2)
 - Context enrichment (Phase 5.3)
@@ -381,15 +437,18 @@ type ProfileData = {
   photoUrl: Default<string, "">;
 
   // NEW: Dynamic fields
-  customFields: Default<Array<{
-    key: string;        // e.g., "currentCompany"
-    label: string;      // e.g., "Current Company"
-    value: string;      // e.g., "StartupCo"
-    dataType: "text" | "number" | "date" | "url";
-  }>, []>;
+  customFields: Default<
+    Array<{
+      key: string; // e.g., "currentCompany"
+      label: string; // e.g., "Current Company"
+      value: string; // e.g., "StartupCo"
+      dataType: "text" | "number" | "date" | "url";
+    }>,
+    []
+  >;
 
   // NEW: Network
-  mentions: Default<Array<OpaqueRef<Person>>, []>;  // People this person mentions
+  mentions: Default<Array<OpaqueRef<Person>>, []>; // People this person mentions
   backlinks: Default<Array<OpaqueRef<Person>>, []>; // People who mention this person
 
   // NEW: Metadata
@@ -498,7 +557,7 @@ const handlePaste = handler<
       // Then trigger extraction
       extractTrigger.set(`${pastedText}\n---EXTRACT-${Date.now()}---`);
     }
-  }
+  },
 );
 
 // In UI:
@@ -506,7 +565,7 @@ const handlePaste = handler<
   $value={notes}
   onct-paste={handlePaste({ notes, extractTrigger })}
   // ... other props
-/>
+/>;
 ```
 
 ---
@@ -514,6 +573,7 @@ const handlePaste = handler<
 ## Demo Script (Detailed)
 
 ### Setup (Before investors arrive)
+
 ```bash
 # Create demo space
 export CT_API_URL="http://localhost:8000/"
@@ -526,51 +586,39 @@ deno task ct charm new \
 
 ### Script
 
-**[0:00 - Introduction]**
-"Contact managers force you into their rigid fields. What if your CRM learned what fields *you* need by watching how you describe people? Let me show you."
+**[0:00 - Introduction]** "Contact managers force you into their rigid fields.
+What if your CRM learned what fields _you_ need by watching how you describe
+people? Let me show you."
 
-**[0:30 - Act 1: Natural Entry]**
-*Create new Person charm*
-"I'll add a contact the way I actually think about them..."
-*Paste Sarah's info into notes*
-"Watch - no forms, just natural text."
-*Auto-extraction triggers*
-"The system extracts structured data automatically. I can review and approve."
-*Show diff, click Accept*
-"Fields populated, notes cleaned. That's how it should work."
+**[0:30 - Act 1: Natural Entry]** _Create new Person charm_ "I'll add a contact
+the way I actually think about them..." _Paste Sarah's info into notes_ "Watch -
+no forms, just natural text." _Auto-extraction triggers_ "The system extracts
+structured data automatically. I can review and approve." _Show diff, click
+Accept_ "Fields populated, notes cleaned. That's how it should work."
 
-**[2:00 - Act 2: System Learns]**
-"Now I'll add a couple more people..."
-*Add Marcus and David*
-"Notice I mentioned 'Current Company' for all three. The system notices too."
-*Click "Suggest New Fields" button*
-"Here's the magic: it analyzed all my contacts and found patterns."
-*Show suggestions modal*
-"'Current Company' appears in 3 out of 3 profiles. Same with 'Former Company' and 'Phoenix project'."
-"I can add these as structured fields with one click."
-*Click "Add Selected Fields"*
-"Now my CRM adapts to MY business, not the other way around."
+**[2:00 - Act 2: System Learns]** "Now I'll add a couple more people..." _Add
+Marcus and David_ "Notice I mentioned 'Current Company' for all three. The
+system notices too." _Click "Suggest New Fields" button_ "Here's the magic: it
+analyzed all my contacts and found patterns." _Show suggestions modal_ "'Current
+Company' appears in 3 out of 3 profiles. Same with 'Former Company' and 'Phoenix
+project'." "I can add these as structured fields with one click." _Click "Add
+Selected Fields"_ "Now my CRM adapts to MY business, not the other way around."
 
-**[3:30 - Act 3: Network Effects]**
-"These people worked together. Let me connect them..."
-*In Sarah's notes, type [[Marcus*
-"I can link contacts together using @ mentions."
-*Autocomplete shows Marcus, select it*
-*Type [[David, select*
-"Now Sarah's profile shows her connections."
-*Click on Marcus link*
-"And Marcus's profile shows he's referenced by Sarah."
-"It's building a personal knowledge graph automatically."
+**[3:30 - Act 3: Network Effects]** "These people worked together. Let me
+connect them..." _In Sarah's notes, type [[Marcus_ "I can link contacts together
+using @ mentions." _Autocomplete shows Marcus, select it_ _Type [[David, select_
+"Now Sarah's profile shows her connections." _Click on Marcus link_ "And
+Marcus's profile shows he's referenced by Sarah." "It's building a personal
+knowledge graph automatically."
 
-**[4:30 - Act 4: Voice Interface]**
-"Ask the system questions in natural language..."
-*Ask omnibot: "Who from my contacts worked at Acme Corp?"*
-"It searches across all contacts and understands context."
-*Ask: "Extract Sarah's Twitter handle"*
-"It can interact with individual profiles too."
+**[4:30 - Act 4: Voice Interface]** "Ask the system questions in natural
+language..." _Ask omnibot: "Who from my contacts worked at Acme Corp?"_ "It
+searches across all contacts and understands context." _Ask: "Extract Sarah's
+Twitter handle"_ "It can interact with individual profiles too."
 
-**[5:00 - Closing]**
-"This is just contact management. But the same principles apply to anything:
+**[5:00 - Closing]** "This is just contact management. But the same principles
+apply to anything:
+
 - Projects that learn what fields matter
 - Notes that suggest their own structure
 - Data models that adapt to you
@@ -582,6 +630,7 @@ That's the CommonTools vision: software that learns from how you work."
 ## Success Metrics
 
 ### For Demo
+
 - [ ] Can complete full 5-minute demo without errors
 - [ ] Auto-extraction triggers < 1 second after paste
 - [ ] Meta-analysis finds 3+ valid suggestions
@@ -590,6 +639,7 @@ That's the CommonTools vision: software that learns from how you work."
 - [ ] No crashes, no loading spinners > 3 seconds
 
 ### For Production
+
 - [ ] Users create 10+ contacts (adoption)
 - [ ] 50%+ use auto-extract feature (engagement)
 - [ ] 30%+ accept meta-analysis suggestions (validation)

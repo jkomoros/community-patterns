@@ -1,13 +1,13 @@
 # LLM Results Need Manual Sync to Writables for Handler Access
 
-**Date:** 2026-01-28
-**Status:** confirmed
-**Confidence:** high
-**Stars:** 4
+**Date:** 2026-01-28 **Status:** confirmed **Confidence:** high **Stars:** 4
 
 ## TL;DR - The Rule
 
-**`generateText()` and `generateObject()` results live in a reactive result object (`.result`, `.pending`, `.error`), but handlers reading from Writables won't see them automatically.** If you need a handler to access LLM output, sync the result to a Writable using a computed with side-effect.
+**`generateText()` and `generateObject()` results live in a reactive result
+object (`.result`, `.pending`, `.error`), but handlers reading from Writables
+won't see them automatically.** If you need a handler to access LLM output, sync
+the result to a Writable using a computed with side-effect.
 
 ```tsx
 // PROBLEM: Handler reads from drafts Writable, but LLM result isn't there
@@ -34,7 +34,8 @@ const _autoSaveLlmDraft = computed(() => {
 
 ## Summary
 
-When you use `generateText()` or `generateObject()`, the result is stored in a reactive object:
+When you use `generateText()` or `generateObject()`, the result is stored in a
+reactive object:
 
 ```tsx
 const llmResult = generateText({ prompt, system });
@@ -46,13 +47,18 @@ const llmResult = generateText({ prompt, system });
 This reactive object works great for UI display:
 
 ```tsx
-{ifElse(llmResult.pending,
-  <span>Generating...</span>,
-  <div>{llmResult.result}</div>
-)}
+{
+  ifElse(
+    llmResult.pending,
+    <span>Generating...</span>,
+    <div>{llmResult.result}</div>,
+  );
+}
 ```
 
-But **handlers bound to Writables can't access this directly**. If your handler expects to read from a `Writable<Record<string, string>>`, the LLM result won't magically appear there.
+But **handlers bound to Writables can't access this directly**. If your handler
+expects to read from a `Writable<Record<string, string>>`, the LLM result won't
+magically appear there.
 
 ## The Problem
 
@@ -64,21 +70,27 @@ Consider this flow:
 4. User clicks "Send" → handler reads from `drafts.get()[threadId]`
 5. **Handler finds nothing** - `drafts` was never updated!
 
-The textarea displays `llmResult.result`, but the handler reads from `drafts`. These are different data sources.
+The textarea displays `llmResult.result`, but the handler reads from `drafts`.
+These are different data sources.
 
 ## Why This Happens
 
 The pattern system has two ways to store data:
 
-1. **Reactive result objects** - Returned by `generateText()`, `fetchData()`, etc. These are read-only reactive cells.
-2. **Writables** - Created with `Writable.of()`. These are read-write and persist across sessions.
+1. **Reactive result objects** - Returned by `generateText()`, `fetchData()`,
+   etc. These are read-only reactive cells.
+2. **Writables** - Created with `Writable.of()`. These are read-write and
+   persist across sessions.
 
 Handlers typically bind to Writables because:
+
 - They need to persist user edits
 - They need to modify state
 - They're the "source of truth" for actions
 
-But LLM results are **not Writables** - they're reactive computations. The result appears when the computation completes but doesn't automatically sync anywhere.
+But LLM results are **not Writables** - they're reactive computations. The
+result appears when the computation completes but doesn't automatically sync
+anywhere.
 
 ## The Solution: Auto-Save Computed
 
@@ -126,17 +138,19 @@ const sendHandler = handler<...>((_event, { drafts }) => {
 
 This is an intentional pattern in CommonTools:
 
-1. **Computed tracks dependencies** - It watches `draftLlmResult.result` and `draftLlmResult.pending`
+1. **Computed tracks dependencies** - It watches `draftLlmResult.result` and
+   `draftLlmResult.pending`
 2. **Runs when dependencies change** - When LLM completes, computed re-runs
 3. **Idempotent check prevents loops** - Only writes if value actually changed
 4. **Returns stable value** - `return null` ensures no cascading updates
 
-The underscore prefix (`_autoSaveLlmDraft`) signals this is a "side-effect computed" - it exists for its side-effect, not its return value.
+The underscore prefix (`_autoSaveLlmDraft`) signals this is a "side-effect
+computed" - it exists for its side-effect, not its return value.
 
 ## Real-World Example
 
-**Pattern:** expect-response-followup.tsx - Email follow-up drafter
-**Bug:** "Send Follow-up" logged "No draft to send" even though draft was visible
+**Pattern:** expect-response-followup.tsx - Email follow-up drafter **Bug:**
+"Send Follow-up" logged "No draft to send" even though draft was visible
 
 ### Before (Handler Can't Find Draft)
 
@@ -188,15 +202,19 @@ const sendFollowUp = handler<...>((_event, { drafts }) => {
 
 ## Key Rules
 
-1. **LLM results are reactive, not Writables** - They exist in a different data layer
-2. **Handlers bind to Writables** - They can't directly access reactive result objects
+1. **LLM results are reactive, not Writables** - They exist in a different data
+   layer
+2. **Handlers bind to Writables** - They can't directly access reactive result
+   objects
 3. **Use auto-save computed to bridge** - Sync reactive results to Writables
-4. **Idempotent checks prevent loops** - Always check `if (current !== newValue)`
+4. **Idempotent checks prevent loops** - Always check
+   `if (current !== newValue)`
 5. **Prefix with underscore** - Signal that the computed is for side-effects
 
 ## Alternative: Pass Result Object to Handler
 
-If you don't need persistence, you could restructure to pass the reactive object directly:
+If you don't need persistence, you could restructure to pass the reactive object
+directly:
 
 ```tsx
 // Handler accepts the reactive result
@@ -207,16 +225,20 @@ const sendFollowUp = handler<...>((_event, { draftLlmResult }) => {
 ```
 
 But this has limitations:
+
 - Can't easily persist user edits
 - Type system may complain about OpaqueCell types
 - Doesn't integrate with Writable-based patterns
 
-The auto-save approach is more flexible and works with existing handler patterns.
+The auto-save approach is more flexible and works with existing handler
+patterns.
 
 ## Related Issues
 
-- `2026-01-08-computed-inside-map-callback-infinite-loop.md` - Related: async results and reactivity
-- Handler documentation (`docs/common/concepts/handler.md`) - Explains handler binding
+- `2026-01-08-computed-inside-map-callback-infinite-loop.md` - Related: async
+  results and reactivity
+- Handler documentation (`docs/common/concepts/handler.md`) - Explains handler
+  binding
 
 ## Metadata
 
@@ -237,8 +259,14 @@ applies_to: [CommonTools]
 
 ## Guestbook
 
-- 2026-01-28 - expect-response-followup.tsx LLM draft generation. generateText() produced drafts shown in textarea, but sendFollowUp handler couldn't find them because it read from drafts Writable which was never populated. Fixed by adding _autoSaveLlmDraft computed that watches draftLlmResult.result and syncs to drafts Writable when generation completes. Pattern now works: generate → auto-save → send. (expect-response-followup-send-fix)
+- 2026-01-28 - expect-response-followup.tsx LLM draft generation. generateText()
+  produced drafts shown in textarea, but sendFollowUp handler couldn't find them
+  because it read from drafts Writable which was never populated. Fixed by
+  adding _autoSaveLlmDraft computed that watches draftLlmResult.result and syncs
+  to drafts Writable when generation completes. Pattern now works: generate →
+  auto-save → send. (expect-response-followup-send-fix)
 
 ---
 
-**Remember:** LLM results and Writables are different data layers. If handlers need LLM output, bridge them with an auto-save computed.
+**Remember:** LLM results and Writables are different data layers. If handlers
+need LLM output, bridge them with an auto-save computed.

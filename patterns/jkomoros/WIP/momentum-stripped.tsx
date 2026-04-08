@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Writable,
   computed,
   Default,
   derive,
@@ -11,6 +10,7 @@ import {
   pattern,
   UI,
   wish,
+  Writable,
 } from "commonfabric";
 import GitHubAuth from "./github-auth.tsx";
 
@@ -99,14 +99,18 @@ function parseGitHubUrl(input: string | unknown): RepoReference | null {
   if (!trimmed) return null;
 
   // Try markdown link format: [text](url)
-  const markdownMatch = trimmed.match(/\[.*?\]\((https?:\/\/github\.com\/([^/]+)\/([^/)]+))\)/);
+  const markdownMatch = trimmed.match(
+    /\[.*?\]\((https?:\/\/github\.com\/([^/]+)\/([^/)]+))\)/,
+  );
   if (markdownMatch) {
     const [, , owner, repo] = markdownMatch;
     return { owner, repo, fullName: `${owner}/${repo}` };
   }
 
   // Try full URL: https://github.com/owner/repo or github.com/owner/repo
-  const urlMatch = trimmed.match(/(?:https?:\/\/)?github\.com\/([^/]+)\/([^/\s?#]+)/);
+  const urlMatch = trimmed.match(
+    /(?:https?:\/\/)?github\.com\/([^/]+)\/([^/\s?#]+)/,
+  );
   if (urlMatch) {
     const [, owner, repo] = urlMatch;
     const cleanRepo = repo.replace(/\.git$/, "");
@@ -171,7 +175,9 @@ const removeRepo = handler<
 >((_event, { repos, repoName }) => {
   const current = repos.get();
   // Handle both Writable<string> and plain string
-  const nameToRemove = typeof repoName === "string" ? repoName : (repoName as any).get?.() || repoName;
+  const nameToRemove = typeof repoName === "string"
+    ? repoName
+    : (repoName as any).get?.() || repoName;
   repos.set(current.filter((r) => r !== nameToRemove));
 });
 
@@ -235,7 +241,9 @@ function getSamplePageNumbers(totalStars: number): number[] {
  * Analyze commit activity to determine momentum trend
  * Compares recent 4 weeks to prior 8 weeks
  */
-function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): MomentumAnalysis {
+function calculateMomentum(
+  weeks: CommitActivityWeek[] | null | undefined,
+): MomentumAnalysis {
   if (!weeks || weeks.length < 12) {
     return { trend: "unknown", recentAvg: 0, olderAvg: 0, changePercent: 0 };
   }
@@ -267,7 +275,6 @@ function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): Mome
 
   return { trend, recentAvg, olderAvg, changePercent };
 }
-
 
 // =============================================================================
 // PATTERN
@@ -308,7 +315,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
       if (passed?.token) return passed.token;
       if (inline) return inline;
       return "";
-    }
+    },
   );
 
   const hasAuth = derive(effectiveToken, (t) => !!t);
@@ -329,19 +336,31 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     const apiUrl = derive(
       { hasAuth, ref },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
-        return (auth && r) ? `https://api.github.com/repos/${r.owner}/${r.repo}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.ref as any)?.get
+          ? (values.ref as any).get()
+          : values.ref;
+        return (auth && r)
+          ? `https://api.github.com/repos/${r.owner}/${r.repo}`
+          : "";
+      },
     );
 
     const commitActivityUrl = derive(
       { hasAuth, ref },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
-        return (auth && r) ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.ref as any)?.get
+          ? (values.ref as any).get()
+          : values.ref;
+        return (auth && r)
+          ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity`
+          : "";
+      },
     );
 
     // Fetch repo metadata (skipped when URL is empty)
@@ -372,9 +391,15 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     const samplePages = derive(
       { hasAuth, parsedRef: ref, metadata },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        const m = (values.metadata as any)?.get ? (values.metadata as any).get() : values.metadata;
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        const m = (values.metadata as any)?.get
+          ? (values.metadata as any).get()
+          : values.metadata;
 
         if (!auth || !r || !m?.result?.stargazers_count) {
           return { owner: "", repo: "", pages: [] as number[] };
@@ -386,7 +411,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
           repo: r.repo,
           pages: getSamplePageNumbers(totalStars),
         };
-      }
+      },
     );
 
     // Create a function that returns URL for a given slot index
@@ -401,68 +426,118 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     const starSample0 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(0),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample1 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(1),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample2 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(2),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample3 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(3),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample4 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(4),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample5 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(5),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample6 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(6),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample7 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(7),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample8 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(8),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
     const starSample9 = fetchData<StargazerWithDate[]>({
       url: makeSlotUrl(9),
       mode: "json",
-      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+      },
     });
 
     // Aggregate star history from all samples
     const starHistory = derive(
       {
         samplePages,
-        s0: starSample0, s1: starSample1, s2: starSample2, s3: starSample3, s4: starSample4,
-        s5: starSample5, s6: starSample6, s7: starSample7, s8: starSample8, s9: starSample9,
+        s0: starSample0,
+        s1: starSample1,
+        s2: starSample2,
+        s3: starSample3,
+        s4: starSample4,
+        s5: starSample5,
+        s6: starSample6,
+        s7: starSample7,
+        s8: starSample8,
+        s9: starSample9,
       },
       (values) => {
-        const sp = (values.samplePages as any)?.get ? (values.samplePages as any).get() : values.samplePages;
-        if (!sp.pages || sp.pages.length === 0) return { loading: false, data: [] as StarDataPoint[] };
+        const sp = (values.samplePages as any)?.get
+          ? (values.samplePages as any).get()
+          : values.samplePages;
+        if (!sp.pages || sp.pages.length === 0) {
+          return { loading: false, data: [] as StarDataPoint[] };
+        }
 
         const samples = [
-          values.s0, values.s1, values.s2, values.s3, values.s4,
-          values.s5, values.s6, values.s7, values.s8, values.s9,
+          values.s0,
+          values.s1,
+          values.s2,
+          values.s3,
+          values.s4,
+          values.s5,
+          values.s6,
+          values.s7,
+          values.s8,
+          values.s9,
         ];
 
         // Check if any are still loading
@@ -477,7 +552,9 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         // Collect results
         const dataPoints: StarDataPoint[] = [];
         for (let i = 0; i < sp.pages.length && i < 10; i++) {
-          const sample = (samples[i] as any)?.get ? (samples[i] as any).get() : samples[i];
+          const sample = (samples[i] as any)?.get
+            ? (samples[i] as any).get()
+            : samples[i];
           const result = sample?.result;
           if (result && result.length > 0 && result[0]?.starred_at) {
             // Star count at this page = (page - 1) * 100 (approximation)
@@ -493,10 +570,17 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         dataPoints.sort((a, b) => a.date.localeCompare(b.date));
 
         return { loading: false, data: dataPoints };
-      }
+      },
     );
 
-    return { repoName: repoNameCell, ref, metadata, commitActivity, samplePages, starHistory };
+    return {
+      repoName: repoNameCell,
+      ref,
+      metadata,
+      commitActivity,
+      samplePages,
+      starHistory,
+    };
   });
 
   // Count repos
@@ -509,8 +593,16 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
   return {
     [NAME]: "GitHub Momentum Tracker",
     [UI]: (
-      <div style={{ padding: "24px", maxWidth: "1200px", fontFamily: "system-ui, sans-serif" }}>
-        <h1 style={{ margin: "0 0 8px 0", fontSize: "28px" }}>GitHub Momentum Tracker</h1>
+      <div
+        style={{
+          padding: "24px",
+          maxWidth: "1200px",
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        <h1 style={{ margin: "0 0 8px 0", fontSize: "28px" }}>
+          GitHub Momentum Tracker
+        </h1>
         <p style={{ margin: "0 0 24px 0", color: "#666" }}>
           Track star growth and commit activity across repositories
         </p>
@@ -518,51 +610,73 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         {/* Auth Status / Inline Auth */}
         {ifElse(
           hasAuth,
-          <div style={{
-            padding: "12px 16px",
-            backgroundColor: "#d4edda",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}>
-            <span style={{ color: "#28a745", fontWeight: "500" }}>Authenticated</span>
+          <div
+            style={{
+              padding: "12px 16px",
+              backgroundColor: "#d4edda",
+              borderRadius: "8px",
+              marginBottom: "20px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <span style={{ color: "#28a745", fontWeight: "500" }}>
+              Authenticated
+            </span>
             <span style={{ color: "#666", fontSize: "14px" }}>
-              (via {derive(discoveredAuth, (d) => d?.token ? "wish" : "linked charm")})
+              (via {derive(
+                discoveredAuth,
+                (d) => d?.token ? "wish" : "linked charm",
+              )})
             </span>
           </div>,
-          <div style={{
-            padding: "16px",
-            backgroundColor: "#fff3cd",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            border: "1px solid #ffc107",
-          }}>
+          <div
+            style={{
+              padding: "16px",
+              backgroundColor: "#fff3cd",
+              borderRadius: "8px",
+              marginBottom: "20px",
+              border: "1px solid #ffc107",
+            }}
+          >
             <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>
               GitHub Authentication Required
             </h3>
-            <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#666" }}>
+            <p
+              style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#666" }}
+            >
               To track repositories, you need a GitHub token. You can either:
             </p>
-            <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", fontSize: "14px" }}>
+            <ul
+              style={{
+                margin: "0 0 16px 0",
+                paddingLeft: "20px",
+                fontSize: "14px",
+              }}
+            >
               <li>Create a GitHub Auth charm separately and favorite it</li>
               <li>Or enter your token below:</li>
             </ul>
             {inlineAuth}
-          </div>
+          </div>,
         )}
 
         {/* Repo Input Section */}
-        <div style={{
-          padding: "16px",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "8px",
-          marginBottom: "24px",
-        }}>
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>Add Repositories</h3>
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+            marginBottom: "24px",
+          }}
+        >
+          <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>
+            Add Repositories
+          </h3>
           <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#666" }}>
-            Paste GitHub URLs or owner/repo references (one per line or comma-separated)
+            Paste GitHub URLs or owner/repo references (one per line or
+            comma-separated)
           </p>
           <cf-input
             $value={inputText}
@@ -602,65 +716,106 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               >
                 Clear All
               </button>,
-              null
+              null,
             )}
           </div>
         </div>
 
         {/* Repo Count */}
         <div style={{ marginBottom: "16px", fontSize: "14px", color: "#666" }}>
-          Tracking {repoCount} {derive(repoCount, (c) => c === 1 ? "repository" : "repositories")}
+          Tracking {repoCount}{" "}
+          {derive(repoCount, (c) => c === 1 ? "repository" : "repositories")}
         </div>
 
         {/* Repo List */}
         {ifElse(
           derive(repoCount, (c) => c === 0),
-          <div style={{
-            padding: "40px",
-            textAlign: "center",
-            backgroundColor: "#f8f9fa",
-            borderRadius: "8px",
-            color: "#666",
-          }}>
-            <p style={{ margin: "0 0 8px 0", fontSize: "16px" }}>No repositories added yet</p>
+          <div
+            style={{
+              padding: "40px",
+              textAlign: "center",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "8px",
+              color: "#666",
+            }}
+          >
+            <p style={{ margin: "0 0 8px 0", fontSize: "16px" }}>
+              No repositories added yet
+            </p>
             <p style={{ margin: "0", fontSize: "14px" }}>
               Add some GitHub repos above to start tracking their momentum
             </p>
           </div>,
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
             {repoDataList.map((item) => {
               const metadata = item.metadata;
               const repoName = item.repoName;
-              const starHistory = item.starHistory;  // ADD THIS - access starHistory
+              const starHistory = item.starHistory; // ADD THIS - access starHistory
               // deno-lint-ignore no-explicit-any
-              const isLoading = derive(metadata, (m: any) => m?.pending === true);
+              const isLoading = derive(
+                metadata,
+                (m: any) => m?.pending === true,
+              );
               // deno-lint-ignore no-explicit-any
               const hasError = derive(metadata, (m: any) => !!m?.error);
               const data = derive(metadata, (m) => m?.result);
 
               return (
-                <div style={{
-                  padding: "16px",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "8px",
-                  backgroundColor: "white",
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    padding: "16px",
+                    border: "1px solid #dee2e6",
+                    borderRadius: "8px",
+                    backgroundColor: "white",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}
+                  >
                     <div>
                       <a
-                        href={derive({ data, repoName }, ({ data, repoName }) => data?.html_url || `https://github.com/${repoName}`)}
+                        href={derive(
+                          { data, repoName },
+                          ({ data, repoName }) =>
+                            data?.html_url || `https://github.com/${repoName}`,
+                        )}
                         target="_blank"
-                        style={{ fontSize: "18px", fontWeight: "600", color: "#0366d6" }}
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: "600",
+                          color: "#0366d6",
+                        }}
                       >
                         {repoName}
                       </a>
-                      <div style={{ fontSize: "14px", color: "#666", marginTop: "4px" }}>
-                        {derive(data, (d) => d?.description || "No description")}
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#666",
+                          marginTop: "4px",
+                        }}
+                      >
+                        {derive(
+                          data,
+                          (d) => d?.description || "No description",
+                        )}
                       </div>
                     </div>
                     <button
                       onClick={removeRepo({ repos, repoName })}
-                      style={{ padding: "4px 8px", color: "#dc3545", border: "1px solid #dc3545", borderRadius: "4px", cursor: "pointer" }}
+                      style={{
+                        padding: "4px 8px",
+                        color: "#dc3545",
+                        border: "1px solid #dc3545",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                      }}
                     >
                       Remove
                     </button>
@@ -670,27 +825,59 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                     <div style={{ marginTop: "8px" }}>Loading...</div>,
                     ifElse(
                       hasError,
-                      <div style={{ marginTop: "8px", color: "#dc3545" }}>Error loading data</div>,
+                      <div style={{ marginTop: "8px", color: "#dc3545" }}>
+                        Error loading data
+                      </div>,
                       <div style={{ marginTop: "8px" }}>
                         <div style={{ display: "flex", gap: "16px" }}>
-                          <span>Stars: <strong>{derive(data, (d) => d?.stargazers_count?.toLocaleString() || "—")}</strong></span>
-                          <span>Forks: <strong>{derive(data, (d) => d?.forks_count?.toLocaleString() || "—")}</strong></span>
-                          <span>Language: <strong>{derive(data, (d) => d?.language || "—")}</strong></span>
+                          <span>
+                            Stars:{" "}
+                            <strong>
+                              {derive(
+                                data,
+                                (d) =>
+                                  d?.stargazers_count?.toLocaleString() || "—",
+                              )}
+                            </strong>
+                          </span>
+                          <span>
+                            Forks:{" "}
+                            <strong>
+                              {derive(
+                                data,
+                                (d) => d?.forks_count?.toLocaleString() || "—",
+                              )}
+                            </strong>
+                          </span>
+                          <span>
+                            Language:{" "}
+                            <strong>
+                              {derive(data, (d) => d?.language || "—")}
+                            </strong>
+                          </span>
                         </div>
                         {/* ADD: UI that accesses starHistory.loading and starHistory.data */}
-                        <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
+                        <div
+                          style={{
+                            marginTop: "8px",
+                            fontSize: "12px",
+                            color: "#666",
+                          }}
+                        >
                           Star History: {derive(starHistory, (sh) => {
                             if (!sh) return "Loading...";
-                            return sh.loading ? "Loading..." : `${sh.data.length} points`;
+                            return sh.loading
+                              ? "Loading..."
+                              : `${sh.data.length} points`;
                           })}
                         </div>
-                      </div>
-                    )
+                      </div>,
+                    ),
                   )}
                 </div>
               );
             })}
-          </div>
+          </div>,
         )}
       </div>
     ),

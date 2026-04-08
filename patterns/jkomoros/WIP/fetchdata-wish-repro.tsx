@@ -9,7 +9,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -18,6 +17,7 @@ import {
   pattern,
   UI,
   wish,
+  Writable,
 } from "commonfabric";
 
 // Types
@@ -39,7 +39,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 // Handler to clear all
@@ -65,11 +65,17 @@ export default pattern<Input, Output>(({ ids }) => {
       { hasConfig, ref },
       (values) => {
         // The .get() casting pattern
-        const config = (values.hasConfig as any)?.get ? (values.hasConfig as any).get() : values.hasConfig;
-        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
+        const config = (values.hasConfig as any)?.get
+          ? (values.hasConfig as any).get()
+          : values.hasConfig;
+        const r = (values.ref as any)?.get
+          ? (values.ref as any).get()
+          : values.ref;
         // Always fetch (config doesn't actually gate this in test)
-        return r ? `https://jsonplaceholder.typicode.com/users/${r.userId}` : "";
-      }
+        return r
+          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+          : "";
+      },
     );
 
     // First fetch
@@ -79,8 +85,12 @@ export default pattern<Input, Output>(({ ids }) => {
     const samplePages = derive(
       { hasConfig, parsedRef: ref, userData },
       (values) => {
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        const u = (values.userData as any)?.get ? (values.userData as any).get() : values.userData;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        const u = (values.userData as any)?.get
+          ? (values.userData as any).get()
+          : values.userData;
 
         if (!r || !u?.result?.id) {
           return { userId: 0, pages: [] as number[] };
@@ -88,16 +98,18 @@ export default pattern<Input, Output>(({ ids }) => {
 
         return {
           userId: u.result.id,
-          pages: [1, 2, 3, 4, 5].map(i => (u.result.id - 1) * 5 + i),
+          pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
         };
-      }
+      },
     );
 
     // Create slot URL factory
     const makeSlotUrl = (slotIndex: number) =>
       derive(samplePages, (sp) => {
         if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[slotIndex]}`;
+        return `https://jsonplaceholder.typicode.com/todos/${
+          sp.pages[slotIndex]
+        }`;
       });
 
     // Create 5 fetchData slots
@@ -121,7 +133,8 @@ export default pattern<Input, Output>(({ ids }) => {
         <h1>fetchData + wish() Repro</h1>
 
         <p>
-          Tests if <code>wish()</code> primitive interacts badly with fetchData inside <code>.map()</code>
+          Tests if <code>wish()</code>{" "}
+          primitive interacts badly with fetchData inside <code>.map()</code>
         </p>
 
         <div style={{ marginBottom: "20px" }}>
@@ -131,29 +144,58 @@ export default pattern<Input, Output>(({ ids }) => {
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
-          <strong>wish() found:</strong> {derive(discoveredConfig, (c) => c?.multiplier ? "Yes" : "No")}
+          <strong>wish() found:</strong>{" "}
+          {derive(discoveredConfig, (c) => c?.multiplier ? "Yes" : "No")}
         </div>
 
         <h2>Results (check console for errors):</h2>
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
+              </div>
 
               <div style={{ marginBottom: "8px" }}>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result ? u.result.name : u?.pending ? "..." : "✗")}
+                <strong>User:</strong> {derive(
+                  item.userData,
+                  (u) => u?.result ? u.result.name : u?.pending ? "..." : "✗",
+                )}
               </div>
 
               <div>
                 <strong>Dependent slots:</strong>
-                <div style={{ fontSize: "12px", display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "4px",
+                    marginTop: "4px",
+                  }}
+                >
                   {item.slots.map((s, i) => (
-                    <span style={{ padding: "2px 6px", background: "#eee", borderRadius: "3px" }}>
-                      #{i}: {derive(s, (r) => r?.result?.title?.substring(0, 8) || (r?.pending ? "..." : "✗"))}
+                    <span
+                      style={{
+                        padding: "2px 6px",
+                        background: "#eee",
+                        borderRadius: "3px",
+                      }}
+                    >
+                      #{i}: {derive(s, (r) =>
+                        r?.result?.title?.substring(0, 8) ||
+                        (r?.pending ? "..." : "✗"))}
                     </span>
                   ))}
                 </div>
@@ -162,8 +204,16 @@ export default pattern<Input, Output>(({ ids }) => {
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#fff3cd", borderRadius: "4px" }}>
-          <strong>Test:</strong> Does wish() + fetchData inside .map() trigger Frame mismatch?
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#fff3cd",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>Test:</strong>{" "}
+          Does wish() + fetchData inside .map() trigger Frame mismatch?
         </div>
       </div>
     ),

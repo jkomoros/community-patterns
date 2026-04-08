@@ -5,13 +5,7 @@
  *
  * This tests if the bug is in person.tsx specifically, not our minimal repros.
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import Person from "./person.tsx";
 import { DEMO_PERSON_NOTES } from "./demo-constants.ts";
@@ -20,9 +14,7 @@ const launchPerson = handler<void, void>(() =>
   navigateTo(Person({ notes: DEMO_PERSON_NOTES }))
 );
 
-const launchPersonEmpty = handler<void, void>(() =>
-  navigateTo(Person({}))
-);
+const launchPersonEmpty = handler<void, void>(() => navigateTo(Person({})));
 
 export default pattern(() => {
   return {
@@ -31,8 +23,15 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Real Person Launcher</h1>
 
-        <div style={{ backgroundColor: "#fee2e2", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>TEST:</strong> This launches the REAL person.tsx pattern via navigateTo
+        <div
+          style={{
+            backgroundColor: "#fee2e2",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>TEST:</strong>{" "}
+          This launches the REAL person.tsx pattern via navigateTo
         </div>
 
         <h2>Reproduction Steps</h2>

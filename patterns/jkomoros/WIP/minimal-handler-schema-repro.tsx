@@ -12,7 +12,15 @@
  * Look for the generated schemas - the generic handler's input schema
  * will be missing fields that only exist in the type parameter.
  */
-import { generateObject, handler, NAME, pattern, safeDateNow, UI, Writable } from "commonfabric";
+import {
+  generateObject,
+  handler,
+  NAME,
+  pattern,
+  safeDateNow,
+  UI,
+  Writable,
+} from "commonfabric";
 
 // ============================================================================
 // ISSUE: Generic type parameters produce incomplete schemas
@@ -35,7 +43,7 @@ function castToType<T>(obj: object): T {
 // BUT: The CTS compiler can't resolve T at compile time!
 function createGenericHandler<T extends { id: string }>() {
   return handler<
-    Omit<T, "id"> & { result?: Writable<any> },  // T is unknown to compiler!
+    Omit<T, "id"> & { result?: Writable<any> }, // T is unknown to compiler!
     { items: Writable<T[]> }
   >((input, state) => {
     // This works at RUNTIME - input has the fields
@@ -79,8 +87,15 @@ const explicitSchemaHandler = handler(
     required: ["items"],
   },
   // CALLBACK
-  (input: { name: string; category: string; priority: number; result?: Writable<any> },
-   state: { items: Writable<MyRecord[]> }) => {
+  (
+    input: {
+      name: string;
+      category: string;
+      priority: number;
+      result?: Writable<any>;
+    },
+    state: { items: Writable<MyRecord[]> },
+  ) => {
     const items = state.items.get() || [];
     const id = `item-${safeDateNow()}`;
     const newItem: MyRecord = {
@@ -147,7 +162,10 @@ export default pattern<Input>(({ itemsGeneric, itemsExplicit, testPrompt }) => {
     [UI]: (
       <div style={{ padding: "16px" }}>
         <h2>Handler Generic Type Schema Bug</h2>
-        <p>This demonstrates that generic handlers produce incomplete LLM tool schemas.</p>
+        <p>
+          This demonstrates that generic handlers produce incomplete LLM tool
+          schemas.
+        </p>
 
         <h3>Generic Handler Items:</h3>
         <pre>{itemsGeneric}</pre>

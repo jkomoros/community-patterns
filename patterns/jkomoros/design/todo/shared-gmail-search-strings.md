@@ -2,7 +2,9 @@
 
 ## Overview
 
-Enable gmail-agent pattern subclasses to share effective search queries with the community, creating a crowdsourced knowledge base of what queries work well for different agent types.
+Enable gmail-agent pattern subclasses to share effective search queries with the
+community, creating a crowdsourced knowledge base of what queries work well for
+different agent types.
 
 ## Architecture Summary
 
@@ -52,15 +54,15 @@ Enable gmail-agent pattern subclasses to share effective search queries with the
 
 ## Key Decisions (from user input)
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Data location | Single community space | Simpler discovery, one registry to rule them all |
-| Agent identification | GitHub raw URL | Unique, verifiable, includes version context |
-| Submission flow | Automatic with approval | Low friction + user control |
-| Fallback behavior | Prompt to create | Guides users to set up the ecosystem |
-| PII protection | LLM + manual review | Defense in depth |
-| Local storage | In the agent charm | Each agent manages its own query history |
-| Aggregator scope | Single global | Maximum knowledge sharing |
+| Decision             | Choice                  | Rationale                                        |
+| -------------------- | ----------------------- | ------------------------------------------------ |
+| Data location        | Single community space  | Simpler discovery, one registry to rule them all |
+| Agent identification | GitHub raw URL          | Unique, verifiable, includes version context     |
+| Submission flow      | Automatic with approval | Low friction + user control                      |
+| Fallback behavior    | Prompt to create        | Guides users to set up the ecosystem             |
+| PII protection       | LLM + manual review     | Defense in depth                                 |
+| Local storage        | In the agent charm      | Each agent manages its own query history         |
+| Aggregator scope     | Single global           | Maximum knowledge sharing                        |
 
 ## Data Models
 
@@ -68,29 +70,29 @@ Enable gmail-agent pattern subclasses to share effective search queries with the
 
 ```typescript
 interface SharedQuery {
-  id: string;                    // Unique ID
-  query: string;                 // The Gmail search string
-  description?: string;          // Why it works / what it finds
-  submittedBy?: string;          // Optional: user identifier
-  submittedAt: number;           // Timestamp
-  upvotes: number;               // Community validation count
-  downvotes: number;             // Reports of ineffectiveness
-  lastValidated?: number;        // Last time someone confirmed it works
+  id: string; // Unique ID
+  query: string; // The Gmail search string
+  description?: string; // Why it works / what it finds
+  submittedBy?: string; // Optional: user identifier
+  submittedAt: number; // Timestamp
+  upvotes: number; // Community validation count
+  downvotes: number; // Reports of ineffectiveness
+  lastValidated?: number; // Last time someone confirmed it works
 }
 
 interface AgentTypeRegistry {
-  agentTypeUrl: string;          // GitHub raw URL to pattern file
-  agentTypeName?: string;        // Human-readable name
+  agentTypeUrl: string; // GitHub raw URL to pattern file
+  agentTypeName?: string; // Human-readable name
   queries: SharedQuery[];
 }
 
 interface GmailSearchRegistryOutput {
-  registries: Record<string, AgentTypeRegistry>;  // Keyed by agentTypeUrl
+  registries: Record<string, AgentTypeRegistry>; // Keyed by agentTypeUrl
 
   // Actions
-  submitQuery: handler;          // Submit a new query
-  upvoteQuery: handler;          // Upvote existing query
-  downvoteQuery: handler;        // Report ineffective query
+  submitQuery: handler; // Submit a new query
+  upvoteQuery: handler; // Upvote existing query
+  downvoteQuery: handler; // Report ineffective query
 }
 ```
 
@@ -104,15 +106,15 @@ interface LocalQuery {
   createdAt: number;
   lastUsed?: number;
   useCount: number;
-  effectiveness: number;         // 0-5 rating
+  effectiveness: number; // 0-5 rating
   shareStatus: "private" | "pending_review" | "submitted";
 }
 
 interface PendingSubmission {
   localQueryId: string;
   originalQuery: string;
-  sanitizedQuery: string;        // After LLM PII removal
-  piiWarnings: string[];         // What was detected/removed
+  sanitizedQuery: string; // After LLM PII removal
+  piiWarnings: string[]; // What was detected/removed
   userApproved: boolean;
   submittedAt?: number;
 }
@@ -122,7 +124,7 @@ interface GmailAgenticSearchInput {
   // ... existing fields ...
 
   // NEW: Shared search string support
-  agentTypeUrl?: Default<string, "">;  // GitHub raw URL for this agent type
+  agentTypeUrl?: Default<string, "">; // GitHub raw URL for this agent type
   localQueries?: Default<LocalQuery[], []>;
   pendingSubmissions?: Default<PendingSubmission[], []>;
   enableCommunityQueries?: Default<boolean, true>;
@@ -273,7 +275,8 @@ const allSuggestedQueries = derive([
 
 ```typescript
 // Add agentTypeUrl to identify this agent type
-const AGENT_TYPE_URL = "https://raw.githubusercontent.com/anthropics/community-patterns/main/patterns/jkomoros/hotel-membership-gmail-agent.tsx";
+const AGENT_TYPE_URL =
+  "https://raw.githubusercontent.com/anthropics/community-patterns/main/patterns/jkomoros/hotel-membership-gmail-agent.tsx";
 
 const searcher = GmailAgenticSearch({
   // ... existing config ...
@@ -335,18 +338,22 @@ const searcher = GmailAgenticSearch({
 ### Well-Known Space
 
 - **Space name**: `community-patterns-shared`
-- **Purpose**: Hosts community-wide shared resources (starting with gmail search registry)
-- **Access**: Anyone can read via wish(), writing requires the registry charm's handlers
+- **Purpose**: Hosts community-wide shared resources (starting with gmail search
+  registry)
+- **Access**: Anyone can read via wish(), writing requires the registry charm's
+  handlers
 
 ### Registry Discovery
 
 ```typescript
 // Wish for the registry - works cross-space
 // The registry charm lives in space "community-patterns-shared" and is tagged #gmailSearchRegistry
-const registryWish = wish<GmailSearchRegistry>({ query: "#gmailSearchRegistry" });
+const registryWish = wish<GmailSearchRegistry>({
+  query: "#gmailSearchRegistry",
+});
 
 // IMPORTANT: Embed in JSX to trigger cross-space charm startup (CT-1090 workaround)
-<div style={{ display: "none" }}>{registryWish}</div>
+<div style={{ display: "none" }}>{registryWish}</div>;
 
 // Access registry data
 const communityQueries = derive(registryWish, (wr) => {
@@ -357,19 +364,27 @@ const communityQueries = derive(registryWish, (wr) => {
 ### Bootstrap Problem
 
 Since we can't name charms directly, the first-time setup requires:
-1. Someone deploys `gmail-search-registry.tsx` to space `community-patterns-shared`
+
+1. Someone deploys `gmail-search-registry.tsx` to space
+   `community-patterns-shared`
 2. They favorite the charm with tag `#gmailSearchRegistry`
-3. **Each user must also favorite the registry** for wish() to find it (wish currently only searches user's favorites)
+3. **Each user must also favorite the registry** for wish() to find it (wish
+   currently only searches user's favorites)
 4. Other users can then discover it via wish()
 
-**IMPORTANT for first-time setup**: When creating the registry, document clearly:
+**IMPORTANT for first-time setup**: When creating the registry, document
+clearly:
+
 - The space name: `community-patterns-shared`
 - The required tag: `#gmailSearchRegistry`
 - Instructions for users to favorite the registry charm
 
-**Mitigation**: The "prompt to create" flow should guide users through this if no registry found.
+**Mitigation**: The "prompt to create" flow should guide users through this if
+no registry found.
 
-> **TODO**: Future framework enhancement will support wish() queries that don't require favorites (e.g., wish by space + tag directly). Once available, update this to remove the "each user must favorite" requirement.
+> **TODO**: Future framework enhancement will support wish() queries that don't
+> require favorites (e.g., wish by space + tag directly). Once available, update
+> this to remove the "each user must favorite" requirement.
 
 ### Registry Not Found Flow
 
@@ -381,16 +396,18 @@ const registryState = derive(registryWish, (wr) => {
 });
 
 // Show prompt to create if not found
-{ifElse(
-  derive(registryState, s => s === "not_found"),
-  <div>
-    <p>No community query registry found.</p>
-    <ct-button onClick={createRegistry}>
-      Create Community Registry
-    </ct-button>
-  </div>,
-  null
-)}
+{
+  ifElse(
+    derive(registryState, (s) => s === "not_found"),
+    <div>
+      <p>No community query registry found.</p>
+      <ct-button onClick={createRegistry}>
+        Create Community Registry
+      </ct-button>
+    </div>,
+    null,
+  );
+}
 ```
 
 ### Writing to Cross-Space Registry
@@ -417,8 +434,10 @@ const submitToCommunity = handler<
 
 ## Open Questions
 
-1. **Versioning**: What happens when agent patterns evolve? Should agentTypeUrl include commit hash or branch?
-   - Recommendation: Use `main` branch URL, trust that query semantics are stable
+1. **Versioning**: What happens when agent patterns evolve? Should agentTypeUrl
+   include commit hash or branch?
+   - Recommendation: Use `main` branch URL, trust that query semantics are
+     stable
 
 2. **Moderation**: How to handle spam/abuse in the community registry?
    - Recommendation: Start with upvote/downvote, add moderation later if needed
@@ -435,23 +454,27 @@ const submitToCommunity = handler<
 ## Implementation Phases
 
 ### Phase 1: Local Query Tracking
+
 - Add localQueries to gmail-agentic-search.tsx
 - Track query usage and effectiveness
 - UI to view/manage local queries
 - No community features yet
 
 ### Phase 2: PII Screening
+
 - Add generateObject-based PII detection
 - Implement pendingSubmissions flow
 - UI for reviewing sanitized queries
 
 ### Phase 3: Community Registry
+
 - Create gmail-search-registry.tsx pattern
 - Implement wish-based discovery
 - Submit/read queries from registry
 - Basic upvote/downvote
 
 ### Phase 4: Polish
+
 - "Registry not found" prompts
 - Query effectiveness tracking from community
 - Better deduplication
@@ -472,12 +495,14 @@ const submitToCommunity = handler<
 ### Completed (2024-12-06)
 
 **Phase 1: Local Query Tracking** ✅
+
 - Added `LocalQuery` type with effectiveness rating (0-5)
 - Auto-track queries in `searchGmail` handler
 - "My Saved Queries" UI with star ratings and delete
 - Share status tracking: private → pending_review → submitted
 
 **Phase 2: Privacy & Generalizability Screening** ✅
+
 - LLM-based screening via `generateObject`
 - Detects PII: emails, names, account numbers, identifiers
 - Detects generalizability issues: personal domains, local businesses
@@ -485,12 +510,14 @@ const submitToCommunity = handler<
 - Editable sanitized query field
 
 **Phase 3: Community Registry** ✅
+
 - Created `gmail-search-registry.tsx` pattern
 - Registries keyed by agent type (GitHub raw URL)
 - Submit, upvote, downvote handlers
 - Browsable UI with stats
 
 **Phase 4: Integration** ✅
+
 - Wish-based registry discovery via `#gmailSearchRegistry`
 - Combined query suggestions in agent prompt
 - Submit approved queries to registry button
@@ -499,6 +526,7 @@ const submitToCommunity = handler<
 ### Remaining Work
 
 **Phase 5: Polish** (TODO)
+
 - [ ] Test end-to-end with real Gmail accounts
 - [ ] Deploy registry to community-patterns-shared space
 - [ ] Document setup instructions for users
@@ -529,12 +557,14 @@ Just set `agentTypeUrl` to your pattern's GitHub raw URL:
 
 ```typescript
 const searcher = GmailAgenticSearch({
-  agentTypeUrl: "https://raw.githubusercontent.com/org/repo/main/patterns/my-gmail-agent.tsx",
+  agentTypeUrl:
+    "https://raw.githubusercontent.com/org/repo/main/patterns/my-gmail-agent.tsx",
   // ... other config
 });
 ```
 
 The pattern automatically:
+
 - Tracks local queries with effectiveness ratings
 - Offers to share high-rated queries (3+ stars)
 - Screens for PII and generalizability

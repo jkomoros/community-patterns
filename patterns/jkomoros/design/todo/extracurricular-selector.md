@@ -3,13 +3,18 @@
 ## Active Work (2025-12-23)
 
 ### Bug Fix: Nested derive() breaks array reactivity
-**Status: FIXED** - Discovered that nested `derive()` calls inside `classes.map()` break array reactivity. See superstition: `2025-12-23-nested-derive-in-map-breaks-array-reactivity.md`
+
+**Status: FIXED** - Discovered that nested `derive()` calls inside
+`classes.map()` break array reactivity. See superstition:
+`2025-12-23-nested-derive-in-map-breaks-array-reactivity.md`
 
 ### TODO: Restore Full Class Card Functionality (Single-Derive Approach)
 
-The fix simplified class cards to just name/location. Need to restore ALL functionality using a SINGLE flat derive (no nesting).
+The fix simplified class cards to just name/location. Need to restore ALL
+functionality using a SINGLE flat derive (no nesting).
 
 **Class Card Features to Restore:**
+
 - [x] Pin button (📌/📍) to pin/unpin class from active set
 - [x] Day/time display from timeSlots array
 - [x] Edit button (toggles edit panel)
@@ -23,16 +28,22 @@ The fix simplified class cards to just name/location. Need to restore ALL functi
 - [x] Status checkboxes: Registered, Confirmed, Waitlisted, Paid, On Calendar
 - [x] Remove button
 
-**Key constraint:** ALL reactive values must be unwrapped in a SINGLE derive() call. No nested derive() or computed() inside the outer derive callback.
+**Key constraint:** ALL reactive values must be unwrapped in a SINGLE derive()
+call. No nested derive() or computed() inside the outer derive callback.
 
 ### TODO: UI Improvements from Last Night
 
-- [x] **Date/time in class list** - Show day and time for each class in the list view
-- [ ] **Fix JSON display on 2nd+ extract** - Second/third extraction showing raw JSON instead of formatted cards
-- [x] **Calendar overlap display** - Conflicting classes should squeeze horizontally (side-by-side) instead of overlapping
-- [x] **Calendar entries colored by location** - Already implemented in scheduleData, verify working
+- [x] **Date/time in class list** - Show day and time for each class in the list
+      view
+- [ ] **Fix JSON display on 2nd+ extract** - Second/third extraction showing raw
+      JSON instead of formatted cards
+- [x] **Calendar overlap display** - Conflicting classes should squeeze
+      horizontally (side-by-side) instead of overlapping
+- [x] **Calendar entries colored by location** - Already implemented in
+      scheduleData, verify working
 
 ### TODO: Cleanup
+
 - [x] Remove DEBUG displays (red/green boxes showing classes.length and names)
 
 ---
@@ -41,34 +52,46 @@ The fix simplified class cards to just name/location. Need to restore ALL functi
 
 **UX Issues to Address:**
 
-1. **Settings as Dialog** - Settings panel at bottom is awkward. Should be a dialog that:
+1. **Settings as Dialog** - Settings panel at bottom is awkward. Should be a
+   dialog that:
    - Auto-opens on first visit (when no locations configured)
    - Can be reopened later via a settings button/icon
 
-2. **Location Types** - Current options (afterschool/private_school/external) are confusing. Better:
+2. **Location Types** - Current options (afterschool/private_school/external)
+   are confusing. Better:
    - `afterschool-onsite` - At the school
    - `afterschool-offsite` - Requires travel from school
    - `external` - Standalone class location
 
-3. **Add Location Button** - Too subtle, looks like text not a button. Make it a proper styled button.
+3. **Add Location Button** - Too subtle, looks like text not a button. Make it a
+   proper styled button.
 
-4. **Travel Time Entry** - Need manual entry for travel times between location pairs, not just 15-min default. Add a travel time matrix UI in Settings.
+4. **Travel Time Entry** - Need manual entry for travel times between location
+   pairs, not just 15-min default. Add a travel time matrix UI in Settings.
 
-5. **Image Import** - Add ability to upload an image (photo of schedule) and have LLM extract text from it before import processing.
+5. **Image Import** - Add ability to upload an image (photo of schedule) and
+   have LLM extract text from it before import processing.
 
-6. **File Upload** - Add `ct-file-upload` component for importing schedule files (PDF, text, etc.)
+6. **File Upload** - Add `ct-file-upload` component for importing schedule files
+   (PDF, text, etc.)
 
 ## Acceptance Testing Feedback (2025-12-14)
 
 **Future Enhancement:**
 
-7. **Merge File/Photo Upload** - Currently there are separate "Upload File" and "Upload Photo" buttons. Ideally this would be a single upload that auto-detects if the file is an image (for OCR extraction) vs text/PDF. Lower priority - add to future phase.
+7. **Merge File/Photo Upload** - Currently there are separate "Upload File" and
+   "Upload Photo" buttons. Ideally this would be a single upload that
+   auto-detects if the file is an image (for OCR extraction) vs text/PDF. Lower
+   priority - add to future phase.
 
 ---
 
 ## Overview
 
-A pattern to help parents select compatible extracurricular activities from multiple sources (afterschool programs, private schools, external classes). Key features:
+A pattern to help parents select compatible extracurricular activities from
+multiple sources (afterschool programs, private schools, external classes). Key
+features:
+
 - LLM extraction from messy HTML/text with eligibility triage
 - Child profile for automatic filtering
 - Multiple "pinned sets" to compare schedule alternatives
@@ -78,16 +101,16 @@ A pattern to help parents select compatible extracurricular activities from mult
 
 ## User Requirements Summary
 
-| Requirement | Decision |
-|-------------|----------|
-| Data entry | Both LLM extraction AND manual entry |
-| Selection UX | Pinned classes + suggested sets & individuals side-by-side |
-| Friend logic | Named friends with specific classes |
+| Requirement     | Decision                                                                       |
+| --------------- | ------------------------------------------------------------------------------ |
+| Data entry      | Both LLM extraction AND manual entry                                           |
+| Selection UX    | Pinned classes + suggested sets & individuals side-by-side                     |
+| Friend logic    | Named friends with specific classes                                            |
 | Status tracking | Configurable checkboxes (Registered, Confirmed, Waitlisted, Paid, On-Calendar) |
-| Term model | Track dates per-source but treat as unified for scheduling |
-| Import triage | Categorized: Auto-kept, Auto-discarded, Needs-Review |
-| Child profile | Stored (grade K, eligibility rules reused across imports) |
-| MVP priority | **Full import flow first**, then selection builder |
+| Term model      | Track dates per-source but treat as unified for scheduling                     |
+| Import triage   | Categorized: Auto-kept, Auto-discarded, Needs-Review                           |
+| Child profile   | Stored (grade K, eligibility rules reused across imports)                      |
+| MVP priority    | **Full import flow first**, then selection builder                             |
 
 ---
 
@@ -132,7 +155,7 @@ interface CategoryTag {
 interface TimeSlot {
   day: "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
   startTime: string; // "15:00" - arbitrary, classes have varied times
-  endTime: string;   // "16:45" - no standard durations
+  endTime: string; // "16:45" - no standard durations
 }
 
 // Class (after import)
@@ -192,7 +215,12 @@ interface PinnedSet {
 }
 
 // Import staging
-type TriageStatus = "auto_kept" | "auto_discarded" | "needs_review" | "user_kept" | "user_discarded";
+type TriageStatus =
+  | "auto_kept"
+  | "auto_discarded"
+  | "needs_review"
+  | "user_kept"
+  | "user_discarded";
 
 interface StagedClass extends Class {
   triageStatus: TriageStatus;
@@ -205,7 +233,7 @@ interface StagedClass extends Class {
 
 ```typescript
 interface ExtracurricularSelectorInput {
-  childProfile: Default<ChildProfile, { name: "", grade: "K", birthDate: "" }>;
+  childProfile: Default<ChildProfile, { name: ""; grade: "K"; birthDate: "" }>;
   locations: Default<Location[], []>;
   travelTimes: Default<TravelTime[], []>;
   categoryTags: Default<CategoryTag[], []>; // Controlled vocabulary for class categories
@@ -232,16 +260,19 @@ interface ExtracurricularSelectorInput {
 **Goal**: Get classes into the system via LLM extraction with triage
 
 #### 1.1 Basic Structure
+
 - Create pattern file at `patterns/jkomoros/WIP/extracurricular-selector.tsx`
 - Set up 4-tab layout: Dashboard | Import | Selection | Settings
 - Implement child profile form in Settings tab
 
 #### 1.2 Location Management
+
 - Add/edit/delete locations
 - Pairwise travel time matrix (simple table UI for now)
 - Mark locations with flat daily rate (TBS constraint)
 
 #### 1.3 LLM Import Flow
+
 - Large textarea for pasting HTML/text
 - Location dropdown to select source
 - `generateObject` extraction with schema:
@@ -251,10 +282,10 @@ interface ExtractionSchema {
   classes: Array<{
     name: string;
     dayOfWeek: string;
-    startTime: string;  // Arbitrary times like "15:15", "16:45" - no standard blocks
+    startTime: string; // Arbitrary times like "15:15", "16:45" - no standard blocks
     endTime: string;
     cost: number | null;
-    suggestedTags: string[];  // LLM suggests tag names from existing + new
+    suggestedTags: string[]; // LLM suggests tag names from existing + new
     gradeRange: string | null;
     eligibility: {
       eligible: boolean | "uncertain";
@@ -262,11 +293,12 @@ interface ExtractionSchema {
       confidence: number;
     };
   }>;
-  suggestedNewTags: string[];  // Tags not in existing vocabulary - user approves adding
+  suggestedNewTags: string[]; // Tags not in existing vocabulary - user approves adding
 }
 ```
 
 **Category tag workflow during import:**
+
 1. LLM sees existing `categoryTags` vocabulary in prompt
 2. LLM assigns existing tags where they fit, suggests new tag names where needed
 3. `suggestedNewTags` lists any new tags LLM wants to create
@@ -274,6 +306,7 @@ interface ExtractionSchema {
 5. Ensures consistency: "Robotics" not "Lego Robotics" vs "lego-robotics"
 
 #### 1.4 Triage UI
+
 - Three sections with backgrounds:
   - Green: Auto-kept (eligible=true, confidence≥0.8)
   - Yellow: Needs-review (uncertain or low confidence)
@@ -282,6 +315,7 @@ interface ExtractionSchema {
 - "Confirm Import" button moves selected to main classes list
 
 #### 1.5 Manual Entry
+
 - Quick form: name, location, day, start/end time, cost, category
 - Add single class directly to pool
 
@@ -290,16 +324,19 @@ interface ExtractionSchema {
 **Goal**: Build schedules with pinned sets and suggestions
 
 #### 2.1 Pinned Sets
+
 - Tabs for multiple sets (Set A, Set B, etc.)
 - Add/remove/rename sets
 - Classes in a set shown as day-grouped list
 
 #### 2.2 Conflict Detection
+
 - Pre-compute conflict graph from all classes
 - Account for travel time between locations
 - Visual indicators (red border) for conflicts
 
 #### 2.3 Suggestions Panel (Side-by-side)
+
 - **Left column**: Suggested sets (2-3 coherent groupings)
   - Group by category focus or friend overlap
   - "Add All" button per set
@@ -308,21 +345,25 @@ interface ExtractionSchema {
   - Show marginal value if added
 
 #### 2.4 "What becomes incompatible"
+
 - On hover/select of unpinned class, highlight what would be blocked
 - Tooltip showing conflict reason
 
 ### Phase 3: Status & Polish
 
 #### 3.1 Status Tracking
+
 - Per-class checkbox row: Registered, Confirmed, Waitlisted, Paid, On-Calendar
 - Dashboard summary cards showing completion counts
 
 #### 3.2 Friend Tracking
+
 - Add friends with names
 - Link friends to classes they're interested in
 - Show friend badges on classes in selection UI
 
 #### 3.3 TBS Constraint
+
 - Warn when partial TBS day selected
 - Show cost impact of TBS day decisions
 
@@ -331,6 +372,7 @@ interface ExtractionSchema {
 ## UI Layout
 
 ### Tab 1: Dashboard
+
 ```
 +------------------------------------------+
 | Child: Adeline (Grade K)                 |
@@ -344,6 +386,7 @@ interface ExtractionSchema {
 ```
 
 ### Tab 2: Import
+
 ```
 +------------------------------------------+
 | Source: [Location dropdown]              |
@@ -363,6 +406,7 @@ interface ExtractionSchema {
 ```
 
 ### Tab 3: Selection Builder
+
 ```
 +------------------+------------------------+
 | PINNED SCHEDULE  | SUGGESTIONS            |
@@ -381,6 +425,7 @@ interface ExtractionSchema {
 ```
 
 ### Tab 4: Settings
+
 ```
 +------------------------------------------+
 | CHILD PROFILE                            |
@@ -410,11 +455,13 @@ function scoreClass(cls: Class, currentPins: Set<string>): number {
   let score = 0;
 
   // Preference rank (priority 1 = 100pts, priority 2 = 70pts, etc.)
-  const prefRank = preferencePriorities.findIndex(p => p.categoryId === cls.category);
+  const prefRank = preferencePriorities.findIndex((p) =>
+    p.categoryId === cls.category
+  );
   if (prefRank >= 0) score += 100 * Math.pow(0.7, prefRank);
 
   // Friend bonus (+15 per friend)
-  const friendsInClass = friendInterests.filter(fi => fi.classId === cls.id);
+  const friendsInClass = friendInterests.filter((fi) => fi.classId === cls.id);
   score += friendsInClass.length * 15;
 
   // Travel penalty (-10 per new location transition)
@@ -432,27 +479,32 @@ function scoreClass(cls: Class, currentPins: Set<string>): number {
 
 ## Critical Reference Files
 
-| File | What to Reference |
-|------|-------------------|
-| `patterns/jkomoros/person.tsx` | LLM extraction with triage, apply/cancel pattern |
-| `patterns/jkomoros/hosting-tracker.tsx` | Multi-entity relationships, tabbed layout, status tracking |
-| `patterns/jkomoros/cozy-poll.tsx` | Multi-criterion ranking with derive() |
-| `patterns/jkomoros/cheeseboard-schedule.tsx` | Preference UI, badge styling |
-| `patterns/jkomoros/calendar-event-manager.tsx` | Staged confirmation flow |
-| `labs/docs/common/LLM.md` | generateObject schema requirements |
+| File                                           | What to Reference                                          |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `patterns/jkomoros/person.tsx`                 | LLM extraction with triage, apply/cancel pattern           |
+| `patterns/jkomoros/hosting-tracker.tsx`        | Multi-entity relationships, tabbed layout, status tracking |
+| `patterns/jkomoros/cozy-poll.tsx`              | Multi-criterion ranking with derive()                      |
+| `patterns/jkomoros/cheeseboard-schedule.tsx`   | Preference UI, badge styling                               |
+| `patterns/jkomoros/calendar-event-manager.tsx` | Staged confirmation flow                                   |
+| `labs/docs/common/LLM.md`                      | generateObject schema requirements                         |
 
 ---
 
 ## Key Implementation Notes
 
 1. **Use derive() for conflict graph** - Compute once, update reactively
-2. **Cell references within collections** - Use `.equals()` and pass Cell refs, not IDs, when working within a single array
-3. **IDs for cross-entity relationships** - For relationships between different entity types (e.g., Class → Location), use string IDs since Cell refs aren't JSON-serializable across collections
-4. **Cached display names** - Store locationName on Class for display (denormalize for convenience)
+2. **Cell references within collections** - Use `.equals()` and pass Cell refs,
+   not IDs, when working within a single array
+3. **IDs for cross-entity relationships** - For relationships between different
+   entity types (e.g., Class → Location), use string IDs since Cell refs aren't
+   JSON-serializable across collections
+4. **Cached display names** - Store locationName on Class for display
+   (denormalize for convenience)
 5. **generateObject schema must be object** - Wrap arrays in object root
 6. **Use handlers for mutations** - All state changes through handlers
 7. **TBS constraint** - Check `location.hasFlatDailyRate` when scoring
-8. **Category tags as controlled vocabulary** - Classes have 0-n tags from a managed set; LLM can suggest new tags during import
+8. **Category tags as controlled vocabulary** - Classes have 0-n tags from a
+   managed set; LLM can suggest new tags during import
 
 ---
 
@@ -464,7 +516,9 @@ function scoreClass(cls: Class, currentPins: Set<string>): number {
 
 **Research Summary (2025-12-13)**:
 
-Wish **cannot query charms by content** (like "find person where name = X"). It only supports:
+Wish **cannot query charms by content** (like "find person where name = X"). It
+only supports:
+
 - Hashtag lookups in favorites (`#person`, `#child-adeline`)
 - Direct cell paths (`/some/path`)
 - Generic queries (launches interactive suggestion UI)
@@ -493,16 +547,20 @@ deno task ct charm link \
   selector-charm-id/childProfile
 ```
 
-**Pros**: Fully reactive sync, zero code needed
-**Cons**: Manual one-time setup per child
+**Pros**: Fully reactive sync, zero code needed **Cons**: Manual one-time setup
+per child
 
 #### Option B: Favorites with Hashtags (User-Driven)
 
-User favorites their person.tsx with hashtag like `#child-adeline`, then wish looks it up:
+User favorites their person.tsx with hashtag like `#child-adeline`, then wish
+looks it up:
 
 ```typescript
 const wishedPerson = wish<PersonOutput>({
-  query: derive(childNameInput, (name) => `#child-${name.toLowerCase().replace(/\s+/g, '-')}`),
+  query: derive(
+    childNameInput,
+    (name) => `#child-${name.toLowerCase().replace(/\s+/g, "-")}`,
+  ),
 });
 
 const childProfileFromWish = derive(wishedPerson, (wr) => {
@@ -517,8 +575,8 @@ const childProfileFromWish = derive(wishedPerson, (wr) => {
 });
 ```
 
-**Pros**: Discoverable, fallback UI if not found
-**Cons**: User must maintain hashtags in favorites
+**Pros**: Discoverable, fallback UI if not found **Cons**: User must maintain
+hashtags in favorites
 
 #### Option C: Button-Triggered UI Modal
 
@@ -529,30 +587,36 @@ const showFinder = cell<boolean>(false);
 const wishedPerson = wish<PersonOutput>({
   query: derive(
     { name: childNameInput, triggered: showFinder },
-    ({ name, triggered }) => triggered ? `Find person for "${name}"` : ""
+    ({ name, triggered }) => triggered ? `Find person for "${name}"` : "",
   ),
 });
 
 // In UI:
-<ct-button onClick={() => showFinder.set(true)}>Find Child Profile</ct-button>
-{ifElse(showFinder, <div>{wishedPerson?.$UI}</div>, null)}
+<ct-button onClick={() => showFinder.set(true)}>Find Child Profile</ct-button>;
+{
+  ifElse(showFinder, <div>{wishedPerson?.$UI}</div>, null);
+}
 ```
 
-**Pros**: User sees selection UI for ambiguous queries
-**Cons**: Requires user interaction, not automatic
+**Pros**: User sees selection UI for ambiguous queries **Cons**: Requires user
+interaction, not automatic
 
 **Limitations to Note**:
+
 - person.tsx disabled `"#person": true` due to infinite loop bug (line 1289)
 - Wish is a discovery tool, not a database query system
 - No content-based querying exists in the framework
 
-**Decision**: For MVP, keep manual input. Document Option A (charm linking) for power users who want to sync with existing person.tsx charms. This is a "nice to have" feature, not required for the pattern to be useful.
+**Decision**: For MVP, keep manual input. Document Option A (charm linking) for
+power users who want to sync with existing person.tsx charms. This is a "nice to
+have" feature, not required for the pattern to be useful.
 
 ---
 
 ## Generalization Notes
 
 To make this pattern work for other users (not just TBS/BAM):
+
 - Location names and types are user-configurable
 - Travel times are user-entered (future: Google Maps API)
 - Status checkboxes are configurable set

@@ -2,7 +2,9 @@
 
 ## Problem Statement
 
-Current store-mapper only handles numbered center aisles via photo scanning. Real-world stores have:
+Current store-mapper only handles numbered center aisles via photo scanning.
+Real-world stores have:
+
 1. **Perimeter sections** without numbers (Bakery, Deli, Produce, Dairy)
 2. **Multiple aisles per photo** - Makes gap detection crucial
 3. **Multiple entrances** - Different entry points require different sort orders
@@ -10,28 +12,40 @@ Current store-mapper only handles numbered center aisles via photo scanning. Rea
 
 ## Vision
 
-Create an intuitive store mapping experience that captures the full store layout (center aisles + perimeter + entrances) and uses this spatial understanding to optimize shopping paths based on where you enter.
+Create an intuitive store mapping experience that captures the full store layout
+(center aisles + perimeter + entrances) and uses this spatial understanding to
+optimize shopping paths based on where you enter.
 
 ## Core Insights from Field Testing
 
 ### Insight 1: Perimeter Sections Are Common
-**Observation:** Bakery, Deli, Produce, Dairy, Frozen, Meat/Seafood are typically along walls without aisle numbers.
 
-**Current Problem:** Photo wizard only extracts numbered aisles, missing ~30% of store.
+**Observation:** Bakery, Deli, Produce, Dairy, Frozen, Meat/Seafood are
+typically along walls without aisle numbers.
+
+**Current Problem:** Photo wizard only extracts numbered aisles, missing ~30% of
+store.
 
 **Solution Needed:** Quick-add interface for wall sections (no photos required).
 
 ### Insight 2: Multiple Aisles Per Photo
-**Observation:** Wide-angle shots often capture 2-3 aisle signs at once (e.g., "Aisles 5, 6, 7" visible).
 
-**Current Problem:** If you scan photos showing Aisles 1-3, 6-8, the system should detect gap at 4-5.
+**Observation:** Wide-angle shots often capture 2-3 aisle signs at once (e.g.,
+"Aisles 5, 6, 7" visible).
 
-**Solution Needed:** Enhanced gap detection becomes MORE important with multi-aisle photos.
+**Current Problem:** If you scan photos showing Aisles 1-3, 6-8, the system
+should detect gap at 4-5.
+
+**Solution Needed:** Enhanced gap detection becomes MORE important with
+multi-aisle photos.
 
 ### Insight 3: Entrance Location Matters
-**Observation:** Large stores have multiple entrances (left, right, center). Your optimal path depends on which one you use.
+
+**Observation:** Large stores have multiple entrances (left, right, center).
+Your optimal path depends on which one you use.
 
 **Examples:**
+
 ```
 Target (3 entrances):
 - LEFT (Grocery): Start at produce, sweep aisles left→right
@@ -43,11 +57,13 @@ Whole Foods (2 entrances):
 - SIDE (Prepared foods): Start at hot bar, reverse aisle order
 ```
 
-**Solution Needed:** Capture entrance locations during mapping, ask "Which entrance?" when shopping.
+**Solution Needed:** Capture entrance locations during mapping, ask "Which
+entrance?" when shopping.
 
 ## User Experience Design
 
 ### Phase 1: Initial Setup
+
 ```
 ┌─────────────────────────────────────┐
 │  🏪 Let's Map Your Store            │
@@ -72,6 +88,7 @@ Whole Foods (2 entrances):
 ```
 
 ### Phase 2: Photo Scanning (Numbered Aisles)
+
 ```
 ┌─────────────────────────────────────┐
 │  📷 Scan Aisle Signs                │
@@ -100,6 +117,7 @@ Whole Foods (2 entrances):
 **Design Decision: Auto-Add (No Review Step)**
 
 Aisles are automatically added as vision LLM processes photos because:
+
 - ✅ Faster workflow - no extra confirmation click
 - ✅ Easy to undo - user can remove/edit mistakes from the list
 - ✅ Consistent with perimeter presets - one tap, instant feedback
@@ -107,6 +125,7 @@ Aisles are automatically added as vision LLM processes photos because:
 - ✅ User is already in editing mode - natural to fix as needed
 
 ### Phase 3: Perimeter Quick-Add
+
 ```
 ┌─────────────────────────────────────┐
 │  🏪 Add Perimeter Sections          │
@@ -129,6 +148,7 @@ Aisles are automatically added as vision LLM processes photos because:
 ```
 
 ### Phase 4: Review & Refine
+
 ```
 ┌─────────────────────────────────────┐
 │  ✨ Store Layout Preview            │
@@ -148,6 +168,7 @@ Aisles are automatically added as vision LLM processes photos because:
 ```
 
 ### Shopping Flow: Entrance Selection
+
 ```
 ┌─────────────────────────────────────┐
 │  🛒 Shopping at Andronico's         │
@@ -170,18 +191,22 @@ Aisles are automatically added as vision LLM processes photos because:
 ## Key UX Principles
 
 ### 1. Progressive Disclosure
+
 - **Start simple**: Scan aisles with photos
 - **Add complexity**: Wall sections optional
 - **Advanced**: Multiple entrances for power users
 
 ### 2. Smart Gap Detection
+
 When photo shows "Aisles 5, 6, 7":
+
 - Extract all visible aisle numbers
 - Compare to expected sequence
 - Highlight gaps prominently
 - Offer one-tap "scan missing" flow
 
 ### 3. Entrance-Aware Sorting
+
 ```
 Store model includes:
 {
@@ -248,10 +273,18 @@ interface PerimeterSection {
 interface Entrance {
   name: string;
   position:
-    | "front-left" | "front-center" | "front-right"
-    | "back-left" | "back-center" | "back-right"
-    | "left-front" | "left-middle" | "left-back"
-    | "right-front" | "right-middle" | "right-back";
+    | "front-left"
+    | "front-center"
+    | "front-right"
+    | "back-left"
+    | "back-center"
+    | "back-right"
+    | "left-front"
+    | "left-middle"
+    | "left-back"
+    | "right-front"
+    | "right-middle"
+    | "right-back";
   default?: boolean; // Which entrance is most common
 }
 
@@ -268,21 +301,27 @@ interface ShoppingItem {
 ## UI Component Breakdown
 
 ### Component 1: `ct-store-diagram`
+
 Visual overhead view of store layout
+
 - Interactive diagram with tap-to-add zones
 - Shows aisles, perimeter sections, entrances
 - Drag to reposition elements
 - Visual feedback for gaps
 
 ### Component 2: `wall-section-picker`
+
 Quick-add for perimeter sections
+
 - Grouped by wall (Back, Left, Right)
 - Common presets (Bakery, Produce, Dairy, etc.)
 - Custom text input
 - One-tap to add
 
 ### Component 3: `entrance-selector`
+
 Choose which entrance you're using
+
 - Shows entrance options from mapping
 - Preview of sort order from each entrance
 - Remember preference per device
@@ -291,12 +330,14 @@ Choose which entrance you're using
 ## Updated Wizard Flow
 
 ### Step 1: Store Basics
+
 ```
 Store Name: [____________]
 Address: [____________] (optional, for GPS)
 ```
 
 ### Step 2: Mark Entrances
+
 ```
 Where can customers enter this store?
 
@@ -309,6 +350,7 @@ Common: Front-center ✓
 ```
 
 ### Step 3: Scan Center Aisles
+
 ```
 📷 Scan Aisle Signs
 
@@ -321,6 +363,7 @@ Tips:
 ```
 
 After each photo:
+
 ```
 ✓ This photo: Aisles 1, 2, 3
 
@@ -329,6 +372,7 @@ Total scanned: 1, 2, 3
 ```
 
 ### Step 4: Gap Resolution
+
 ```
 ⚠️ Missing Aisles Detected
 
@@ -344,6 +388,7 @@ Aisle 6: [📷 Scan] [✏️ Add] [Skip]
 ```
 
 ### Step 5: Perimeter Sections
+
 ```
 🏪 Perimeter Sections
 
@@ -359,6 +404,7 @@ Custom: [__________] [+ Add to Back/Left/Right ▾]
 ```
 
 ### Step 6: Visual Layout Review
+
 ```
 ✨ Store Layout Complete
 
@@ -383,10 +429,9 @@ Custom: [__________] [+ Add to Back/Left/Right ▾]
 function optimizePath(
   items: ShoppingItem[],
   layout: StoreLayout,
-  entranceUsed: string
+  entranceUsed: string,
 ): ShoppingItem[] {
-
-  const entrance = layout.entrances.find(e => e.name === entranceUsed);
+  const entrance = layout.entrances.find((e) => e.name === entranceUsed);
 
   // Calculate zones based on entrance
   const zones = calculateZones(layout, entrance.position);
@@ -398,10 +443,10 @@ function optimizePath(
   // Zone 4: Back perimeter
 
   // Assign each item to a zone
-  const itemsByZone = items.map(item => ({
+  const itemsByZone = items.map((item) => ({
     item,
     zone: determineZone(item, layout),
-    distance: calculateDistance(item, entrance, layout)
+    distance: calculateDistance(item, entrance, layout),
   }));
 
   // Sort by zone, then by distance within zone
@@ -410,35 +455,40 @@ function optimizePath(
       if (a.zone !== b.zone) return a.zone - b.zone;
       return a.distance - b.distance;
     })
-    .map(x => x.item);
+    .map((x) => x.item);
 }
 ```
 
 ## Implementation Phases
 
 ### Phase 1: Enhanced Photo Scanning ✓ (Current)
+
 - Multi-aisle extraction from single photo
 - Gap detection
 - Manual aisle addition
 
 ### Phase 2: Perimeter Sections (NEW)
+
 - Wall section quick-add UI
 - Update data model to include perimeter
 - Integrate perimeter into sorting
 
 ### Phase 3: Visual Layout (NEW)
+
 - Interactive store diagram component
 - Drag-and-drop section positioning
 - Visual entrance markers
 - Real-time layout preview
 
 ### Phase 4: Entrance-Aware Sorting (NEW)
+
 - Mark entrances during mapping
 - "Which entrance?" selector during shopping
 - Path optimization algorithm
 - Remember user preference
 
 ### Phase 5: GPS + Community Sharing (FUTURE)
+
 - GPS-based mapping lookup
 - Share mappings with others at same location
 - Verification system (upvotes)
@@ -451,6 +501,7 @@ function optimizePath(
 **Purpose:** Visual overhead view of store layout
 
 **Features:**
+
 - SVG-based interactive diagram
 - Tap zones for different areas:
   - Back wall (horizontal bar)
@@ -465,6 +516,7 @@ function optimizePath(
 - Responsive to screen size
 
 **Props:**
+
 ```typescript
 interface StoreLayoutData {
   aisles: Aisle[];
@@ -485,6 +537,7 @@ interface StoreLayoutData {
 **Purpose:** Quick-add UI for perimeter sections
 
 **Features:**
+
 - Grouped by wall (Back, Left, Right)
 - Preset buttons for common sections
 - Custom text input
@@ -492,18 +545,20 @@ interface StoreLayoutData {
 - Selected state management
 
 **Props:**
+
 ```typescript
 <wall-section-picker
   wall="back"
   presets={["Bakery", "Deli", "Meat", "Seafood"]}
   selected={selectedSections}
   onct-section-toggle={handleToggle}
-/>
+/>;
 ```
 
 ### Enhanced `store-mapper.tsx` Integration
 
 **New State:**
+
 ```typescript
 interface StoreMapperState {
   storeName: string;
@@ -525,6 +580,7 @@ interface StoreMapperState {
 ```
 
 **Wizard Navigation:**
+
 ```typescript
 const wizardSteps = [
   { id: "entrances", title: "Mark Entrances", icon: "🚪" },
@@ -538,6 +594,7 @@ const wizardSteps = [
 ## Shopping Experience Changes
 
 ### Current Flow:
+
 ```
 1. Open shopping list
 2. Click "Sort by Aisle"
@@ -545,6 +602,7 @@ const wizardSteps = [
 ```
 
 ### New Flow:
+
 ```
 1. Open shopping list
 2. Click "Sort by Aisle"
@@ -558,6 +616,7 @@ const wizardSteps = [
 ### Sort Order Examples
 
 **Traditional (single entrance):**
+
 ```
 Produce (Left wall)
 Aisle 1 - Beverages
@@ -570,6 +629,7 @@ Bakery (Back wall)
 ```
 
 **Optimized (from right entrance):**
+
 ```
 Dairy (Right wall - START HERE)
 Frozen (Right wall)
@@ -585,8 +645,8 @@ Bakery (Back wall)
 
 ### Multi-Aisle Photo Processing
 
-**Current:** Vision LLM returns one aisle per call
-**New:** Parse array of aisles from single photo
+**Current:** Vision LLM returns one aisle per call **New:** Parse array of
+aisles from single photo
 
 ```typescript
 // Vision prompt update:
@@ -625,13 +685,12 @@ function detectGaps(scannedAisles: number[]): number[] {
 function calculateOptimalPath(
   items: ShoppingItem[],
   layout: StoreLayout,
-  entrance: Entrance
+  entrance: Entrance,
 ): PathSegment[] {
-
   // 1. Map items to physical locations
-  const locatedItems = items.map(item => ({
+  const locatedItems = items.map((item) => ({
     item,
-    location: findItemLocation(item, layout)
+    location: findItemLocation(item, layout),
   }));
 
   // 2. Calculate entrance position in store coordinates
@@ -644,9 +703,7 @@ function calculateOptimalPath(
   const orderedClusters = travelingSalesmanApprox(clusters, startPos);
 
   // 5. Within each cluster, order by logical flow
-  return orderedClusters.flatMap(cluster =>
-    sortCluster(cluster, layout)
-  );
+  return orderedClusters.flatMap((cluster) => sortCluster(cluster, layout));
 }
 ```
 
@@ -684,6 +741,7 @@ Total time: 2-3 minutes
 ```
 
 **UX Principle: Trust + Easy Undo**
+
 - Vision LLM auto-adds aisles (trust the AI)
 - Easy remove buttons if something is wrong (easy undo)
 - Faster than confirmation dialogs
@@ -708,12 +766,14 @@ Total time: 2-3 minutes
 ## Success Metrics
 
 ### For Mapping Experience:
+
 - ✅ Can map entire store in < 5 minutes
 - ✅ Perimeter sections added in < 30 seconds
 - ✅ Gap detection catches 95%+ of missing aisles
 - ✅ Visual layout gives confidence in mapping accuracy
 
 ### For Shopping Experience:
+
 - ✅ Items sorted for optimal path from chosen entrance
 - ✅ Users complete shopping 20-30% faster
 - ✅ Zero backtracking for well-organized stores
@@ -755,6 +815,7 @@ Total time: 2-3 minutes
 ## Files to Create/Modify
 
 **New Files:**
+
 - `store-mapper-v2.tsx` - Enhanced wizard with all phases
 - `ct-store-diagram.tsx` - Visual layout component (if in labs)
 - `wall-section-picker.tsx` - Perimeter section UI
@@ -762,8 +823,10 @@ Total time: 2-3 minutes
 - `path-optimizer.ts` - Sorting algorithm
 
 **Modified Files:**
+
 - `shopping-list-launcher.tsx` - Entrance selection UI
 - `store-mapper.tsx` - Migrate to v2 or extend
 
 **Data/Types:**
+
 - `store-layout-schema.tsx` - Shared TypeScript types

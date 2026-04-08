@@ -8,29 +8,50 @@ A design document for Common Fabric's composable module system
 
 ### Philosophy: Data-Up vs App-Down
 
-The traditional approach to personal software is **app-down**: you choose an app (Contacts, Calendar, Recipe Manager), and it dictates what data you can store and how you must structure it. The app is the center. Your data conforms to its schema.
+The traditional approach to personal software is **app-down**: you choose an app
+(Contacts, Calendar, Recipe Manager), and it dictates what data you can store
+and how you must structure it. The app is the center. Your data conforms to its
+schema.
 
-Common Fabric inverts this: **data-up**. You have data—a person's name, a recipe you love, a thought you captured. Structure emerges organically as you accumulate context. You don't choose "Contact App" upfront. You start with a note about someone, and gradually that note gains a phone number, a birthday, relationships. The data is the center. Structure emerges from use.
+Common Fabric inverts this: **data-up**. You have data—a person's name, a recipe
+you love, a thought you captured. Structure emerges organically as you
+accumulate context. You don't choose "Contact App" upfront. You start with a
+note about someone, and gradually that note gains a phone number, a birthday,
+relationships. The data is the center. Structure emerges from use.
 
 This is the difference between:
-- **App-down**: "I need a contact manager. Let me create a Contact record with these 20 empty fields."
-- **Data-up**: "Here's a note about Sarah. Oh, I should add her email. And her birthday. Wait, she's Alice's sister—let me link them."
+
+- **App-down**: "I need a contact manager. Let me create a Contact record with
+  these 20 empty fields."
+- **Data-up**: "Here's a note about Sarah. Oh, I should add her email. And her
+  birthday. Wait, she's Alice's sister—let me link them."
 
 The structure **becomes** what it needs to be, shaped by the data itself.
 
 ### Connection to Common Fabric Vision
 
-In "[Common Fabric: Personal Computing, Reclaimed](https://jkomoros.com/essays/common-fabric/)", patterns are described as **living units of software**—not static apps, but responsive organisms that evolve with your needs. The module architecture is how this vision manifests:
+In
+"[Common Fabric: Personal Computing, Reclaimed](https://jkomoros.com/essays/common-fabric/)",
+patterns are described as **living units of software**—not static apps, but
+responsive organisms that evolve with your needs. The module architecture is how
+this vision manifests:
 
-- **Patterns as organisms**: Each pattern is a container that can grow new capabilities
-- **Composability as evolution**: Patterns don't have fixed schemas—they compose modules as needed
-- **Resonance through emergence**: The right structure emerges from interaction, not prescription
+- **Patterns as organisms**: Each pattern is a container that can grow new
+  capabilities
+- **Composability as evolution**: Patterns don't have fixed schemas—they compose
+  modules as needed
+- **Resonance through emergence**: The right structure emerges from interaction,
+  not prescription
 
-A recipe pattern doesn't need a "dietary restrictions" module until you care about that. A person record doesn't need a "relationship" module until you want to track it. The software resonates with your actual needs, not anticipated ones.
+A recipe pattern doesn't need a "dietary restrictions" module until you care
+about that. A person record doesn't need a "relationship" module until you want
+to track it. The software resonates with your actual needs, not anticipated
+ones.
 
 ### Record.tsx as Meta-Container
 
-`record.tsx` is the **meta-container** where this philosophy lives. It's not a specific app—it's a framework for data to accumulate structure:
+`record.tsx` is the **meta-container** where this philosophy lives. It's not a
+specific app—it's a framework for data to accumulate structure:
 
 ```typescript
 // record.tsx is a container that hosts modules
@@ -62,7 +83,8 @@ const paella = {
 }
 ```
 
-The beauty: `record.tsx` doesn't know about "people" or "recipes". It just provides a container. The modules bring the semantics.
+The beauty: `record.tsx` doesn't know about "people" or "recipes". It just
+provides a container. The modules bring the semantics.
 
 ---
 
@@ -70,36 +92,41 @@ The beauty: `record.tsx` doesn't know about "people" or "recipes". It just provi
 
 ### Solving the Paradox of Choice
 
-While individual modules provide ultimate flexibility, presenting users with 50+ module choices is overwhelming. **Templates** solve this by offering pre-assembled bundles of modules for common record types.
+While individual modules provide ultimate flexibility, presenting users with 50+
+module choices is overwhelming. **Templates** solve this by offering
+pre-assembled bundles of modules for common record types.
 
 ### What Are Templates?
 
-Templates are curated collections of modules that make sense together for specific use cases:
+Templates are curated collections of modules that make sense together for
+specific use cases:
 
-| Template | Pre-Assembled Modules | Use Case |
-|----------|----------------------|----------|
-| **Person** | identity + contact + notes + birthday + relationship | People you know |
-| **Recipe** | ingredients + steps + timing + dietary + notes | Cooking recipes |
-| **Place** | identity + address + url + notes + rating | Locations, venues |
-| **Project** | identity + timeline + checklist + notes + url | Work/personal projects |
-| **Family** | identity + family-members + address + notes | Family units |
-| **Business** | identity + contact + address + url + social-links | Companies, organizations |
+| Template     | Pre-Assembled Modules                                | Use Case                 |
+| ------------ | ---------------------------------------------------- | ------------------------ |
+| **Person**   | identity + contact + notes + birthday + relationship | People you know          |
+| **Recipe**   | ingredients + steps + timing + dietary + notes       | Cooking recipes          |
+| **Place**    | identity + address + url + notes + rating            | Locations, venues        |
+| **Project**  | identity + timeline + checklist + notes + url        | Work/personal projects   |
+| **Family**   | identity + family-members + address + notes          | Family units             |
+| **Business** | identity + contact + address + url + social-links    | Companies, organizations |
 
 ### The Best of Both Worlds
 
 Templates give users a **quick start** without sacrificing flexibility:
 
-1. **Choose a template**: "What kind of thing is this?" → Person, Recipe, Place, etc.
+1. **Choose a template**: "What kind of thing is this?" → Person, Recipe, Place,
+   etc.
 2. **Get sensible defaults**: Record starts with relevant modules pre-configured
 3. **Add more modules**: "What else?" → Add modules not in the template
-4. **Remove unused modules**: "What doesn't apply?" → Remove modules you don't need
+4. **Remove unused modules**: "What doesn't apply?" → Remove modules you don't
+   need
 
 ### Example: Creating a Person Record
 
 ```typescript
 // User selects "Person" template
 const sarah = createRecordFromTemplate("person", {
-  title: "Sarah Chen"
+  title: "Sarah Chen",
 });
 
 // Template provides:
@@ -108,7 +135,7 @@ sarah.modules = [
   { type: "contact", data: {} },
   { type: "notes", data: { content: "" } },
   { type: "birthday", data: {} },
-  { type: "relationship", data: { relationships: [] } }
+  { type: "relationship", data: { relationships: [] } },
 ];
 
 // User adds what they need:
@@ -157,85 +184,96 @@ const suggestion = schemaSuggester.suggestTemplate(record);
 
 ### Templates vs Individual Modules
 
-| Approach | When to Use |
-|----------|-------------|
-| **Template** | Quick start, common use case, standard structure needed |
-| **Blank + Modules** | Unique structure, experimental, cross-category record |
-| **Template + Customize** | Start standard, then adapt to specific needs |
+| Approach                 | When to Use                                             |
+| ------------------------ | ------------------------------------------------------- |
+| **Template**             | Quick start, common use case, standard structure needed |
+| **Blank + Modules**      | Unique structure, experimental, cross-category record   |
+| **Template + Customize** | Start standard, then adapt to specific needs            |
 
-Templates are **not rigid types**—they're suggestions that get you started quickly while preserving the organic, data-up growth model.
+Templates are **not rigid types**—they're suggestions that get you started
+quickly while preserving the organic, data-up growth model.
 
 ---
 
 ## Part 2: Module Taxonomy
 
-Modules fall into five conceptual categories, each serving a different role in the organic growth of records.
+Modules fall into five conceptual categories, each serving a different role in
+the organic growth of records.
 
 ### 1. DATA Modules (Simple Typed Fields)
 
 **Purpose**: Capture simple, structured facts.
 
-These are the atomic building blocks—typed fields with validation but no complex logic.
+These are the atomic building blocks—typed fields with validation but no complex
+logic.
 
-| Module | Schema | Purpose |
-|--------|--------|---------|
-| `identity` | `{ name: string, pronouns?: string }` | Core identity |
-| `contact` | `{ email?: string, phone?: string }` | Contact methods |
-| `address` | `{ street: string, city: string, ... }` | Physical location |
-| `tags` | `{ tags: string[] }` | Freeform categorization |
-| `birthday` | `{ date: string, remindDaysBefore?: number }` | Birth date and reminders |
-| `rating` | `{ value: 1..5, notes?: string }` | Subjective quality |
-| `url` | `{ url: string, label?: string }` | Web links |
-| `social-links` | `{ github?: string, twitter?: string, ... }` | Social profiles |
+| Module         | Schema                                        | Purpose                  |
+| -------------- | --------------------------------------------- | ------------------------ |
+| `identity`     | `{ name: string, pronouns?: string }`         | Core identity            |
+| `contact`      | `{ email?: string, phone?: string }`          | Contact methods          |
+| `address`      | `{ street: string, city: string, ... }`       | Physical location        |
+| `tags`         | `{ tags: string[] }`                          | Freeform categorization  |
+| `birthday`     | `{ date: string, remindDaysBefore?: number }` | Birth date and reminders |
+| `rating`       | `{ value: 1..5, notes?: string }`             | Subjective quality       |
+| `url`          | `{ url: string, label?: string }`             | Web links                |
+| `social-links` | `{ github?: string, twitter?: string, ... }`  | Social profiles          |
 
-**Example**: A person record might have `identity`, `contact`, `birthday`, and `social-links`. A restaurant might have `identity`, `address`, `rating`, and `url`.
+**Example**: A person record might have `identity`, `contact`, `birthday`, and
+`social-links`. A restaurant might have `identity`, `address`, `rating`, and
+`url`.
 
 ### 2. CONTENT Modules (Rich Structured Content)
 
 **Purpose**: Capture complex, multi-part content.
 
-These modules hold structured content that's more than a single field—lists, nested objects, rich text.
+These modules hold structured content that's more than a single field—lists,
+nested objects, rich text.
 
-| Module | Schema | Purpose |
-|--------|--------|---------|
-| `notes` | `{ content: string, format: "markdown" \| "text" }` | Freeform notes |
-| `ingredients` | `{ items: Ingredient[], servings?: number }` | Recipe ingredients |
-| `steps` | `{ steps: Step[], estimatedTime?: number }` | Sequential instructions |
-| `timeline` | `{ events: TimelineEvent[] }` | Chronological events |
-| `family-members` | `{ members: FamilyMember[] }` | Family relationships |
-| `checklist` | `{ items: CheckItem[], completed?: number }` | Task lists |
+| Module           | Schema                                              | Purpose                 |
+| ---------------- | --------------------------------------------------- | ----------------------- |
+| `notes`          | `{ content: string, format: "markdown" \| "text" }` | Freeform notes          |
+| `ingredients`    | `{ items: Ingredient[], servings?: number }`        | Recipe ingredients      |
+| `steps`          | `{ steps: Step[], estimatedTime?: number }`         | Sequential instructions |
+| `timeline`       | `{ events: TimelineEvent[] }`                       | Chronological events    |
+| `family-members` | `{ members: FamilyMember[] }`                       | Family relationships    |
+| `checklist`      | `{ items: CheckItem[], completed?: number }`        | Task lists              |
 
-**Example**: A recipe has `ingredients` and `steps`. A project has `timeline` and `checklist`. A family has `family-members`.
+**Example**: A recipe has `ingredients` and `steps`. A project has `timeline`
+and `checklist`. A family has `family-members`.
 
 ### 3. EXTRACTION Modules (LLM-Powered Derivation)
 
 **Purpose**: Derive structured data from unstructured input.
 
-These modules use LLMs to extract or transform data—turning prose into structure, analyzing content, enriching records.
+These modules use LLMs to extract or transform data—turning prose into
+structure, analyzing content, enriching records.
 
-| Module | Input | Output | Purpose |
-|--------|-------|--------|---------|
-| `recipe-analyzer` | Raw recipe text | Ingredients, steps, timing | Parse recipes from web/notes |
-| `dietary-analyzer` | Ingredients list | Dietary flags | Detect allergens, restrictions |
-| `item-categorizer` | Item list | Categories | Auto-categorize items |
-| `entity-extractor` | Freeform text | Entity references | Find people, places, things |
-| `sentiment-analyzer` | Text content | Sentiment score | Gauge emotional tone |
+| Module               | Input            | Output                     | Purpose                        |
+| -------------------- | ---------------- | -------------------------- | ------------------------------ |
+| `recipe-analyzer`    | Raw recipe text  | Ingredients, steps, timing | Parse recipes from web/notes   |
+| `dietary-analyzer`   | Ingredients list | Dietary flags              | Detect allergens, restrictions |
+| `item-categorizer`   | Item list        | Categories                 | Auto-categorize items          |
+| `entity-extractor`   | Freeform text    | Entity references          | Find people, places, things    |
+| `sentiment-analyzer` | Text content     | Sentiment score            | Gauge emotional tone           |
 
-**Example**: You paste a recipe from a website. The `recipe-analyzer` module extracts structured ingredients and steps. The `dietary-analyzer` then flags it as "gluten-free, dairy-free".
+**Example**: You paste a recipe from a website. The `recipe-analyzer` module
+extracts structured ingredients and steps. The `dietary-analyzer` then flags it
+as "gluten-free, dairy-free".
 
 ### 4. SOURCE Modules (External Data Connectors)
 
 **Purpose**: Bring external data INTO records.
 
-These modules connect to external APIs and services, making outside data available within the fabric.
+These modules connect to external APIs and services, making outside data
+available within the fabric.
 
-| Module | External Source | Data Provided | Methods |
-|--------|----------------|---------------|---------|
-| `gmail-source` | Gmail API | Emails matching query | `searchEmails(query)`, `getThread(id)` |
-| `calendar-source` | Google Calendar | Events in date range | `eventsInRange(start, end)` |
-| `github-source` | GitHub API | Repo activity, PRs | `getActivity()`, `getPRs()` |
-| `weather-source` | Weather API | Current/forecast data | `getCurrentWeather()` |
-| `location-source` | Device GPS | Current location | `getCurrentLocation()` |
+| Module            | External Source | Data Provided         | Methods                                |
+| ----------------- | --------------- | --------------------- | -------------------------------------- |
+| `gmail-source`    | Gmail API       | Emails matching query | `searchEmails(query)`, `getThread(id)` |
+| `calendar-source` | Google Calendar | Events in date range  | `eventsInRange(start, end)`            |
+| `github-source`   | GitHub API      | Repo activity, PRs    | `getActivity()`, `getPRs()`            |
+| `weather-source`  | Weather API     | Current/forecast data | `getCurrentWeather()`                  |
+| `location-source` | Device GPS      | Current location      | `getCurrentLocation()`                 |
 
 **Authentication**: Source modules use the discovery pattern:
 
@@ -246,22 +284,25 @@ const gmail = new GmailSource(auth);
 const emails = await gmail.searchEmails("from:sarah@example.com");
 ```
 
-**Example**: A person record with `gmail-source` can show recent emails with that person. A place record with `weather-source` shows current weather there.
+**Example**: A person record with `gmail-source` can show recent emails with
+that person. A place record with `weather-source` shows current weather there.
 
 ### 5. ORCHESTRATOR Modules (Composition and Coordination)
 
 **Purpose**: Coordinate multiple modules to create higher-level patterns.
 
-Orchestrators don't hold data themselves—they compose other modules into coherent wholes.
+Orchestrators don't hold data themselves—they compose other modules into
+coherent wholes.
 
-| Module | Composes | Purpose |
-|--------|----------|---------|
-| `person-record` | identity, contact, birthday, relationship, notes | Standard person structure |
-| `meal-coordinator` | Multiple recipes, dietary constraints | Plan meals for groups |
-| `project-manager` | timeline, checklist, notes | Project structure |
-| `event-planner` | calendar-source, location, people | Event organization |
+| Module             | Composes                                         | Purpose                   |
+| ------------------ | ------------------------------------------------ | ------------------------- |
+| `person-record`    | identity, contact, birthday, relationship, notes | Standard person structure |
+| `meal-coordinator` | Multiple recipes, dietary constraints            | Plan meals for groups     |
+| `project-manager`  | timeline, checklist, notes                       | Project structure         |
+| `event-planner`    | calendar-source, location, people                | Event organization        |
 
 **Example**: The `meal-coordinator` orchestrator:
+
 1. Takes a list of recipe records
 2. Aggregates dietary constraints from person records
 3. Filters recipes by constraints
@@ -287,7 +328,8 @@ interface MealCoordinatorModule {
 
 ## Part 3: Module Contract
 
-Every module, regardless of type, adheres to a common contract. This is what makes them composable.
+Every module, regardless of type, adheres to a common contract. This is what
+makes them composable.
 
 ### Core Module Interface
 
@@ -295,22 +337,22 @@ Every module, regardless of type, adheres to a common contract. This is what mak
 interface Module {
   // ===== IDENTITY =====
   // What is this module?
-  moduleType: string;           // e.g., "contact", "ingredients", "gmail-source"
-  moduleLabel: string;          // Human-readable: "Contact Info"
-  moduleIcon: string;           // Emoji or icon: "📧"
+  moduleType: string; // e.g., "contact", "ingredients", "gmail-source"
+  moduleLabel: string; // Human-readable: "Contact Info"
+  moduleIcon: string; // Emoji or icon: "📧"
   moduleCategory: "data" | "content" | "extraction" | "source" | "orchestrator";
 
   // ===== SCHEMA =====
   // What data does this module hold?
-  dataSchema: z.ZodType;        // Zod schema for data validation
+  dataSchema: z.ZodType; // Zod schema for data validation
   extractionSchema?: z.ZodType; // Schema for extraction modules
   defaults: Partial<z.infer<typeof dataSchema>>; // Default values
 
   // ===== UI RENDERING =====
   // How does this module appear?
-  renderCompact(): VNode;       // Inline/summary view (1 line)
-  renderFull(): VNode;          // Full detail view (expanded)
-  renderEdit(): VNode;          // Edit mode with form controls
+  renderCompact(): VNode; // Inline/summary view (1 line)
+  renderFull(): VNode; // Full detail view (expanded)
+  renderEdit(): VNode; // Edit mode with form controls
 
   // ===== REACTIVE COORDINATION =====
   // Modules use computed() to derive behavior from state
@@ -319,7 +361,7 @@ interface Module {
 
   // ===== CROSS-MODULE AWARENESS =====
   // What other modules does this interact with?
-  dependencies?: string[];      // Required modules: ["identity"]
+  dependencies?: string[]; // Required modules: ["identity"]
   suggestions?: ModuleSuggestion[]; // Suggest adding related modules
 
   // ===== VALIDATION =====
@@ -354,7 +396,7 @@ const contactModule: Module = {
   dataSchema: z.object({
     email: z.string().email().optional(),
     phone: z.string().optional(),
-    preferredMethod: z.enum(["email", "phone"]).optional()
+    preferredMethod: z.enum(["email", "phone"]).optional(),
   }),
   defaults: {},
 
@@ -362,8 +404,11 @@ const contactModule: Module = {
   renderCompact() {
     return html`
       <span class="contact-compact">
-        ${this.data.email && html`<a href="mailto:${this.data.email}">${this.data.email}</a>`}
-        ${this.data.phone && html`<span>${this.data.phone}</span>`}
+        ${this.data.email && html`
+          <a href="mailto:${this.data.email}">${this.data.email}</a>
+        `} ${this.data.phone && html`
+          <span>${this.data.phone}</span>
+        `}
       </span>
     `;
   },
@@ -376,8 +421,7 @@ const contactModule: Module = {
             <label>Email</label>
             <a href="mailto:${this.data.email}">${this.data.email}</a>
           </div>
-        `}
-        ${this.data.phone && html`
+        `} ${this.data.phone && html`
           <div class="field">
             <label>Phone</label>
             <span>${this.data.phone}</span>
@@ -393,14 +437,14 @@ const contactModule: Module = {
         <input
           type="email"
           placeholder="Email"
-          value=${this.data.email || ""}
-          onChange=${(e) => this.updateData({ email: e.target.value })}
+          value="${this.data.email || ""}"
+          onChange="${(e) => this.updateData({ email: e.target.value })}"
         />
         <input
           type="tel"
           placeholder="Phone"
-          value=${this.data.phone || ""}
-          onChange=${(e) => this.updateData({ phone: e.target.value })}
+          value="${this.data.phone || ""}"
+          onChange="${(e) => this.updateData({ phone: e.target.value })}"
         />
       </div>
     `;
@@ -416,7 +460,7 @@ const contactModule: Module = {
         suggestions.push({
           moduleType: "identity",
           reason: "Contact info usually needs a name",
-          confidence: 0.9
+          confidence: 0.9,
         });
       }
       return suggestions;
@@ -428,11 +472,11 @@ const contactModule: Module = {
     if (!data.email && !data.phone) {
       return {
         valid: false,
-        errors: ["At least one contact method required"]
+        errors: ["At least one contact method required"],
       };
     }
     return { valid: true };
-  }
+  },
 };
 ```
 
@@ -454,7 +498,8 @@ User Interaction
 
 ### Reactive Coordination (No Lifecycle Hooks)
 
-The Common Fabric framework is **reactive**, not imperative. This has important implications for module coordination.
+The Common Fabric framework is **reactive**, not imperative. This has important
+implications for module coordination.
 
 **Traditional imperative approach** (NOT the Fabric way):
 
@@ -500,8 +545,10 @@ interface Module {
 
 **Why this is better:**
 
-1. **No manual lifecycle management**: The framework tracks dependencies automatically
-2. **Simpler mental model**: Modules describe what they need, not how to wire it up
+1. **No manual lifecycle management**: The framework tracks dependencies
+   automatically
+2. **Simpler mental model**: Modules describe what they need, not how to wire it
+   up
 3. **Less coupling**: Modules don't need to know when other modules come and go
 4. **More idiomatic**: Leverages the framework's reactive primitives
 
@@ -514,13 +561,13 @@ const family = createRecord({
   modules: [
     {
       type: "family-members",
-      data: { members: [{ personRef: "sarah" }, { personRef: "mike" }] }
+      data: { members: [{ personRef: "sarah" }, { personRef: "mike" }] },
     },
     {
-      type: "dietary-aggregate"
+      type: "dietary-aggregate",
       // This module doesn't need attach() - it uses computed()
-    }
-  ]
+    },
+  ],
 });
 
 // Dietary-aggregate implementation (reactive)
@@ -534,7 +581,7 @@ const dietaryAggregateModule = {
       if (!familyMembers) return null;
 
       // Fetch dietary data from each person record (reactive)
-      const constraints = familyMembers.data.members.map(m => {
+      const constraints = familyMembers.data.members.map((m) => {
         const person = fabric.getRecord(m.personRef);
         const dietary = person?.getModule("dietary");
         return dietary?.data || {};
@@ -542,14 +589,16 @@ const dietaryAggregateModule = {
 
       // Aggregate (any changes to person dietary data trigger recompute)
       return {
-        vegetarian: constraints.some(c => c.vegetarian),
-        glutenFree: constraints.some(c => c.glutenFree),
-        allergens: [...new Set(constraints.flatMap(c => c.allergens || []))]
+        vegetarian: constraints.some((c) => c.vegetarian),
+        glutenFree: constraints.some((c) => c.glutenFree),
+        allergens: [...new Set(constraints.flatMap((c) => c.allergens || []))],
       };
     });
 
-    return html`<div>Dietary needs: ${JSON.stringify(aggregated())}</div>`;
-  }
+    return html`
+      <div>Dietary needs: ${JSON.stringify(aggregated())}</div>
+    `;
+  },
 };
 
 // When Sarah's dietary data changes, family aggregate updates automatically
@@ -562,29 +611,34 @@ sarah.getModule("dietary").data.glutenFree = true;
 ```typescript
 // Record keeps track of which modules exist (reactive state)
 const record = {
-  modules: cell([moduleA, moduleB, moduleC])  // Cell array = reactive
+  modules: cell([moduleA, moduleB, moduleC]), // Cell array = reactive
 };
 
 // Modules can react to record structure changes
 const moduleCoordinator = {
   render() {
     const activeModules = computed(() => {
-      return this.record.modules.filter(m => m.enabled);
+      return this.record.modules.filter((m) => m.enabled);
     });
 
     // Automatically recomputes when modules added/removed
-    return html`Active: ${activeModules().length}`;
-  }
+    return html`
+      Active: ${activeModules().length}
+    `;
+  },
 };
 ```
 
-**Key insight**: The framework's reactivity system handles coordination. Modules don't need lifecycle hooks—they use `computed()` to derive behavior from state, and the framework automatically tracks dependencies and triggers updates.
+**Key insight**: The framework's reactivity system handles coordination. Modules
+don't need lifecycle hooks—they use `computed()` to derive behavior from state,
+and the framework automatically tracks dependencies and triggers updates.
 
 ---
 
 ## Part 4: Core Modules (Extracted from Existing Patterns)
 
-We can decompose existing monolithic patterns into composable modules. This shows how the architecture works in practice.
+We can decompose existing monolithic patterns into composable modules. This
+shows how the architecture works in practice.
 
 ### Person Pattern Decomposition
 
@@ -592,14 +646,14 @@ We can decompose existing monolithic patterns into composable modules. This show
 
 **Future**: `person.tsx` becomes a record with composable modules.
 
-| Current Field | Becomes Module | Module Type | Schema |
-|---------------|----------------|-------------|--------|
-| `name` | `identity` | DATA | `{ name: string, pronouns?: string }` |
-| `email`, `phone` | `contact` | DATA | `{ email?: string, phone?: string }` |
-| `github`, `twitter` | `social-links` | DATA | `{ github?: string, twitter?: string, ... }` |
-| `relationship` | `relationship` | DATA | `{ relatedTo: RecordRef, type: string }` |
-| `notes` | `notes` | CONTENT | `{ content: string, format: "markdown" }` |
-| `birthday` | `birthday` | DATA | `{ date: string, remindDaysBefore: number }` |
+| Current Field       | Becomes Module | Module Type | Schema                                       |
+| ------------------- | -------------- | ----------- | -------------------------------------------- |
+| `name`              | `identity`     | DATA        | `{ name: string, pronouns?: string }`        |
+| `email`, `phone`    | `contact`      | DATA        | `{ email?: string, phone?: string }`         |
+| `github`, `twitter` | `social-links` | DATA        | `{ github?: string, twitter?: string, ... }` |
+| `relationship`      | `relationship` | DATA        | `{ relatedTo: RecordRef, type: string }`     |
+| `notes`             | `notes`        | CONTENT     | `{ content: string, format: "markdown" }`    |
+| `birthday`          | `birthday`     | DATA        | `{ date: string, remindDaysBefore: number }` |
 
 **Migration**:
 
@@ -609,7 +663,7 @@ const sarah = createPerson({
   name: "Sarah Chen",
   email: "sarah@example.com",
   birthday: "1990-03-15",
-  notes: "Alice's sister. Works at Google."
+  notes: "Alice's sister. Works at Google.",
 });
 
 // AFTER: Modular record
@@ -620,8 +674,11 @@ const sarah = createRecord({
     { type: "contact", data: { email: "sarah@example.com" } },
     { type: "birthday", data: { date: "1990-03-15" } },
     { type: "relationship", data: { relatedTo: "alice", type: "sister" } },
-    { type: "notes", data: { content: "Works at Google.", format: "markdown" } }
-  ]
+    {
+      type: "notes",
+      data: { content: "Works at Google.", format: "markdown" },
+    },
+  ],
 });
 
 // User can add modules later:
@@ -634,16 +691,16 @@ sarah.addModule({ type: "social-links", data: { github: "schen" } });
 
 **Future**: Recipe is a record with modules.
 
-| Current Field | Becomes Module | Module Type | Schema |
-|---------------|----------------|-------------|--------|
-| `title` | Record title | — | (built-in) |
-| `ingredients` | `ingredients` | CONTENT | `{ items: Ingredient[], servings: number }` |
-| `steps` | `steps` | CONTENT | `{ steps: Step[], estimatedTime: number }` |
-| `prepTime`, `cookTime` | `timing` | DATA | `{ prep: number, cook: number, total: number }` |
-| `ovenTemp`, `ovenMode` | `oven` | DATA | `{ temp: number, mode: string }` |
-| `isVegetarian`, `isGlutenFree` | `dietary` | DATA | `{ vegetarian: bool, glutenFree: bool, ... }` |
-| `notes` | `notes` | CONTENT | `{ content: string }` |
-| `source` | `source-url` | DATA | `{ url: string, author?: string }` |
+| Current Field                  | Becomes Module | Module Type | Schema                                          |
+| ------------------------------ | -------------- | ----------- | ----------------------------------------------- |
+| `title`                        | Record title   | —           | (built-in)                                      |
+| `ingredients`                  | `ingredients`  | CONTENT     | `{ items: Ingredient[], servings: number }`     |
+| `steps`                        | `steps`        | CONTENT     | `{ steps: Step[], estimatedTime: number }`      |
+| `prepTime`, `cookTime`         | `timing`       | DATA        | `{ prep: number, cook: number, total: number }` |
+| `ovenTemp`, `ovenMode`         | `oven`         | DATA        | `{ temp: number, mode: string }`                |
+| `isVegetarian`, `isGlutenFree` | `dietary`      | DATA        | `{ vegetarian: bool, glutenFree: bool, ... }`   |
+| `notes`                        | `notes`        | CONTENT     | `{ content: string }`                           |
+| `source`                       | `source-url`   | DATA        | `{ url: string, author?: string }`              |
 
 **With extraction**:
 
@@ -675,12 +732,12 @@ paella.modules:
 
 **Future**: Family is a record with modules.
 
-| Current Field | Becomes Module | Module Type | Schema |
-|---------------|----------------|-------------|--------|
-| `familyName` | Record title | — | (built-in) |
-| `address` | `address` | DATA | `{ street: string, city: string, ... }` |
-| `members` | `family-members` | CONTENT | `{ members: FamilyMember[] }` |
-| `dietaryNeeds` | `dietary-aggregate` | ORCHESTRATOR | Pulls from member records |
+| Current Field  | Becomes Module      | Module Type  | Schema                                  |
+| -------------- | ------------------- | ------------ | --------------------------------------- |
+| `familyName`   | Record title        | —            | (built-in)                              |
+| `address`      | `address`           | DATA         | `{ street: string, city: string, ... }` |
+| `members`      | `family-members`    | CONTENT      | `{ members: FamilyMember[] }`           |
+| `dietaryNeeds` | `dietary-aggregate` | ORCHESTRATOR | Pulls from member records               |
 
 **Cross-record orchestration**:
 
@@ -695,12 +752,12 @@ const chenFamily = createRecord({
         members: [
           { personRef: "sarah", role: "parent" },
           { personRef: "mike", role: "parent" },
-          { personRef: "emma", role: "child" }
-        ]
-      }
+          { personRef: "emma", role: "child" },
+        ],
+      },
     },
-    { type: "address", data: { street: "123 Main St", city: "SF" } }
-  ]
+    { type: "address", data: { street: "123 Main St", city: "SF" } },
+  ],
 });
 
 // Dietary-aggregate orchestrator pulls from person records
@@ -713,7 +770,8 @@ dietary.getAggregatedNeeds();
 
 ## Part 5: Source Modules (External Data)
 
-Source modules bring the **outside world** into the fabric. They're bidirectional bridges—data flows in, actions flow out.
+Source modules bring the **outside world** into the fabric. They're
+bidirectional bridges—data flows in, actions flow out.
 
 ### Design Principles
 
@@ -732,9 +790,9 @@ interface GmailSourceModule extends Module {
 
   // Configuration
   config: {
-    query?: string;        // Gmail search query
-    maxResults?: number;   // Limit results
-    autoSync?: boolean;    // Auto-refresh
+    query?: string; // Gmail search query
+    maxResults?: number; // Limit results
+    autoSync?: boolean; // Auto-refresh
     syncInterval?: number; // Minutes between syncs
   };
 
@@ -763,10 +821,10 @@ const sarah = createRecord({
         query: "from:sarah@example.com OR to:sarah@example.com",
         maxResults: 50,
         autoSync: true,
-        syncInterval: 60
-      }
-    }
-  ]
+        syncInterval: 60,
+      },
+    },
+  ],
 });
 
 // Now the record shows recent emails with Sarah
@@ -780,9 +838,9 @@ interface CalendarSourceModule extends Module {
   moduleType: "calendar-source";
 
   config: {
-    calendarId?: string;   // Specific calendar or "primary"
-    daysAhead?: number;    // How far to look ahead
-    daysBack?: number;     // How far to look back
+    calendarId?: string; // Specific calendar or "primary"
+    daysAhead?: number; // How far to look ahead
+    daysBack?: number; // How far to look back
   };
 
   state: {
@@ -805,10 +863,10 @@ const venue = createRecord({
       type: "calendar-source",
       config: {
         query: "location:Moscone Center",
-        daysAhead: 90
-      }
-    }
-  ]
+        daysAhead: 90,
+      },
+    },
+  ],
 });
 
 // Shows upcoming events at this venue
@@ -823,7 +881,7 @@ interface GitHubSourceModule extends Module {
 
   config: {
     username?: string;
-    repo?: string;         // "owner/repo" format
+    repo?: string; // "owner/repo" format
     includeActivity?: boolean;
   };
 
@@ -849,11 +907,11 @@ const project = createRecord({
       type: "github-source",
       config: {
         repo: "jkomoros/labs",
-        includeActivity: true
-      }
+        includeActivity: true,
+      },
     },
-    { type: "notes", data: { content: "Next-gen personal computing" } }
-  ]
+    { type: "notes", data: { content: "Next-gen personal computing" } },
+  ],
 });
 
 // Live data from GitHub
@@ -891,7 +949,8 @@ async attach(record: RecordCharm) {
 
 ## Part 6: Meta-Modules (Fabric Intelligence)
 
-Meta-modules don't belong to individual records—they operate **across** the fabric, providing intelligence and coordination.
+Meta-modules don't belong to individual records—they operate **across** the
+fabric, providing intelligence and coordination.
 
 ### 1. Schema Suggester
 
@@ -910,10 +969,11 @@ const note = createRecord({
     {
       type: "notes",
       data: {
-        content: "Met Sarah at the conference. Email: sarah@example.com. Birthday is March 15."
-      }
-    }
-  ]
+        content:
+          "Met Sarah at the conference. Email: sarah@example.com. Birthday is March 15.",
+      },
+    },
+  ],
 });
 
 const suggestions = schemaSuggester.suggestModules(note);
@@ -991,11 +1051,17 @@ const entities = entityLinker.findEntities(email);
 
 ### 3. Extraction UX: Classify, Preview, Select
 
-**Purpose**: Help users structure unstructured content through guided extraction.
+**Purpose**: Help users structure unstructured content through guided
+extraction.
 
-> **Framework Author Guidance**: "Don't do a combined schema. Instead use generateObject to figure out WHICH schema you want—add 'explain why this type' and maybe a score field, then render a list sorted by score with the explanation for the user with the already-instantiated sub-charms. Let the user pick which ones to keep."
+> **Framework Author Guidance**: "Don't do a combined schema. Instead use
+> generateObject to figure out WHICH schema you want—add 'explain why this type'
+> and maybe a score field, then render a list sorted by score with the
+> explanation for the user with the already-instantiated sub-charms. Let the
+> user pick which ones to keep."
 
-**Key insight**: Extraction is **curation, not automation**. The LLM proposes, the user disposes.
+**Key insight**: Extraction is **curation, not automation**. The LLM proposes,
+the user disposes.
 
 #### The Classify → Preview → Select Flow
 
@@ -1021,23 +1087,24 @@ SELECT: User picks which to keep
 ```typescript
 interface ExtractionCandidate {
   moduleType: string;
-  explanation: string;      // "Why this type was detected"
-  score: number;            // 0-1 confidence
-  data: any;                // Extracted data
-  previewCharm?: CharmRef;  // Already instantiated for preview
+  explanation: string; // "Why this type was detected"
+  score: number; // 0-1 confidence
+  data: any; // Extracted data
+  previewCharm?: CharmRef; // Already instantiated for preview
 }
 
 // Step 1: Classification pass
 async function classifyContent(text: string): Promise<ExtractionCandidate[]> {
   const result = await generateObject({
-    prompt: `Analyze this content and identify all structured data types present.
+    prompt:
+      `Analyze this content and identify all structured data types present.
 
     For each type detected:
     - Explain WHY this type applies (1 sentence)
     - Score your confidence (0-1)
     - Extract the relevant data
 
-    Available types: ${AVAILABLE_MODULES.map(m => m.moduleType).join(", ")}
+    Available types: ${AVAILABLE_MODULES.map((m) => m.moduleType).join(", ")}
 
     Content: ${text}`,
     schema: z.object({
@@ -1045,9 +1112,9 @@ async function classifyContent(text: string): Promise<ExtractionCandidate[]> {
         moduleType: z.string(),
         explanation: z.string(),
         score: z.number(),
-        data: z.any()
-      }))
-    })
+        data: z.any(),
+      })),
+    }),
   });
 
   // Sort by score descending (highest confidence first)
@@ -1067,22 +1134,24 @@ function ExtractionPicker({ candidates, onSelect }) {
   return html`
     <div class="extraction-picker">
       <h3>Extracted from your content:</h3>
-      ${candidates.map(c => html`
-        <div class="candidate">
-          <div class="header">
-            ${getModuleIcon(c.moduleType)} ${getModuleLabel(c.moduleType)}
-            <span class="score">${Math.round(c.score * 100)}% confident</span>
+      ${candidates.map((c) =>
+        html`
+          <div class="candidate">
+            <div class="header">
+              ${getModuleIcon(c.moduleType)} ${getModuleLabel(c.moduleType)}
+              <span class="score">${Math.round(c.score * 100)}% confident</span>
+            </div>
+            <div class="explanation">${c.explanation}</div>
+            <div class="preview">
+              <ct-render $cell="${c.previewCharm}" />
+            </div>
+            <div class="actions">
+              <button onClick="${() => onSelect(c, true)}">✓ Keep</button>
+              <button onClick="${() => onSelect(c, false)}">✗ Discard</button>
+            </div>
           </div>
-          <div class="explanation">${c.explanation}</div>
-          <div class="preview">
-            <ct-render $cell=${c.previewCharm} />
-          </div>
-          <div class="actions">
-            <button onClick=${() => onSelect(c, true)}>✓ Keep</button>
-            <button onClick=${() => onSelect(c, false)}>✗ Discard</button>
-          </div>
-        </div>
-      `)}
+        `
+      )}
     </div>
   `;
 }
@@ -1129,7 +1198,9 @@ function ExtractionPicker({ candidates, onSelect }) {
 4. **Choice**: User actively selects, doesn't passively receive
 5. **Forgiveness**: Easy to discard wrong extractions before committing
 
-**This is NOT a separate meta-module**—it's a UX capability built into records. When users paste content, the record offers to structure it through this guided flow.
+**This is NOT a separate meta-module**—it's a UX capability built into records.
+When users paste content, the record offers to structure it through this guided
+flow.
 
 ### 4. Module Registry
 
@@ -1159,15 +1230,17 @@ function ModulePicker({ record }: { record: RecordCharm }) {
       <input
         type="search"
         placeholder="Add module..."
-        value=${query}
-        onChange=${e => setQuery(e.target.value)}
+        value="${query}"
+        onChange="${(e) => setQuery(e.target.value)}"
       />
       <div class="module-list">
-        ${modules.map(m => html`
-          <button onClick=${() => record.addModule(m)}>
-            ${m.moduleIcon} ${m.moduleLabel}
-          </button>
-        `)}
+        ${modules.map((m) =>
+          html`
+            <button onClick="${() => record.addModule(m)}">
+              ${m.moduleIcon} ${m.moduleLabel}
+            </button>
+          `
+        )}
       </div>
     </div>
   `;
@@ -1178,7 +1251,8 @@ function ModulePicker({ record }: { record: RecordCharm }) {
 
 ## Part 7: Aggregation Views
 
-Records with modules enable **cross-charm aggregate views**—perspectives that span your entire fabric.
+Records with modules enable **cross-charm aggregate views**—perspectives that
+span your entire fabric.
 
 ### Birthday Calendar
 
@@ -1192,27 +1266,29 @@ const birthdays = fabric.query({
     const dateA = a.getModule("birthday").data.date;
     const dateB = b.getModule("birthday").data.date;
     return nextOccurrence(dateA) - nextOccurrence(dateB);
-  }
+  },
 });
 
 // Render calendar view
 function BirthdayCalendar() {
-  const upcoming = birthdays.filter(b =>
+  const upcoming = birthdays.filter((b) =>
     nextOccurrence(b.birthday) < daysFromNow(90)
   );
 
   return html`
     <div class="birthday-calendar">
       <h2>Upcoming Birthdays</h2>
-      ${upcoming.map(record => {
+      ${upcoming.map((record) => {
         const birthday = record.getModule("birthday");
         const identity = record.getModule("identity");
 
         return html`
           <div class="birthday-item">
             <span class="date">${formatDate(birthday.data.date)}</span>
-            <a href=${record.url}>${identity?.data.name || record.title}</a>
-            <span class="age">(turning ${calculateAge(birthday.data.date)})</span>
+            <a href="${record.url}">${identity?.data.name || record.title}</a>
+            <span class="age">(turning ${calculateAge(
+              birthday.data.date,
+            )})</span>
           </div>
         `;
       })}
@@ -1226,42 +1302,46 @@ function BirthdayCalendar() {
 **View**: Visual network of all relationship modules.
 
 ```
-      Alice ──sister── Sarah
-        │                │
-     works with      married to
-        │                │
-      Bob ──────────── Mike
-                         │
-                    colleague of
-                         │
-                       David
+ Alice ──sister── Sarah
+   │                │
+works with      married to
+   │                │
+ Bob ──────────── Mike
+                    │
+               colleague of
+                    │
+                  David
 ```
 
 ```typescript
 // Build graph from relationship modules
 const graph = fabric.buildGraph({
   nodes: fabric.query({ hasModule: "identity" }),
-  edges: fabric.query({ hasModule: "relationship" }).flatMap(record =>
-    record.getModule("relationship").data.relationships.map(rel => ({
+  edges: fabric.query({ hasModule: "relationship" }).flatMap((record) =>
+    record.getModule("relationship").data.relationships.map((rel) => ({
       from: record.id,
       to: rel.relatedTo,
-      label: rel.type
+      label: rel.type,
     }))
-  )
+  ),
 });
 
 // Render with force-directed layout
 function RelationshipGraph() {
   return html`
     <svg class="relationship-graph">
-      ${graph.nodes.map(node => html`
-        <circle cx=${node.x} cy=${node.y} r="30" />
-        <text x=${node.x} y=${node.y}>${node.record.title}</text>
-      `)}
-      ${graph.edges.map(edge => html`
-        <line x1=${edge.from.x} y1=${edge.from.y} x2=${edge.to.x} y2=${edge.to.y} />
-        <text class="edge-label">${edge.label}</text>
-      `)}
+      ${graph.nodes.map((node) =>
+        html`
+          <circle cx="${node.x}" cy="${node.y}" r="30" />
+          <text x="${node.x}" y="${node.y}">${node.record.title}</text>
+        `
+      )} ${graph.edges.map((edge) =>
+        html`
+          <line x1="${edge.from.x}" y1="${edge.from.y}" x2="${edge.to
+            .x}" y2="${edge.to.y}" />
+          <text class="edge-label">${edge.label}</text>
+        `
+      )}
     </svg>
   `;
 }
@@ -1281,12 +1361,12 @@ const attendees = [sarah, mike, emma, david];
 const dietaryAggregate = fabric.aggregate(attendees, {
   module: "dietary",
   combine: (constraints) => ({
-    vegetarian: constraints.some(c => c.vegetarian),
-    vegan: constraints.some(c => c.vegan),
-    glutenFree: constraints.some(c => c.glutenFree),
-    dairyFree: constraints.some(c => c.dairyFree),
-    allergens: [...new Set(constraints.flatMap(c => c.allergens || []))]
-  })
+    vegetarian: constraints.some((c) => c.vegetarian),
+    vegan: constraints.some((c) => c.vegan),
+    glutenFree: constraints.some((c) => c.glutenFree),
+    dairyFree: constraints.some((c) => c.dairyFree),
+    allergens: [...new Set(constraints.flatMap((c) => c.allergens || []))],
+  }),
 });
 
 // Result: { glutenFree: true, allergens: ["peanuts", "shellfish"] }
@@ -1294,11 +1374,11 @@ const dietaryAggregate = fabric.aggregate(attendees, {
 // Filter recipes by aggregate constraints
 const suitableRecipes = fabric.query({
   hasModule: "dietary",
-  where: recipe => {
+  where: (recipe) => {
     const dietary = recipe.getModule("dietary").data;
-    return dietary.glutenFree === true
-      && !dietary.allergens.some(a => dietaryAggregate.allergens.includes(a));
-  }
+    return dietary.glutenFree === true &&
+      !dietary.allergens.some((a) => dietaryAggregate.allergens.includes(a));
+  },
 });
 ```
 
@@ -1330,7 +1410,7 @@ const shoppingList = fabric.aggregate(weekRecipes, {
     }
 
     return Array.from(combined.values());
-  }
+  },
 });
 
 // Result: [
@@ -1340,7 +1420,8 @@ const shoppingList = fabric.aggregate(weekRecipes, {
 // ]
 ```
 
-**Categorization**: Use `item-categorizer` extraction module to group by store section:
+**Categorization**: Use `item-categorizer` extraction module to group by store
+section:
 
 ```typescript
 const categorized = await itemCategorizer.categorize(shoppingList);
@@ -1356,7 +1437,8 @@ const categorized = await itemCategorizer.categorize(shoppingList);
 
 ## Part 8: Living Structure
 
-This is where the vision gets radical: **records don't have types**. They **become** types through accumulated modules.
+This is where the vision gets radical: **records don't have types**. They
+**become** types through accumulated modules.
 
 ### The Traditional Way (App-Down)
 
@@ -1395,11 +1477,13 @@ User: "Yes."
 Fabric: *adds relationship module, updates relationship graph*
 ```
 
-At no point did you declare "this is a Person record". It **became** a person record by accumulating person-related modules.
+At no point did you declare "this is a Person record". It **became** a person
+record by accumulating person-related modules.
 
 ### Speculative Patterns
 
-Here's where it gets wild: patterns can **test their own usefulness** without user involvement.
+Here's where it gets wild: patterns can **test their own usefulness** without
+user involvement.
 
 ```typescript
 // A pattern can speculatively try enrichment
@@ -1417,22 +1501,24 @@ async function speculativeEnrich(record: RecordCharm) {
       type: "social-links",
       data: socialData.profiles,
       reason: `Found ${socialData.profiles.length} social profiles`,
-      preview: true  // Show preview without committing
+      preview: true, // Show preview without committing
     });
   }
 }
 ```
 
-The pattern **tries things**, shows you what it found, and you decide if it's useful.
+The pattern **tries things**, shows you what it found, and you decide if it's
+useful.
 
 ### Auto-Suggestion Examples
 
 **Birthday Detection**:
+
 ```typescript
 // User types in notes: "Her birthday is March 15"
 notesModule.onDataChange((newContent) => {
   const dates = extractDates(newContent);
-  const birthdayPatterns = dates.filter(d =>
+  const birthdayPatterns = dates.filter((d) =>
     d.context.includes("birthday") || d.context.includes("born")
   );
 
@@ -1441,7 +1527,7 @@ notesModule.onDataChange((newContent) => {
       type: "birthday",
       data: { date: birthdayPatterns[0].date },
       reason: "Birthday date detected in notes",
-      confidence: 0.8
+      confidence: 0.8,
     });
   }
 });
@@ -1450,9 +1536,12 @@ notesModule.onDataChange((newContent) => {
 ```
 
 **Entity Linking**:
+
 ```typescript
 // User types: "Had coffee with Alice yesterday"
-const entities = await entityLinker.findEntities("Had coffee with Alice yesterday");
+const entities = await entityLinker.findEntities(
+  "Had coffee with Alice yesterday",
+);
 // → [{ text: "Alice", recordRef: "alice-smith", type: "person", confidence: 0.9 }]
 
 // UI renders: "Had coffee with [Alice](→alice-smith) yesterday"
@@ -1461,6 +1550,7 @@ const entities = await entityLinker.findEntities("Had coffee with Alice yesterda
 ```
 
 **Recipe Detection**:
+
 ```typescript
 // User pastes URL: "https://cooking.nytimes.com/recipes/12345-paella"
 urlModule.onDataChange(async (newUrl) => {
@@ -1470,10 +1560,10 @@ urlModule.onDataChange(async (newUrl) => {
     record.suggestModules([
       { type: "ingredients", data: recipeData.ingredients },
       { type: "steps", data: recipeData.steps },
-      { type: "timing", data: recipeData.timing }
+      { type: "timing", data: recipeData.timing },
     ], {
       reason: "Recipe detected from URL",
-      autoApply: false  // Let user review first
+      autoApply: false, // Let user review first
     });
   }
 });
@@ -1488,8 +1578,8 @@ A record's "type" is **emergent**, not declared:
 const record = createRecord({
   title: "Sarah Chen",
   modules: [
-    { type: "notes", data: { content: "Met at conference" } }
-  ]
+    { type: "notes", data: { content: "Met at conference" } },
+  ],
 });
 
 record.inferredType(); // → "note"
@@ -1503,7 +1593,10 @@ record.addModule({ type: "birthday", data: { date: "1990-03-15" } });
 record.inferredType(); // → "person"
 
 // Add relationship
-record.addModule({ type: "relationship", data: { relatedTo: "alice", type: "sister" } });
+record.addModule({
+  type: "relationship",
+  data: { relatedTo: "alice", type: "sister" },
+});
 record.inferredType(); // → "person" (stronger signal)
 
 // The record IS what its modules make it
@@ -1513,7 +1606,7 @@ record.inferredType(); // → "person" (stronger signal)
 
 ```typescript
 function inferredType(record: RecordCharm): string {
-  const modules = record.modules.map(m => m.moduleType);
+  const modules = record.modules.map((m) => m.moduleType);
 
   // Match against known patterns
   if (modules.includes("ingredients") && modules.includes("steps")) {
@@ -1556,10 +1649,10 @@ Modules can have **freshness** and **decay** properties:
 ```typescript
 interface TemporalModule extends Module {
   temporal: {
-    freshness: number;      // 0-1, how "fresh" is this data?
-    decayRate: number;      // How fast does it decay?
+    freshness: number; // 0-1, how "fresh" is this data?
+    decayRate: number; // How fast does it decay?
     lastUpdated: Date;
-    expiresAt?: Date;       // Hard expiration
+    expiresAt?: Date; // Hard expiration
   };
 
   calculateFreshness(): number;
@@ -1569,9 +1662,9 @@ interface TemporalModule extends Module {
 // Gmail source module decays over time
 gmailSource.temporal = {
   freshness: 1.0,
-  decayRate: 0.1,  // 10% per day
+  decayRate: 0.1, // 10% per day
   lastUpdated: new Date("2025-12-19"),
-  expiresAt: undefined
+  expiresAt: undefined,
 };
 
 // After 5 days
@@ -1594,19 +1687,23 @@ const adjustedFreshness = module.temporal.freshness * (1 + accessWeight);
 // Rarely-used modules decay faster, frequently-used stay fresh
 ```
 
-This creates a **living fabric** where active data stays vibrant and stale data fades—until you need it again.
+This creates a **living fabric** where active data stays vibrant and stale data
+fades—until you need it again.
 
 ---
 
 ## Part 9: Implementation Roadmap
 
-This vision requires **phased implementation**. Start small, prove the pattern, expand.
+This vision requires **phased implementation**. Start small, prove the pattern,
+expand.
 
 ### Phase 0: Prove the Pattern (notes-module extraction)
 
-**Goal**: Extract notes from existing patterns into a reusable module. Prove the contract works.
+**Goal**: Extract notes from existing patterns into a reusable module. Prove the
+contract works.
 
 **Tasks**:
+
 1. Define base `Module` interface
 2. Create `notes` module following the contract
 3. Update `record.tsx` to host modules
@@ -1622,6 +1719,7 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Create foundational DATA modules.
 
 **Modules to create**:
+
 - `identity` (name, pronouns)
 - `contact` (email, phone)
 - `address` (street, city, state, zip)
@@ -1640,6 +1738,7 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Migrate `person.tsx` to modular architecture.
 
 **Tasks**:
+
 1. Create `relationship` module
 2. Create migration path: old person → new person
 3. Update person UI to render modules
@@ -1655,6 +1754,7 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Migrate `food-recipe.tsx` to modules.
 
 **Modules to create**:
+
 - `ingredients` (items, servings)
 - `steps` (instructions, timing)
 - `timing` (prep, cook, total)
@@ -1662,6 +1762,7 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 - `dietary` (flags: vegetarian, gluten-free, etc.)
 
 **Tasks**:
+
 1. Create CONTENT modules (ingredients, steps)
 2. Create DATA modules (timing, oven, dietary)
 3. Migrate recipe pattern
@@ -1676,11 +1777,13 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Add LLM-powered extraction.
 
 **Modules to create**:
+
 - `recipe-analyzer` (text → ingredients + steps)
 - `dietary-analyzer` (ingredients → dietary flags)
 - `entity-extractor` (text → entity references)
 
 **Tasks**:
+
 1. Create extraction coordinator (batch LLM calls)
 2. Implement recipe-analyzer
 3. Implement dietary-analyzer
@@ -1695,11 +1798,13 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Connect external data sources.
 
 **Modules to create**:
+
 - `gmail-source`
 - `calendar-source`
 - `github-source`
 
 **Tasks**:
+
 1. Define source module contract
 2. Implement auth discovery pattern
 3. Create gmail-source module
@@ -1707,7 +1812,8 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 5. Create calendar-source
 6. Create github-source
 
-**Success criteria**: Person record shows recent emails, project record shows GitHub activity.
+**Success criteria**: Person record shows recent emails, project record shows
+GitHub activity.
 
 **Timeline**: 4 weeks
 
@@ -1716,18 +1822,21 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Add fabric-wide intelligence.
 
 **Meta-modules to create**:
+
 - Schema suggester (auto-suggest modules)
 - Entity linker (link text → records)
 - Module registry (searchable module catalog)
 
 **Tasks**:
+
 1. Implement schema suggester with LLM
 2. Test auto-suggestions: "Add contact module? (email detected)"
 3. Implement entity linker
 4. Test entity linking in notes
 5. Create module registry and picker
 
-**Success criteria**: System suggests relevant modules, links entities automatically.
+**Success criteria**: System suggests relevant modules, links entities
+automatically.
 
 **Timeline**: 4 weeks
 
@@ -1736,6 +1845,7 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 **Goal**: Cross-record views.
 
 **Views to create**:
+
 - Birthday calendar
 - Relationship graph
 - Dietary aggregate
@@ -1749,30 +1859,33 @@ This vision requires **phased implementation**. Start small, prove the pattern, 
 
 ## Total Timeline: ~5 months
 
-| Phase | Duration | Milestone |
-|-------|----------|-----------|
-| 0: Prove pattern | 1 week | Notes module working |
-| 1: Core data modules | 2 weeks | 8 data modules created |
-| 2: Person decomposition | 2 weeks | Person pattern modular |
-| 3: Recipe decomposition | 2 weeks | Recipe pattern modular |
-| 4: Extraction | 3 weeks | Auto-extract recipes |
-| 5: Source modules | 4 weeks | External data integrated |
-| 6: Meta-modules | 4 weeks | Auto-suggestions working |
-| 7: Aggregation | 3 weeks | Cross-fabric views |
+| Phase                   | Duration | Milestone                |
+| ----------------------- | -------- | ------------------------ |
+| 0: Prove pattern        | 1 week   | Notes module working     |
+| 1: Core data modules    | 2 weeks  | 8 data modules created   |
+| 2: Person decomposition | 2 weeks  | Person pattern modular   |
+| 3: Recipe decomposition | 2 weeks  | Recipe pattern modular   |
+| 4: Extraction           | 3 weeks  | Auto-extract recipes     |
+| 5: Source modules       | 4 weeks  | External data integrated |
+| 6: Meta-modules         | 4 weeks  | Auto-suggestions working |
+| 7: Aggregation          | 3 weeks  | Cross-fabric views       |
 
 ---
 
 ## Conclusion: The Living Fabric
 
-This architecture realizes the Common Fabric vision: **patterns as living units of software** that grow, adapt, and resonate with your needs.
+This architecture realizes the Common Fabric vision: **patterns as living units
+of software** that grow, adapt, and resonate with your needs.
 
 Traditional software asks: "What app do you need?"
 
 Common Fabric asks: "What data do you have?"
 
-The modules **emerge** from the data. Structure follows substance. The fabric becomes what you need it to be, shaped by use, not prescription.
+The modules **emerge** from the data. Structure follows substance. The fabric
+becomes what you need it to be, shaped by use, not prescription.
 
-This is computing that resonates—software that feels alive because it grows with you.
+This is computing that resonates—software that feels alive because it grows with
+you.
 
 ---
 
@@ -1784,60 +1897,85 @@ Welcome to the fabric.
 
 ## Appendix: Critiques Addressed
 
-This architecture has been refined through several design critiques. Here are the key concerns that were raised and how they've been addressed:
+This architecture has been refined through several design critiques. Here are
+the key concerns that were raised and how they've been addressed:
 
 ### 1. Paradox of Choice (UX Concern)
 
-**Critique**: "Presenting users with 50+ individual modules is overwhelming. Choice paralysis prevents people from getting started."
+**Critique**: "Presenting users with 50+ individual modules is overwhelming.
+Choice paralysis prevents people from getting started."
 
 **Resolution**: **Templates (Part 1.5)**
 
-Templates provide pre-assembled bundles of modules for common use cases (Person, Recipe, Place, Project, etc.). Users start with a sensible default, then customize by adding/removing modules. This gives both quick starts and full flexibility—best of both worlds.
+Templates provide pre-assembled bundles of modules for common use cases (Person,
+Recipe, Place, Project, etc.). Users start with a sensible default, then
+customize by adding/removing modules. This gives both quick starts and full
+flexibility—best of both worlds.
 
-**Impact**: Users no longer face a blank slate with dozens of choices. They answer "What kind of thing is this?" (template) instead of "Which 8 of these 50 modules do you need?" (paralysis).
+**Impact**: Users no longer face a blank slate with dozens of choices. They
+answer "What kind of thing is this?" (template) instead of "Which 8 of these 50
+modules do you need?" (paralysis).
 
 ---
 
 ### 2. Extraction UX (Framework Author Guidance)
 
-**Critique**: "If extraction is fully automatic, users don't understand what's happening. They lose control over their data structure."
+**Critique**: "If extraction is fully automatic, users don't understand what's
+happening. They lose control over their data structure."
 
 **Resolution**: **Classify, Preview, Select (Part 6, Section 3)**
 
-The framework author provided explicit guidance: don't combine schemas for batch extraction. Instead, use generateObject to **classify** which types are relevant, provide **explanations and confidence scores**, and let the **user select** which extracted modules to keep.
+The framework author provided explicit guidance: don't combine schemas for batch
+extraction. Instead, use generateObject to **classify** which types are
+relevant, provide **explanations and confidence scores**, and let the **user
+select** which extracted modules to keep.
 
-**Key insight**: Extraction is curation, not automation. The LLM proposes structure; the user decides what to keep.
+**Key insight**: Extraction is curation, not automation. The LLM proposes
+structure; the user decides what to keep.
 
-**Trade-off acknowledged**: This approach uses more LLM calls than a combined-schema batch approach. However:
+**Trade-off acknowledged**: This approach uses more LLM calls than a
+combined-schema batch approach. However:
+
 - User understanding and control are more important than raw efficiency
 - Preview before commit prevents bad extractions from polluting data
 - Confidence scores help users make informed decisions quickly
 
-**Impact**: Users stay in control of their data structure while still getting LLM-powered extraction assistance.
+**Impact**: Users stay in control of their data structure while still getting
+LLM-powered extraction assistance.
 
 ---
 
 ### 3. Lifecycle Complexity (Architecture Concern)
 
-**Critique**: "Modules need `attach()` and `detach()` lifecycle hooks to coordinate with each other. This creates imperative coupling and makes the system fragile."
+**Critique**: "Modules need `attach()` and `detach()` lifecycle hooks to
+coordinate with each other. This creates imperative coupling and makes the
+system fragile."
 
 **Resolution**: **Reactive Coordination (Part 3)**
 
-The framework is reactive, not imperative. Modules use `computed()` to derive behavior from state. When a module is added/removed or data changes, dependent computeds automatically recompute. No manual lifecycle management needed.
+The framework is reactive, not imperative. Modules use `computed()` to derive
+behavior from state. When a module is added/removed or data changes, dependent
+computeds automatically recompute. No manual lifecycle management needed.
 
-**Example**: A dietary-aggregate module doesn't need `attach()` to wire up listeners—it uses `computed()` to reactively aggregate data from person records. When person dietary data changes, the aggregate updates automatically.
+**Example**: A dietary-aggregate module doesn't need `attach()` to wire up
+listeners—it uses `computed()` to reactively aggregate data from person records.
+When person dietary data changes, the aggregate updates automatically.
 
-**Impact**: Simpler mental model, less coupling, more idiomatic to the framework's reactive primitives.
+**Impact**: Simpler mental model, less coupling, more idiomatic to the
+framework's reactive primitives.
 
 ---
 
 ### 4. Source Module Rate Limiting (Practical Concern)
 
-**Critique**: "If 10 person records each have a `gmail-source` module, that's 10 concurrent Gmail API calls. APIs have rate limits. This will break."
+**Critique**: "If 10 person records each have a `gmail-source` module, that's 10
+concurrent Gmail API calls. APIs have rate limits. This will break."
 
-**Resolution**: **Shared Sync Managers** (Implementation detail, not yet in main doc)
+**Resolution**: **Shared Sync Managers** (Implementation detail, not yet in main
+doc)
 
-Source modules don't make API calls directly. They use a **shared sync manager** that coordinates requests across all instances of that source type:
+Source modules don't make API calls directly. They use a **shared sync manager**
+that coordinates requests across all instances of that source type:
 
 ```typescript
 // All gmail-source modules share a single sync manager
@@ -1859,22 +1997,25 @@ const gmailSyncManager = {
   async executeBatchSync(modules: GmailSourceModule[]) {
     // If multiple modules query the same email (e.g., family members),
     // fetch once and distribute to all modules
-    const queries = modules.map(m => m.config.query);
+    const queries = modules.map((m) => m.config.query);
     const results = await gmail.batchSearch(queries);
     modules.forEach((m, i) => m.setState({ emails: results[i] }));
-  }
+  },
 };
 ```
 
-**Impact**: Rate limits respected, requests batched when possible, API usage optimized across all source module instances.
+**Impact**: Rate limits respected, requests batched when possible, API usage
+optimized across all source module instances.
 
 ---
 
 ### 5. Sandboxing Concern (Architecture Concern)
 
-**Critique**: "Global module-level stores (like `record-pattern-store.ts`) will break once proper sandboxing is implemented."
+**Critique**: "Global module-level stores (like `record-pattern-store.ts`) will
+break once proper sandboxing is implemented."
 
-**Context**: The current implementation uses a module-level variable to share the Record pattern across files:
+**Context**: The current implementation uses a module-level variable to share
+the Record pattern across files:
 
 ```typescript
 // record-pattern-store.ts - PROBLEMATIC
@@ -1889,27 +2030,37 @@ export function getRecordPatternJson(): string | null {
 }
 ```
 
-This works today but relies on shared module state, which sandboxing will prevent.
+This works today but relies on shared module state, which sandboxing will
+prevent.
 
 **Resolution**: Avoid global stores. Instead:
 
-1. **Pass references at construction**: Sub-charms receive parent references when created
-2. **Use `wish()` for discovery**: Modules discover capabilities via the wish system
-3. **Static imports only**: Registry can import module definitions statically, but shouldn't hold runtime state
+1. **Pass references at construction**: Sub-charms receive parent references
+   when created
+2. **Use `wish()` for discovery**: Modules discover capabilities via the wish
+   system
+3. **Static imports only**: Registry can import module definitions statically,
+   but shouldn't hold runtime state
 
-**Impact**: Architecture must be designed for isolation from the start. No shared mutable state between patterns.
+**Impact**: Architecture must be designed for isolation from the start. No
+shared mutable state between patterns.
 
 ---
 
 ### Summary
 
-Each critique identified a real limitation in the initial design. The solutions—templates, classify/preview/select extraction, reactive coordination, and shared sync managers—make the architecture practical for real-world use while preserving the core "data-up" philosophy.
+Each critique identified a real limitation in the initial design. The
+solutions—templates, classify/preview/select extraction, reactive coordination,
+and shared sync managers—make the architecture practical for real-world use
+while preserving the core "data-up" philosophy.
 
 The module system is now:
+
 - **User-friendly**: Templates provide quick starts
 - **User-controlled**: Extraction shows previews and lets users choose
 - **Simple**: Reactive coordination eliminates lifecycle complexity
-- **Scalable**: Shared infrastructure handles rate limiting and resource management
+- **Scalable**: Shared infrastructure handles rate limiting and resource
+  management
 - **Sandbox-ready**: No global mutable state between patterns
 
 These refinements make the vision **implementable**, not just aspirational.
@@ -1918,7 +2069,8 @@ These refinements make the vision **implementable**, not just aspirational.
 
 ## Appendix B: Framework-Idiomatic Patterns
 
-The framework author provided specific guidance on idiomatic patterns. These should be followed in all module implementations.
+The framework author provided specific guidance on idiomatic patterns. These
+should be followed in all module implementations.
 
 ### 1. Initialization Pattern (isInitialized + computed)
 
@@ -1933,13 +2085,14 @@ computed(() => {
     subCharms.push({
       charm: NotesModule({}),
       type: "notes",
-      pinned: false
+      pinned: false,
     });
   }
 });
 ```
 
 **Why this pattern?**
+
 - Idempotent: Only runs once even if computed re-evaluates
 - Reactive: Integrates with framework's reactivity system
 - No lifecycle hooks: Doesn't require attach/detach
@@ -1951,8 +2104,8 @@ computed(() => {
 ```typescript
 // ❌ WRONG
 const newItem = {
-  id: crypto.randomUUID(),  // Don't do this
-  name: "New Item"
+  id: crypto.randomUUID(), // Don't do this
+  name: "New Item",
 };
 ```
 
@@ -1965,6 +2118,7 @@ itemCell.set({ name: itemName, ... });
 ```
 
 **Why?**
+
 - `Cell.for(cause)` creates stable cells keyed by the cause object
 - Same cause = same cell (enables deduplication)
 - Framework manages identity, not pattern code
@@ -1978,7 +2132,7 @@ itemCell.set({ name: itemName, ... });
 const removeItem = handler<unknown, { items: Cell<Item[]>; index: number }>(
   (_event, { items, index }) => {
     items.set(items.get().toSpliced(index, 1));
-  }
+  },
 );
 ```
 
@@ -1989,15 +2143,16 @@ const removeItem = handler<unknown, { items: Cell<Item[]>; index: number }>(
 const removeItem = handler<unknown, { items: Cell<Item[]>; item: Item }>(
   (_event, { items, item }) => {
     const current = items.get();
-    const index = current.findIndex(i => Cell.equals(i, item));
+    const index = current.findIndex((i) => Cell.equals(i, item));
     if (index >= 0) {
       items.set(current.toSpliced(index, 1));
     }
-  }
+  },
 );
 ```
 
 **Why?**
+
 - Indices shift when other users add/remove items concurrently
 - References are stable identities
 - Lower "taint" (less coupling to array structure)
@@ -2008,12 +2163,12 @@ const removeItem = handler<unknown, { items: Cell<Item[]>; item: Item }>(
 
 ```typescript
 // Find a charm in an array
-const found = subCharms.get().find(entry =>
+const found = subCharms.get().find((entry) =>
   Cell.equals(entry.charm, targetCharm)
 );
 
 // Check if array contains a specific charm
-const hasCharm = subCharms.get().some(entry =>
+const hasCharm = subCharms.get().some((entry) =>
   entry.charm.equals(targetCharm)
 );
 ```
@@ -2076,6 +2231,7 @@ const removeItem = handler<
 ```
 
 **Why?**
+
 - Avoids accidental closure over stale values
 - Makes dependencies explicit
 - Easier to reason about behavior

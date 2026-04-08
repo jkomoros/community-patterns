@@ -2,25 +2,34 @@
 
 ## Summary
 
-**RESOLVED (2025-11-22):** The issue was **NOT** with `toSchema<T>()` or nested arrays. The real problem was using an invalid model name (`"claude-3-5-sonnet-20241022"`) that doesn't exist in the framework's model registry. After fixing the model name to `"anthropic:claude-sonnet-4-5"`, `toSchema<T>()` works perfectly with nested arrays of complex types.
+**RESOLVED (2025-11-22):** The issue was **NOT** with `toSchema<T>()` or nested
+arrays. The real problem was using an invalid model name
+(`"claude-3-5-sonnet-20241022"`) that doesn't exist in the framework's model
+registry. After fixing the model name to `"anthropic:claude-sonnet-4-5"`,
+`toSchema<T>()` works perfectly with nested arrays of complex types.
 
 ## Original (Incorrect) Summary
 
-~~`toSchema<T>()` generates JSON schemas with unresolved `$ref` references when the TypeScript type contains nested arrays of complex types, causing 400 Bad Request errors from the `/api/ai/llm/generateObject` endpoint.~~
+~~`toSchema<T>()` generates JSON schemas with unresolved `$ref` references when
+the TypeScript type contains nested arrays of complex types, causing 400 Bad
+Request errors from the `/api/ai/llm/generateObject` endpoint.~~
 
-**This was wrong!** The unresolved `$ref` errors were likely a symptom of the invalid model name, not a problem with `toSchema<T>()`.
+**This was wrong!** The unresolved `$ref` errors were likely a symptom of the
+invalid model name, not a problem with `toSchema<T>()`.
 
 ## Use Case
 
 **Pattern:** codenames-helper.tsx
 
 **What we're trying to accomplish:**
+
 - Use `generateObject()` to extract structured data from Codenames game photos
-- The extracted data contains nested arrays of objects (e.g., `BoardWordData[]`, `KeyCardColorData[]`)
+- The extracted data contains nested arrays of objects (e.g., `BoardWordData[]`,
+  `KeyCardColorData[]`)
 - Need the framework to generate valid JSON schemas for these nested structures
 
-**Context:**
-The pattern analyzes two types of photos:
+**Context:** The pattern analyzes two types of photos:
+
 1. Board photos (extract 25 words in a 5×5 grid)
 2. Key card photos (extract color assignments for each position)
 
@@ -41,7 +50,7 @@ interface TestResult {
 const result = generateObject({
   system: "You are a test assistant.",
   prompt: "Say hello and tell me the current timestamp",
-  schema: toSchema<TestResult>()
+  schema: toSchema<TestResult>(),
 });
 ```
 
@@ -84,9 +93,11 @@ const photoExtractions = uploadedPhotos.map((photo) => {
 });
 ```
 
-**Error:** No error, just stayed in `pending` state forever with no API requests.
+**Error:** No error, just stayed in `pending` state forever with no API
+requests.
 
-**Analysis:** TypeScript type parameters don't automatically generate schemas. Must use explicit `schema:` parameter.
+**Analysis:** TypeScript type parameters don't automatically generate schemas.
+Must use explicit `schema:` parameter.
 
 ---
 
@@ -124,6 +135,7 @@ const photoExtractions = uploadedPhotos.map((photo) => {
 ```
 
 **Browser Console Errors:**
+
 ```
 [WARNING] Unresolved $ref in schema: #/$defs/Element
 [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request)
@@ -131,13 +143,17 @@ const photoExtractions = uploadedPhotos.map((photo) => {
 ```
 
 **Network Tab:**
+
 - POST to `/api/ai/llm/generateObject` returns 400 Bad Request
 - Request payload includes schema with unresolved references
 
-**Analysis:**
-The `toSchema<PhotoExtractionResult>()` function generates a schema that references nested types like `BoardWordData` and `KeyCardColorData` using `$ref: "#/$defs/Element"`, but doesn't include the definitions of these types in the `$defs` section of the schema.
+**Analysis:** The `toSchema<PhotoExtractionResult>()` function generates a
+schema that references nested types like `BoardWordData` and `KeyCardColorData`
+using `$ref: "#/$defs/Element"`, but doesn't include the definitions of these
+types in the `$defs` section of the schema.
 
 The generated schema likely looks something like:
+
 ```json
 {
   "type": "object",
@@ -145,7 +161,7 @@ The generated schema likely looks something like:
     "photoType": { "type": "string" },
     "boardWords": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Element" }  // Unresolved!
+      "items": { "$ref": "#/$defs/Element" } // Unresolved!
     }
   }
 }
@@ -179,21 +195,29 @@ const clueSuggestions = generateObject({
 
 **Error:** Same unresolved `$ref` errors.
 
-**Analysis:** The issue is consistent across different nested array types, confirming it's a limitation of `toSchema<T>()` rather than specific to one type.
+**Analysis:** The issue is consistent across different nested array types,
+confirming it's a limitation of `toSchema<T>()` rather than specific to one
+type.
 
 ---
 
 ## Questions
 
-1. **Is `toSchema<T>()` intended to support nested arrays of complex types?** Or is it limited to flat structures?
+1. **Is `toSchema<T>()` intended to support nested arrays of complex types?** Or
+   is it limited to flat structures?
 
-2. **Should we use explicit JSON schemas for complex nested structures?** Is that the recommended approach?
+2. **Should we use explicit JSON schemas for complex nested structures?** Is
+   that the recommended approach?
 
-3. **Is there a way to make `toSchema<T>()` include the nested type definitions in the `$defs` section?** Perhaps a different import or configuration?
+3. **Is there a way to make `toSchema<T>()` include the nested type definitions
+   in the `$defs` section?** Perhaps a different import or configuration?
 
-4. **Are there examples of working patterns that use `toSchema<T>()` with nested arrays?** We couldn't find any in labs/packages/patterns/.
+4. **Are there examples of working patterns that use `toSchema<T>()` with nested
+   arrays?** We couldn't find any in labs/packages/patterns/.
 
-5. **Could this be a bug in the schema generation logic?** It seems like `toSchema<T>()` should recursively include definitions for all referenced types.
+5. **Could this be a bug in the schema generation logic?** It seems like
+   `toSchema<T>()` should recursively include definitions for all referenced
+   types.
 
 ## Desired Behavior
 
@@ -208,15 +232,18 @@ What we want to happen:
 4. `generateObject()` makes successful API request
 5. AI returns structured data matching the schema
 
-**OR** clear documentation that `toSchema<T>()` is limited to flat structures and explicit JSON schemas should be used for nested types.
+**OR** clear documentation that `toSchema<T>()` is limited to flat structures
+and explicit JSON schemas should be used for nested types.
 
 ## ✅ SOLUTION FOUND
 
 **Manual JSON schemas with $defs work as a workaround!**
 
-After three failed approaches, manually writing complete JSON schemas with proper $defs sections successfully bypasses the framework limitation.
+After three failed approaches, manually writing complete JSON schemas with
+proper $defs sections successfully bypasses the framework limitation.
 
 ### What Didn't Work
+
 1. ❌ `toSchema<T>()` - generates unresolved $ref errors
 2. ❌ Explicit inline JSON schemas (without $defs) - same unresolved $ref errors
 3. ❌ Flattening with JSON strings - rejected with 400 Bad Request errors
@@ -286,10 +313,13 @@ const photoExtractions = uploadedPhotos.map((photo) => {
 
 ### Key Points
 
-1. **The $defs section is critical** - it must contain complete definitions for all nested types
-2. **Use $ref to reference nested types** - e.g., `{ $ref: "#/$defs/BoardWordData" }`
+1. **The $defs section is critical** - it must contain complete definitions for
+   all nested types
+2. **Use $ref to reference nested types** - e.g.,
+   `{ $ref: "#/$defs/BoardWordData" }`
 3. **Define schemas as constants** - easier to maintain and reuse
-4. **This works for deeply nested arrays** - even arrays within arrays (e.g., `targetWords: string[]` within `ClueIdea[]`)
+4. **This works for deeply nested arrays** - even arrays within arrays (e.g.,
+   `targetWords: string[]` within `ClueIdea[]`)
 
 ### Status
 
@@ -299,7 +329,8 @@ const photoExtractions = uploadedPhotos.map((photo) => {
 
 **Date:** 2025-11-22 (after original "solution")
 
-After implementing the manual schema workaround, we continued to get 400 errors. Further investigation revealed **the schemas were never the problem!**
+After implementing the manual schema workaround, we continued to get 400 errors.
+Further investigation revealed **the schemas were never the problem!**
 
 ### The Actual Root Cause
 
@@ -307,10 +338,12 @@ The `generateObject()` calls were using an **invalid model name**:
 
 ```typescript
 // ❌ THIS WAS THE REAL PROBLEM
-model: "claude-3-5-sonnet-20241022"  // Not in the MODELS registry!
+model: "claude-3-5-sonnet-20241022"; // Not in the MODELS registry!
 ```
 
-This model name doesn't exist in `~/Code/labs/packages/toolshed/routes/ai/llm/models.ts`. When `findModel()` can't find the model, it returns `undefined`, causing:
+This model name doesn't exist in
+`~/Code/labs/packages/toolshed/routes/ai/llm/models.ts`. When `findModel()`
+can't find the model, it returns `undefined`, causing:
 
 ```
 TypeError: Cannot read properties of undefined (reading 'model')
@@ -323,10 +356,11 @@ Use valid model names from the registry:
 
 ```typescript
 // ✅ CORRECT - use valid registry names
-model: "anthropic:claude-sonnet-4-5"
+model: "anthropic:claude-sonnet-4-5";
 ```
 
 **Valid Anthropic models:**
+
 - `"anthropic:claude-opus-4-1"`
 - `"anthropic:claude-sonnet-4-0"`
 - `"anthropic:claude-sonnet-4-5"`
@@ -337,11 +371,13 @@ model: "anthropic:claude-sonnet-4-5"
 
 **We still don't know if `toSchema<T>()` works with nested arrays!**
 
-All our testing was blocked by the invalid model name. The "unresolved $ref" errors might have been caused by the model issue, not by `toSchema<T>()` itself.
+All our testing was blocked by the invalid model name. The "unresolved $ref"
+errors might have been caused by the model issue, not by `toSchema<T>()` itself.
 
 ### Next Steps
 
-1. **Re-test `toSchema<T>()` with correct model names** to see if it actually works with nested arrays
+1. **Re-test `toSchema<T>()` with correct model names** to see if it actually
+   works with nested arrays
 2. **If it works:** Manual schemas are unnecessary - `toSchema<T>()` is fine
 3. **If it fails:** Keep using manual schemas as the workaround
 
@@ -351,30 +387,38 @@ All our testing was blocked by the invalid model name. The "unresolved $ref" err
 // Using toSchema<T>() with CORRECT model name
 const photoExtractions = uploadedPhotos.map((photo) => {
   return generateObject({
-    model: "anthropic:claude-sonnet-4-5",  // ✅ Fixed!
+    model: "anthropic:claude-sonnet-4-5", // ✅ Fixed!
     system: `You are an image analysis assistant...`,
-    prompt: derive(photo, (p) => { /* ... */ }),
-    schema: toSchema<PhotoExtractionResult>()  // Might work now!
+    prompt: derive(photo, (p) => {/* ... */}),
+    schema: toSchema<PhotoExtractionResult>(), // Might work now!
   });
 });
 ```
 
 ### Related Documentation
 
-See new superstition: `community-docs/superstitions/2025-11-22-generateObject-model-names.md`
+See new superstition:
+`community-docs/superstitions/2025-11-22-generateObject-model-names.md`
 
 ### Lessons Learned
 
-1. **Cryptic errors can mask simple mistakes** - "undefined.model" gave no hint about invalid model names
-2. **Test one thing at a time** - we changed schemas AND models, making debugging harder
-3. **Verify assumptions** - we assumed the model parameter was correct and focused on schemas
-4. **Framework could help** - better error messages would have saved hours of debugging
+1. **Cryptic errors can mask simple mistakes** - "undefined.model" gave no hint
+   about invalid model names
+2. **Test one thing at a time** - we changed schemas AND models, making
+   debugging harder
+3. **Verify assumptions** - we assumed the model parameter was correct and
+   focused on schemas
+4. **Framework could help** - better error messages would have saved hours of
+   debugging
 
 ---
 
-**Current Status:** ✅ **RESOLVED** - Pattern uses toSchema<T>() with correct model names. E2E testing confirmed nested arrays work perfectly!
+**Current Status:** ✅ **RESOLVED** - Pattern uses toSchema<T>() with correct
+model names. E2E testing confirmed nested arrays work perfectly!
 
-**VERIFIED (2025-11-22):** toSchema<T>() + correct model = working nested arrays! Manual schemas were completely unnecessary - the entire problem was just the invalid model name.
+**VERIFIED (2025-11-22):** toSchema<T>() + correct model = working nested
+arrays! Manual schemas were completely unnecessary - the entire problem was just
+the invalid model name.
 
 ## Environment
 
@@ -385,11 +429,16 @@ See new superstition: `community-docs/superstitions/2025-11-22-generateObject-mo
 
 ## Related Files
 
-- `patterns/jkomoros/WIP/codenames-helper.tsx` (lines 17-48: type definitions, lines 374-427: photo extraction, lines 430-478: clue suggestions)
-- `patterns/jkomoros/WIP/test-generateobject.tsx` (simple test that worked with flat type)
-- `~/Code/labs/packages/patterns/chatbot.tsx` (working example with explicit JSON schema)
-- `~/Code/labs/packages/patterns/suggestion.tsx` (working example with `toSchema<{ cell: Cell<any> }>()`)
+- `patterns/jkomoros/WIP/codenames-helper.tsx` (lines 17-48: type definitions,
+  lines 374-427: photo extraction, lines 430-478: clue suggestions)
+- `patterns/jkomoros/WIP/test-generateobject.tsx` (simple test that worked with
+  flat type)
+- `~/Code/labs/packages/patterns/chatbot.tsx` (working example with explicit
+  JSON schema)
+- `~/Code/labs/packages/patterns/suggestion.tsx` (working example with
+  `toSchema<{ cell: Cell<any> }>()`)
 
 ---
 
-**Any guidance on the correct approach for handling nested type arrays would be greatly appreciated!**
+**Any guidance on the correct approach for handling nested type arrays would be
+greatly appreciated!**

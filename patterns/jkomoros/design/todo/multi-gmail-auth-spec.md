@@ -2,7 +2,9 @@
 
 ## Problem Statement
 
-Users may have multiple Google accounts (personal, work, possibly multiple of each). Currently:
+Users may have multiple Google accounts (personal, work, possibly multiple of
+each). Currently:
+
 - Single `google-auth.tsx` pattern with tag `#googleAuth`
 - Gmail patterns wish for `#googleAuth` and get whatever is favorited
 - No way to specify "I want my work Gmail for this pattern"
@@ -13,7 +15,8 @@ Users may have multiple Google accounts (personal, work, possibly multiple of ea
 1. Support multiple Gmail accounts (personal, work, etc.)
 2. Work seamlessly for single-account users (no extra complexity)
 3. Allow patterns to specify which account type they want
-4. Support both pre-hoc (choose type before login) and post-hoc (classify after login) flows
+4. Support both pre-hoc (choose type before login) and post-hoc (classify after
+   login) flows
 5. Use the existing wish system with tags
 
 ## Test Results (2025-12-04)
@@ -21,13 +24,16 @@ Users may have multiple Google accounts (personal, work, possibly multiple of ea
 ### Multiple Tags: ✅ CONFIRMED WORKING
 
 Tested with `wish-tag-test.tsx` and `multi-tag-source.tsx`:
+
 - Pattern with `/** ... #testTag1 #testTag2 */` in Output description
 - Favorited the charm
-- Both `wish({ query: "#testTag1" })` and `wish({ query: "#testTag2" })` found it
+- Both `wish({ query: "#testTag1" })` and `wish({ query: "#testTag2" })` found
+  it
 
 ### Reactive Wish Queries: ✅ CONFIRMED WORKING
 
 Tested with `reactive-wish-test.tsx`:
+
 - Passed a Cell<string> to `wish({ query: selectedTag })`
 - Changing the cell value re-evaluates the wish dynamically
 - Patterns CAN switch accounts on-the-fly with a dropdown
@@ -35,11 +41,13 @@ Tested with `reactive-wish-test.tsx`:
 ### Hashtag Character Limitations: ⚠️ IMPORTANT
 
 **From framework source (`wish.ts` line 245):**
+
 ```typescript
-entry.tag?.toLowerCase().matchAll(/#([a-z0-9-]+)/g)
+entry.tag?.toLowerCase().matchAll(/#([a-z0-9-]+)/g);
 ```
 
 **Only these characters are allowed in hashtags:**
+
 - Lowercase letters: `a-z`
 - Numbers: `0-9`
 - Hyphens: `-`
@@ -47,6 +55,7 @@ entry.tag?.toLowerCase().matchAll(/#([a-z0-9-]+)/g)
 **NOT allowed:** `+`, `_`, spaces, uppercase (converted to lowercase)
 
 **Implications for scope tags:**
+
 - ❌ `#googleAuth+Gmail` - won't work
 - ❌ `#googleAuth_Gmail` - won't work
 - ✅ `#googleAuthGmail` - works (camelCase lowercased)
@@ -79,6 +88,7 @@ User creates "Google Auth Switcher"
 ```
 
 **Why post-hoc is better UX:**
+
 - User sees actual email before classifying
 - Prevents "oops, logged into wrong account" mistakes
 - More natural flow
@@ -121,28 +131,35 @@ const GoogleAuthPersonal = pattern<Input, Output>(({ auth }) => {
   const baseAuth = GoogleAuth({ auth });
 
   return {
-    [NAME]: derive(baseAuth.auth, (a) =>
-      `Google Auth (Personal) - ${a?.user?.email || "Not logged in"}`
+    [NAME]: derive(
+      baseAuth.auth,
+      (a) => `Google Auth (Personal) - ${a?.user?.email || "Not logged in"}`,
     ),
     [UI]: (
       <div>
-        <div style={{
-          padding: "8px 12px",
-          background: "#dbeafe",
-          borderRadius: "6px",
-          marginBottom: "12px",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px"
-        }}>
-          <span style={{
-            background: "#3b82f6",
-            color: "white",
-            padding: "2px 8px",
-            borderRadius: "4px",
-            fontSize: "12px",
-            fontWeight: "600"
-          }}>PERSONAL</span>
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "#dbeafe",
+            borderRadius: "6px",
+            marginBottom: "12px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span
+            style={{
+              background: "#3b82f6",
+              color: "white",
+              padding: "2px 8px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              fontWeight: "600",
+            }}
+          >
+            PERSONAL
+          </span>
           <span>{derive(baseAuth.auth, (a) => a?.user?.email || "")}</span>
         </div>
         {baseAuth}
@@ -157,6 +174,7 @@ const GoogleAuthPersonal = pattern<Input, Output>(({ auth }) => {
 ### 3. Wrapper Pattern: `google-auth-work.tsx`
 
 Same as personal, but with:
+
 - Tag: `#googleAuth #googleAuthWork`
 - Badge: Red background, "WORK" label
 - `accountType: "work"`
@@ -247,11 +265,13 @@ Same tagging system can support OAuth scopes:
 ```
 
 **Tag naming (valid characters: a-z, 0-9, -):**
+
 - `#googleAuthGmail` or `#googleauth-gmail`
 - `#googleAuthCalendar` or `#googleauth-calendar`
 - `#googleAuthGmailCalendar` or `#googleauth-gmail-calendar`
 
 Patterns could wish for specific scopes:
+
 ```typescript
 // Gmail pattern needs gmail scope
 const auth = wish({ query: "#googleAuthGmail" });
@@ -263,24 +283,29 @@ const auth = wish({ query: "#googleAuthCalendar" });
 ## User Flows
 
 ### Single Account User (No Change)
+
 1. Create `google-auth` or `google-auth-switcher`
 2. Log in
 3. Favorite it (skip classification if desired)
 4. Gmail patterns find it via `#googleAuth`
 
 ### Multi-Account User (Pre-hoc)
+
 1. Create `google-auth-personal` → log in with personal → favorite
 2. Create `google-auth-work` → log in with work → favorite
 3. Gmail patterns wish for specific type
 
 ### Multi-Account User (Post-hoc)
+
 1. Create `google-auth-switcher` → log in
 2. Click "Personal" or "Work"
 3. Wrapper created, navigate to it, favorite it
 4. Repeat for other account
 
 ### Existing Auth Classification
+
 If user has an existing `google-auth` charm and wants to classify it:
+
 1. Create `google-auth-personal` or `google-auth-work`
 2. Link its `auth` input to the existing charm's `auth` output
 3. Favorite the wrapper
@@ -289,6 +314,7 @@ If user has an existing `google-auth` charm and wants to classify it:
 ## Implementation Plan
 
 ### Phase 1: Core Infrastructure ✅ COMPLETE
+
 - [x] Create `google-auth-personal.tsx` (wrapper with #googleAuthPersonal)
 - [x] Create `google-auth-work.tsx` (wrapper with #googleAuthWork)
 - [x] Test wrapper composition with actual google-auth
@@ -298,14 +324,17 @@ If user has an existing `google-auth` charm and wants to classify it:
 - [x] Create `google-auth-switcher.tsx` (post-hoc classification)
 
 ### Phase 2: Gmail Updates ✅ COMPLETE
+
 - [x] Add `accountType` input to `gmail-agentic-search.tsx`
 - [x] Add account selector dropdown UI
 - [x] Reactive wish based on accountType
 - [x] Update hotel-membership-gmail-agent to use accountType
 - [x] Update gmail-importer to use accountType
-- [x] Fix UI dropdown write (used local writable cell pattern from community-docs)
+- [x] Fix UI dropdown write (used local writable cell pattern from
+      community-docs)
 
 ### Phase 3: Future
+
 - [ ] Scope-based tags (#googleAuthGmail, etc.)
 - [ ] Combined account+scope tags
 - [ ] Update documentation
@@ -314,7 +343,8 @@ If user has an existing `google-auth` charm and wants to classify it:
 
 1. **Classification timing:** Support BOTH pre-hoc and post-hoc
 2. **Wrapper vs modify:** Wrappers are cleaner - original stays as fallback
-3. **Fallback behavior:** If user explicitly requests work, require setup (no silent fallback)
+3. **Fallback behavior:** If user explicitly requests work, require setup (no
+   silent fallback)
 4. **Visual style:** Color badge (blue=personal, red=work) + email in title
 5. **Hashtag format:** Use camelCase or hyphens (no + or _)
 

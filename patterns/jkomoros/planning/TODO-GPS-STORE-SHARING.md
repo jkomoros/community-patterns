@@ -1,11 +1,15 @@
 # TODO: GPS-Based Store Mapping Sharing Demo
 
 ## Concept
-Demonstrate that if someone has already mapped a store at a specific GPS location, other users visiting that same location can benefit from the existing mapping.
+
+Demonstrate that if someone has already mapped a store at a specific GPS
+location, other users visiting that same location can benefit from the existing
+mapping.
 
 ## Demo Flow (Faked for Now)
 
 ### User Experience
+
 1. User opens shopping list app
 2. App detects GPS location (or user selects from a list of "nearby stores")
 3. **If mapping exists at this location:**
@@ -20,6 +24,7 @@ Demonstrate that if someone has already mapped a store at a specific GPS locatio
 ### Mock Implementation Strategy
 
 #### Phase 1: Fake GPS Detection
+
 ```typescript
 const mockLocations = {
   "kroger-main-st": {
@@ -39,7 +44,7 @@ const mockLocations = {
     lng: -122.4064,
     storeName: "Whole Foods Market",
     hasMappingAvailable: true,
-  }
+  },
 };
 
 // In the pattern, fake "detect current location"
@@ -47,6 +52,7 @@ const currentLocation = mockLocations["kroger-main-st"];
 ```
 
 #### Phase 2: Mock Mapping Database
+
 ```typescript
 const existingMappings = {
   "kroger-main-st": {
@@ -70,13 +76,14 @@ Bread, bagels, donuts...
 ...`,
     confidence: 0.88,
     usageCount: 23,
-  }
+  },
 };
 ```
 
 #### Phase 3: UI Components
 
 **StoreLocationPicker Component:**
+
 - Shows list of "nearby" stores (from mock data)
 - Each store shows:
   - Store name
@@ -84,6 +91,7 @@ Bread, bagels, donuts...
   - Mapping status: ✅ "Mapped by 47 shoppers" or ⚠️ "Not yet mapped"
 
 **MappingAvailableNotification:**
+
 ```tsx
 <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; border: 2px solid #4caf50;">
   <div style="font-weight: 600; color: #2e7d32;">
@@ -100,10 +108,11 @@ Bread, bagels, donuts...
       Preview Layout
     </ct-button>
   </div>
-</div>
+</div>;
 ```
 
 **NoMappingNotification:**
+
 ```tsx
 <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; border: 2px solid #ff9800;">
   <div style="font-weight: 600; color: #e65100;">
@@ -117,7 +126,7 @@ Bread, bagels, donuts...
       Map This Store
     </ct-button>
   </div>
-</div>
+</div>;
 ```
 
 #### Phase 4: Integration with Shopping List Launcher
@@ -129,8 +138,8 @@ interface LauncherInput {
   items: Default<ShoppingItem[], []>;
   storeOutline: Default<string, "">;
   storeName: Default<string, "Kroger Main St">;
-  gpsLocation?: { lat: number; lng: number };  // NEW
-  useSharedMapping?: Default<boolean, false>;   // NEW
+  gpsLocation?: { lat: number; lng: number }; // NEW
+  useSharedMapping?: Default<boolean, false>; // NEW
 }
 
 // Check if mapping exists for current location
@@ -144,6 +153,7 @@ const showMappingNotification = !!existingMapping;
 ## Demo Script
 
 ### Scenario 1: Store Already Mapped
+
 1. User: "I'm at Kroger Main St"
 2. App: Detects location (mocked)
 3. App: Shows "✨ This store has been mapped by 47 shoppers!"
@@ -153,6 +163,7 @@ const showMappingNotification = !!existingMapping;
 7. App: Items are pre-sorted because mapping exists!
 
 ### Scenario 2: Unmapped Store
+
 1. User: "I'm at Safeway Downtown"
 2. App: Detects location (mocked)
 3. App: Shows "🗺️ This store hasn't been mapped yet"
@@ -164,7 +175,9 @@ const showMappingNotification = !!existingMapping;
 ## Technical Notes
 
 ### Future (Real Implementation)
+
 When this becomes real, we'd need:
+
 - Real GPS API integration (navigator.geolocation)
 - Backend database to store/retrieve mappings by lat/lng
 - Privacy considerations (anonymous contributions)
@@ -173,19 +186,23 @@ When this becomes real, we'd need:
 - Store chain intelligence (all Krogers might share similar layouts)
 
 ### For Now (Demo)
+
 Keep everything client-side and hardcoded:
+
 - Mock GPS data
 - Fake mapping database in pattern
 - Simulate the UX without backend
 - Focus on showing the value proposition
 
 ## Success Metrics (for Demo)
+
 - Clearly shows the "network effect" value
 - User understands they're benefiting from community mapping
 - Encourages users to contribute their own mappings
 - Feels magical when mapping "just works"
 
 ## Files to Modify
+
 - `shopping-list-launcher.tsx` - Add GPS detection and mapping lookup
 - `store-mapper.tsx` - Add "save for others" messaging
 - New: `store-location-picker.tsx` - Component for selecting nearby stores

@@ -176,12 +176,13 @@ export function normalizeLocation(location: string): string {
  */
 export function locationMatchesAddress(
   location: string,
-  address: string
+  address: string,
 ): boolean {
   if (!location || !address) return false;
   const normLocation = normalizeLocation(location);
   const normAddress = normalizeLocation(address);
-  return normLocation.includes(normAddress) || normAddress.includes(normLocation);
+  return normLocation.includes(normAddress) ||
+    normAddress.includes(normLocation);
 }
 
 /**
@@ -189,10 +190,12 @@ export function locationMatchesAddress(
  */
 export function isNeutralLocation(
   location: string,
-  neutralPatterns: string[]
+  neutralPatterns: string[],
 ): boolean {
   const lower = location.toLowerCase();
-  return neutralPatterns.some((pattern) => lower.includes(pattern.toLowerCase()));
+  return neutralPatterns.some((pattern) =>
+    lower.includes(pattern.toLowerCase())
+  );
 }
 
 /**
@@ -201,7 +204,7 @@ export function isNeutralLocation(
 export function matchRegex(
   text: string,
   pattern: string,
-  caseInsensitive: boolean = true
+  caseInsensitive: boolean = true,
 ): boolean {
   if (!text || !pattern) return false;
   try {
@@ -232,10 +235,12 @@ export function computeHostingStatus(
   theyHostedCount: number,
   weHostedCount: number,
   daysSinceTheyHosted: number | null,
-  overdueThresholdDays: number
+  overdueThresholdDays: number,
 ): HostingStatus {
   // Check overdue first
-  if (daysSinceTheyHosted !== null && daysSinceTheyHosted > overdueThresholdDays) {
+  if (
+    daysSinceTheyHosted !== null && daysSinceTheyHosted > overdueThresholdDays
+  ) {
     return "overdue";
   }
 

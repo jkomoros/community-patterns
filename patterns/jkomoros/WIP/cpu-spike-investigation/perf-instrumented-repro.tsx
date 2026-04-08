@@ -20,9 +20,9 @@ import {
   handler,
   NAME,
   pattern,
+  safeDateNow,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 type Item = {
@@ -50,7 +50,11 @@ const loadData = handler<
   lastRenderTime = 0;
 
   console.log(`[PERF] ========================================`);
-  console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items`);
+  console.log(
+    `[PERF] Loading ${outerCount} × ${innerCount} = ${
+      outerCount * innerCount
+    } items`,
+  );
   console.log(`[PERF] Start time: ${loadStartTime}`);
 
   const newItems = Array.from({ length: outerCount }, (_, i) => ({
@@ -64,7 +68,11 @@ const loadData = handler<
   items.set(newItems);
 
   // This only measures the set() call, NOT the reactive cascade!
-  console.log(`[PERF] items.set() returned at ${safeDateNow()} (${safeDateNow() - loadStartTime}ms)`);
+  console.log(
+    `[PERF] items.set() returned at ${safeDateNow()} (${
+      safeDateNow() - loadStartTime
+    }ms)`,
+  );
   console.log(`[PERF] But reactive execution happens LATER via setTimeout!`);
   console.log(`[PERF] Watch for render calls below...`);
 });
@@ -76,8 +84,10 @@ const clearData = handler<Record<string, never>, { items: Writable<Item[]> }>(
     console.log(`[PERF] Cleared. Final stats:`);
     console.log(`[PERF]   outerMapCalls: ${outerMapCalls}`);
     console.log(`[PERF]   innerMapCalls: ${innerMapCalls}`);
-    console.log(`[PERF]   Total render time: ${lastRenderTime - loadStartTime}ms`);
-  }
+    console.log(
+      `[PERF]   Total render time: ${lastRenderTime - loadStartTime}ms`,
+    );
+  },
 );
 
 // Handler to show stats
@@ -91,7 +101,7 @@ const showStats = handler<Record<string, never>, Record<string, never>>(
     console.log(`[PERF]   lastRenderTime: ${lastRenderTime}`);
     console.log(`[PERF]   Total time: ${lastRenderTime - loadStartTime}ms`);
     console.log(`[PERF] ========================================`);
-  }
+  },
 );
 
 export default pattern<Props>(() => {
@@ -113,13 +123,14 @@ export default pattern<Props>(() => {
             borderRadius: "4px",
           }}
         >
-          <strong>CORRECT MEASUREMENT:</strong> This pattern counts function calls
-          inside .map() closures and tracks when the LAST item renders.
-          Check console for [PERF] logs.
+          <strong>CORRECT MEASUREMENT:</strong>{" "}
+          This pattern counts function calls inside .map() closures and tracks
+          when the LAST item renders. Check console for [PERF] logs.
         </div>
 
         <div style={{ marginBottom: "1rem" }}>
-          <strong>Configuration:</strong> {outerCount} × {innerCount} = {outerCount * innerCount} items
+          <strong>Configuration:</strong> {outerCount} × {innerCount} ={" "}
+          {outerCount * innerCount} items
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
@@ -144,7 +155,11 @@ export default pattern<Props>(() => {
             outerMapCalls++;
             lastRenderTime = safeDateNow();
             if (outerMapCalls <= 3 || outerMapCalls === outerCount) {
-              console.log(`[PERF] Outer map #${outerMapCalls} at ${lastRenderTime} (+${lastRenderTime - loadStartTime}ms)`);
+              console.log(
+                `[PERF] Outer map #${outerMapCalls} at ${lastRenderTime} (+${
+                  lastRenderTime - loadStartTime
+                }ms)`,
+              );
             }
 
             return (
@@ -164,8 +179,15 @@ export default pattern<Props>(() => {
                     lastRenderTime = safeDateNow();
 
                     // Log first few and last
-                    if (innerMapCalls <= 5 || innerMapCalls === outerCount * innerCount) {
-                      console.log(`[PERF] Inner map #${innerMapCalls} at ${lastRenderTime} (+${lastRenderTime - loadStartTime}ms)`);
+                    if (
+                      innerMapCalls <= 5 ||
+                      innerMapCalls === outerCount * innerCount
+                    ) {
+                      console.log(
+                        `[PERF] Inner map #${innerMapCalls} at ${lastRenderTime} (+${
+                          lastRenderTime - loadStartTime
+                        }ms)`,
+                      );
                     }
 
                     return (

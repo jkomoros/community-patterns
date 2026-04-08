@@ -3,18 +3,16 @@
  * @title Extract Launcher V3
  * @description Launcher for changesPreview test (Test 2)
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import ExtractTargetV3 from "./navigateto-generateobject-target-v3.tsx";
 
 const launchTarget = handler<void, void>(() =>
-  navigateTo(ExtractTargetV3({ notes: "Created via navigateTo - testing changesPreview!" }))
+  navigateTo(
+    ExtractTargetV3({
+      notes: "Created via navigateTo - testing changesPreview!",
+    }),
+  )
 );
 
 export default pattern(() => {
@@ -24,8 +22,15 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Extract Launcher V3</h1>
 
-        <div style={{ backgroundColor: "#dbeafe", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>TEST 2:</strong> Target uses pattern() + changesPreview + notesDiffChunks
+        <div
+          style={{
+            backgroundColor: "#dbeafe",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>TEST 2:</strong>{" "}
+          Target uses pattern() + changesPreview + notesDiffChunks
         </div>
 
         <h2>Reproduction Steps</h2>

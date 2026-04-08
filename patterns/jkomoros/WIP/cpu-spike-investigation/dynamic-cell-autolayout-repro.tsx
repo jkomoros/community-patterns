@@ -19,9 +19,9 @@ import {
   ifElse,
   NAME,
   pattern,
+  safeDateNow,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 type Item = {
@@ -34,9 +34,18 @@ type Props = Record<string, never>;
 // Handler to load data (mimics generateObject completion)
 const loadData = handler<
   Record<string, never>,
-  { items: Writable<Item[]>; hasResults: Writable<boolean>; outerCount: number; innerCount: number }
+  {
+    items: Writable<Item[]>;
+    hasResults: Writable<boolean>;
+    outerCount: number;
+    innerCount: number;
+  }
 >((_, { items, hasResults, outerCount, innerCount }) => {
-  console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items...`);
+  console.log(
+    `[PERF] Loading ${outerCount} × ${innerCount} = ${
+      outerCount * innerCount
+    } items...`,
+  );
   const t0 = safeDateNow();
 
   const newItems = Array.from({ length: outerCount }, (_, i) => ({
@@ -53,11 +62,14 @@ const loadData = handler<
 });
 
 // Handler to clear data
-const clearData = handler<Record<string, never>, { items: Writable<Item[]>; hasResults: Writable<boolean> }>(
+const clearData = handler<
+  Record<string, never>,
+  { items: Writable<Item[]>; hasResults: Writable<boolean> }
+>(
   (_, { items, hasResults }) => {
     items.set([]);
     hasResults.set(false);
-  }
+  },
 );
 
 export default pattern<Props>(() => {
@@ -94,7 +106,9 @@ export default pattern<Props>(() => {
                   >
                     <strong>Item {item.id}</strong>
                     <div style={{ paddingLeft: "1rem", fontSize: "0.75rem" }}>
-                      {item.children.map((child: { id: number; text: string }) => (
+                      {item.children.map((
+                        child: { id: number; text: string },
+                      ) => (
                         <span
                           style={{
                             display: "inline-block",
@@ -125,15 +139,25 @@ export default pattern<Props>(() => {
                   borderRadius: "4px",
                 }}
               >
-                <strong>⚠️ BUG TEST:</strong> Does ct-autolayout + ifElse + dynamic maps trigger the freeze?
+                <strong>⚠️ BUG TEST:</strong>{" "}
+                Does ct-autolayout + ifElse + dynamic maps trigger the freeze?
               </div>
 
               <div>
                 <strong>Configuration:</strong>
-                <div>Items: {outerCount} × {innerCount} = {outerCount * innerCount}</div>
+                <div>
+                  Items: {outerCount} × {innerCount} = {outerCount * innerCount}
+                </div>
               </div>
 
-              <cf-button onClick={loadData({ items, hasResults, outerCount, innerCount })}>
+              <cf-button
+                onClick={loadData({
+                  items,
+                  hasResults,
+                  outerCount,
+                  innerCount,
+                })}
+              >
                 Load Data (triggers ifElse switch)
               </cf-button>
 
@@ -146,7 +170,7 @@ export default pattern<Props>(() => {
                 </ul>
               </div>
             </cf-vstack>
-          </cf-autolayout>
+          </cf-autolayout>,
         )}
       </cf-screen>
     ),

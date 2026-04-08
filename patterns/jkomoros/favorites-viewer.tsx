@@ -8,10 +8,14 @@
  * Note: Links to charms in other spaces may not work until
  * navigateTo supports multi-space navigation.
  */
-import { Writable, computed, NAME, pattern, UI, wish } from "commonfabric";
+import { computed, NAME, pattern, UI, wish, Writable } from "commonfabric";
 
 // Favorites can have either 'tag' or 'description' field depending on version
-type Favorite = { cell: Writable<{ [NAME]?: string }>; tag?: string; description?: string };
+type Favorite = {
+  cell: Writable<{ [NAME]?: string }>;
+  tag?: string;
+  description?: string;
+};
 
 // Helper to safely get the tag/description from a favorite
 function getTag(fav: Favorite | undefined): string {
@@ -53,11 +57,11 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
           <div>
             <h2 style={{ margin: 0 }}>Your Favorites</h2>
             <div style={{ color: "#666", fontSize: "14px" }}>
-              {favoriteCount} favorited charm{computed(() => favoriteCount === 1 ? "" : "s")}
+              {favoriteCount}{" "}
+              favorited charm{computed(() => favoriteCount === 1 ? "" : "s")}
             </div>
           </div>
         </div>
-
 
         {computed(() =>
           favoriteCount === 0
@@ -123,9 +127,16 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
             color: "#666",
           }}
         >
-          <strong>💡 Tip:</strong> Favorites are stored in your home space and
-          shared across all your spaces. Patterns can use{" "}
-          <code style={{ backgroundColor: "#e9ecef", padding: "2px 6px", borderRadius: "3px" }}>
+          <strong>💡 Tip:</strong>{" "}
+          Favorites are stored in your home space and shared across all your
+          spaces. Patterns can use{" "}
+          <code
+            style={{
+              backgroundColor: "#e9ecef",
+              padding: "2px 6px",
+              borderRadius: "3px",
+            }}
+          >
             wish("#tagName")
           </code>{" "}
           to discover favorited charms automatically.

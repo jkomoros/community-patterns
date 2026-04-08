@@ -3,17 +3,25 @@
 ## Current Status: Phases 1, 3, 4 ✅ COMPLETE
 
 **Completed:**
-- ✅ Phase 1: Data Model + Basic UI (StepGroup interface, notes at top, image upload)
-- ✅ Phase 3: LLM Timing Tools ("Organize by Timing", "Suggest Wait Times" with modal UI)
+
+- ✅ Phase 1: Data Model + Basic UI (StepGroup interface, notes at top, image
+  upload)
+- ✅ Phase 3: LLM Timing Tools ("Organize by Timing", "Suggest Wait Times" with
+  modal UI)
 - ✅ Phase 4: Viewer Pattern (food-recipe-viewer.tsx with completion tracking)
 
 **Remaining:**
-- Phase 2: Step Group Management UI (group editing, step reordering, move between groups)
-- Phase 5: Polish & Future (parallel groups, PDF import, time-based highlighting)
+
+- Phase 2: Step Group Management UI (group editing, step reordering, move
+  between groups)
+- Phase 5: Polish & Future (parallel groups, PDF import, time-based
+  highlighting)
 
 ---
 
-**Goal**: Enhance food-recipe pattern to support timing/scheduling, viewer mode, and image import - ultimately to support a thanksgiving-planner pattern that can schedule multiple recipes.
+**Goal**: Enhance food-recipe pattern to support timing/scheduling, viewer mode,
+and image import - ultimately to support a thanksgiving-planner pattern that can
+schedule multiple recipes.
 
 ---
 
@@ -23,7 +31,8 @@ This document outlines major improvements to the food-recipe pattern:
 
 1. **Restructure data model** around step groups with timing information
 2. **Add image/PDF import** for recipe extraction
-3. **Create food-recipe-viewer** pattern for cooking view (checkboxes, current group focus)
+3. **Create food-recipe-viewer** pattern for cooking view (checkboxes, current
+   group focus)
 4. **LLM enhancements** for extracting timing and suggesting wait times
 5. **UI improvements** - notes at top, better extraction flow
 
@@ -32,6 +41,7 @@ This document outlines major improvements to the food-recipe pattern:
 ## Design Decisions Summary
 
 ### Step Groups with Timing
+
 - All steps belong to named step groups (no default/special group)
 - Groups have timing: `nightsBeforeServing` OR `minutesBeforeServing` (not both)
 - Groups can overlap in timing (e.g., two groups both "30 min before")
@@ -41,6 +51,7 @@ This document outlines major improvements to the food-recipe pattern:
 - Future: `parallelGroup` string for parallel execution (not implementing yet)
 
 ### Viewer Pattern
+
 - Separate pattern: food-recipe-viewer
 - Live-linked to source recipe (not snapshot)
 - Shows all groups, with checkboxes for groups and steps
@@ -48,6 +59,7 @@ This document outlines major improvements to the food-recipe pattern:
 - Completion tracking: try boxing pattern, fall back to name->boolean map
 
 ### Image Import
+
 - Use `ct-image-input` component
 - Transcribes to text, populates notes field
 - Existing extraction flow handles the rest
@@ -58,6 +70,7 @@ This document outlines major improvements to the food-recipe pattern:
 ## Data Model Changes
 
 ### Current Model
+
 ```typescript
 interface RecipeStep {
   order: number;
@@ -73,6 +86,7 @@ interface RecipeInput {
 ```
 
 ### New Model
+
 ```typescript
 interface RecipeStep {
   description: string;
@@ -117,7 +131,17 @@ interface RecipeInput {
   cookTime: Default<number, 0>; // minutes - KEEP for summary
   restTime: Default<number, 0>; // minutes - Time to rest after cooking before serving (ADDED for thanksgiving-planner)
   holdTime: Default<number, 0>; // minutes - Time dish can wait while maintaining quality (ADDED for thanksgiving-planner)
-  category: Default<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other", "other">; // ADDED for thanksgiving-planner meal planning
+  category: Default<
+    | "appetizer"
+    | "main"
+    | "side"
+    | "starch"
+    | "vegetable"
+    | "dessert"
+    | "bread"
+    | "other",
+    "other"
+  >; // ADDED for thanksgiving-planner meal planning
   ingredients: Default<Ingredient[], []>; // No change
   stepGroups: Default<StepGroup[], []>; // NEW - replaces steps
   tags: Default<string[], []>;
@@ -136,6 +160,7 @@ interface RecipeOutput extends RecipeInput {
 ```
 
 ### Migration Strategy
+
 - Existing recipes have flat `steps` array
 - On load, if `stepGroups` is empty but `steps` exists:
   - Create single group named "Main Steps"
@@ -149,9 +174,11 @@ interface RecipeOutput extends RecipeInput {
 
 ### 1. Move Notes to Top (Most Prominent)
 
-**Rationale**: The LLM extraction from notes is the primary way to create recipes, so it should be the first thing users see.
+**Rationale**: The LLM extraction from notes is the primary way to create
+recipes, so it should be the first thing users see.
 
 **New Layout Order**:
+
 1. Header (name, total time)
 2. **Notes Section** with image upload + extract button
 3. Extraction results modal (when active)
@@ -191,6 +218,7 @@ interface RecipeOutput extends RecipeInput {
 ### 3. Step Groups Section (New)
 
 **Features**:
+
 - Inline group management (create, rename, delete, reorder)
 - Timing fields per group (nights OR minutes before serving)
 - Duration and max wait time per group
@@ -199,6 +227,7 @@ interface RecipeOutput extends RecipeInput {
 - Ability to move steps between groups (drag-drop or move buttons)
 
 **Visual Structure**:
+
 ```
 ┌─ Step Groups ────────────────────────────────────┐
 │                                                   │
@@ -231,6 +260,7 @@ interface RecipeOutput extends RecipeInput {
 ```
 
 **Group Card UI Details**:
+
 - Collapsible/expandable groups
 - Group header shows: name, timing summary, duration, oven icon if applicable
 - Edit button opens inline form for group properties
@@ -242,13 +272,16 @@ interface RecipeOutput extends RecipeInput {
 ## New Pattern: food-recipe-viewer
 
 ### Purpose
+
 A cooking-focused view of a recipe that:
+
 - Shows all step groups with timing information
 - Allows checking off completed steps and groups
 - Tracks which steps/groups are done
 - Live-linked to source recipe (updates when recipe changes)
 
 ### Data Model
+
 ```typescript
 interface ViewerInput {
   sourceRecipe: Cell<RecipeOutput>; // Live link to food-recipe
@@ -258,6 +291,7 @@ interface ViewerInput {
 ```
 
 **Note**: Completion tracking will use boxing pattern if possible:
+
 ```typescript
 // Ideal approach (if boxing works):
 interface BoxedStep extends RecipeStep {
@@ -272,15 +306,18 @@ interface BoxedGroup extends StepGroup {
 If boxing doesn't work with live-linked cells, fall back to the Record approach.
 
 ### UI Features
+
 1. **All groups visible** (not accordion/single-view)
 2. **Group checkbox** checks all steps within group
 3. **Step checkboxes** for individual completion
-4. **Current group highlighting** (based on timing and current time - future enhancement)
+4. **Current group highlighting** (based on timing and current time - future
+   enhancement)
 5. **Timing display** shows when each group should start
 6. **Ingredients list** at top (read-only, from source recipe)
 7. **Link back to source recipe** for editing
 
 ### Creation Flow
+
 1. In food-recipe, add button "Create Cooking View"
 2. Button creates new food-recipe-viewer charm
 3. Links viewer to current recipe
@@ -288,6 +325,7 @@ If boxing doesn't work with live-linked cells, fall back to the Record approach.
 5. Multiple viewers can exist for same recipe
 
 ### Example Viewer UI
+
 ```
 ┌─ 🍳 Roast Turkey (Cooking View) ────────────────┐
 │                                                  │
@@ -373,6 +411,7 @@ schema: {
 ```
 
 **Updated System Prompt**:
+
 ```
 You are a recipe extraction assistant. Extract structured recipe information from unstructured text.
 
@@ -399,9 +438,11 @@ Be thoughtful about timing. If recipe doesn't specify timing, make reasonable as
 
 **Button**: "Organize by Timing" (in step groups section)
 
-**Purpose**: For recipes with unorganized step groups, automatically suggest timing and organization.
+**Purpose**: For recipes with unorganized step groups, automatically suggest
+timing and organization.
 
 **Implementation**:
+
 ```typescript
 const suggestTiming = handler<...>((_event, { stepGroups }) => {
   timingSuggestionTrigger.set(`${JSON.stringify(stepGroups)}\n---TIMING-${Date.now()}---`);
@@ -426,9 +467,11 @@ const { result: timingSuggestion } = generateObject({
 
 **Button**: "Suggest Wait Times" (in step groups section)
 
-**Purpose**: For each step group, suggest how long it can safely wait before the next group.
+**Purpose**: For each step group, suggest how long it can safely wait before the
+next group.
 
 **Implementation**:
+
 ```typescript
 const suggestWaitTimes = handler<...>((_event, { stepGroups }) => {
   waitTimeSuggestionTrigger.set(`${JSON.stringify(stepGroups)}\n---WAIT-${Date.now()}---`);
@@ -460,6 +503,7 @@ const { result: waitTimeSuggestion } = generateObject({
 **Component**: `ct-image-input`
 
 **Flow**:
+
 1. User clicks "Upload Image" button in Notes section
 2. File picker opens, user selects image
 3. Image is transcribed to text (happens automatically with ct-image-input)
@@ -467,6 +511,7 @@ const { result: waitTimeSuggestion } = generateObject({
 5. User clicks "Extract Recipe Data" to run existing extraction
 
 **Implementation**:
+
 ```typescript
 const handleImageUpload = handler<
   { detail: { content: string } }, // Transcribed text from image
@@ -483,17 +528,20 @@ const handleImageUpload = handler<
 ### Phase 2: PDF Import (Future Enhancement)
 
 **Challenge**: Most LLM APIs don't accept PDF directly, would need:
+
 - PDF parsing library to extract text
 - Or multi-page image conversion
 - Special handling for recipe books with photos/formatting
 
-**Decision**: Defer until Phase 1 is working. Users can use external tools to convert PDF to images for now.
+**Decision**: Defer until Phase 1 is working. Users can use external tools to
+convert PDF to images for now.
 
 ---
 
 ## Implementation Phases
 
 ### Phase 1: Data Model + Basic UI ✅ COMPLETED
+
 - [x] Create design doc (this file)
 - [x] Create feature branch
 - [x] Update data model (StepGroup interface)
@@ -505,9 +553,12 @@ const handleImageUpload = handler<
 - [x] Test with simple recipe
 - [x] Commit and push
 
-**Additional fields added (2025-11-22)**: Added `restTime`, `holdTime`, `category` input fields and `ovenRequirements` derived output field as requested by thanksgiving-planner pattern for meal scheduling and oven coordination.
+**Additional fields added (2025-11-22)**: Added `restTime`, `holdTime`,
+`category` input fields and `ovenRequirements` derived output field as requested
+by thanksgiving-planner pattern for meal scheduling and oven coordination.
 
 ### Phase 2: Step Group Management (Second PR)
+
 - [ ] Add group creation/deletion UI
 - [ ] Add group editing (name, timing, duration, oven)
 - [ ] Add step management within groups
@@ -518,6 +569,7 @@ const handleImageUpload = handler<
 - [ ] Commit and push
 
 ### Phase 3: LLM Timing Tools (Third PR) ✅ COMPLETED
+
 - [x] Add "Organize by Timing" button + LLM tool
 - [x] Add "Suggest Wait Times" button + LLM tool
 - [x] Test timing suggestions - LLM generates suggestions correctly
@@ -531,16 +583,21 @@ const handleImageUpload = handler<
 **Implementation Status (2025-11-22) - COMPLETE**:
 
 **Working Solution**:
-- Implemented modal UI with Apply/Cancel buttons for timing and wait time suggestions (commit ca0aa90)
+
+- Implemented modal UI with Apply/Cancel buttons for timing and wait time
+  suggestions (commit ca0aa90)
 - Modals appear automatically when LLM completes analysis
 - Show diff view (current → suggested values) for each step group
-- Apply button calls `applyTimingSuggestions` or `applyWaitTimeSuggestions` handlers
+- Apply button calls `applyTimingSuggestions` or `applyWaitTimeSuggestions`
+  handlers
 - Cancel button dismisses modal without applying changes
 - Tested successfully in Playwright - both modals work correctly
 
 **Technical Implementation**:
+
 - Fixed cell serialization bug in trigger handlers (lines 565-628)
-  - Unwrap Cells before JSON.stringify: `stepGroups.get().map(g => g.get ? g.get() : g)`
+  - Unwrap Cells before JSON.stringify:
+    `stepGroups.get().map(g => g.get ? g.get() : g)`
   - LLM now receives correct JSON data
 - Timing suggestions modal (lines 1733-1849)
   - Shows nightsBeforeServing, minutesBeforeServing, duration with diff view
@@ -552,6 +609,7 @@ const handleImageUpload = handler<
 - Both handlers properly mutate cells (lines 576-667)
 
 **CRITICAL FINDING - Why Auto-Apply Failed**:
+
 - Attempted to use `derive()` for auto-apply (commit 7a4d6f1)
 - **Root cause**: Derives are READ-ONLY - they cannot call `.set()` on cells
 - Console logs confirmed: `group has .set? undefined undefined`
@@ -559,15 +617,18 @@ const handleImageUpload = handler<
 - Solution: Use handlers (which CAN mutate) with Apply button UI
 
 **Key Learning**:
+
 - CommonTools pattern: derives are pure (read-only), handlers can mutate
 - Always use handlers for `.set()` operations, never derives
 - This is a fundamental constraint of the reactive system
 - Modal + handler pattern works well for user-approved mutations
 
 ### Phase 4: Viewer Pattern (Fourth PR) ✅ COMPLETED
+
 - [x] Create food-recipe-viewer.tsx
 - [x] Implement completion tracking (boxing pattern with arrays)
-- [x] Deploy viewer pattern (charm ID: baedreig4xgcptx2xgrppho3xsgkvhuqxgctbvojtxde5xtbc27wp3aui7y)
+- [x] Deploy viewer pattern (charm ID:
+      baedreig4xgcptx2xgrppho3xsgkvhuqxgctbvojtxde5xtbc27wp3aui7y)
 - [x] Commit and push Phase 4 (commit 49b5132)
 - [x] Viewer pattern fully functional (completion tracking, timing display)
 - [x] **UNBLOCKED**: Solved self-reference issue with cell-based data passing
@@ -577,12 +638,13 @@ const handleImageUpload = handler<
 
 **Implementation Status (2025-11-22) - COMPLETE**:
 
-**Final Solution - Cell-Based Data Passing**:
-Instead of passing an Opaque reference to the whole charm, we pass individual cells from the
-recipe pattern as inputs to the viewer pattern. This is the correct CommonTools pattern for
+**Final Solution - Cell-Based Data Passing**: Instead of passing an Opaque
+reference to the whole charm, we pass individual cells from the recipe pattern
+as inputs to the viewer pattern. This is the correct CommonTools pattern for
 sharing data between patterns.
 
 **Viewer Interface (Redesigned)**:
+
 ```typescript
 interface ViewerInput {
   // Recipe data passed in as cells from the source recipe
@@ -598,10 +660,16 @@ interface ViewerInput {
 ```
 
 **Recipe Handler (Creates Viewer)**:
+
 ```typescript
 const createCookingView = handler<
   Record<string, never>,
-  { name: string; servings: number; ingredients: Ingredient[]; stepGroups: StepGroup[]; }
+  {
+    name: string;
+    servings: number;
+    ingredients: Ingredient[];
+    stepGroups: StepGroup[];
+  }
 >((_event, { name, servings, ingredients, stepGroups }) => {
   const viewer = FoodRecipeViewer({
     recipeName: name,
@@ -616,6 +684,7 @@ const createCookingView = handler<
 ```
 
 **What Works**:
+
 - Button in recipe creates viewer with recipe data
 - Viewer displays recipe name, servings, ingredients, step groups
 - Completion tracking with checkboxes (individual steps and whole groups)
@@ -626,17 +695,20 @@ const createCookingView = handler<
 - Navigation occurs automatically after viewer creation
 
 **Trade-offs**:
-- Viewer is NOT live-linked to source recipe (displays snapshot of data at creation time)
+
+- Viewer is NOT live-linked to source recipe (displays snapshot of data at
+  creation time)
 - No "← Edit Recipe" button (no sourceRecipeRef available)
 - If recipe changes, need to create new viewer to see updates
 - This is acceptable for Phase 4 - future enhancement could explore live-linking
 
-**Key Learning**:
-The correct pattern in CommonTools is to pass specific cells from one pattern as inputs to
-another pattern, not to try to pass whole charm references. Handlers receive the pattern's
-state fields and can pass them to newly instantiated patterns via constructor parameters.
+**Key Learning**: The correct pattern in CommonTools is to pass specific cells
+from one pattern as inputs to another pattern, not to try to pass whole charm
+references. Handlers receive the pattern's state fields and can pass them to
+newly instantiated patterns via constructor parameters.
 
 ### Phase 5: Polish & Future Enhancements
+
 - [ ] Add parallel group support (parallelGroup field)
 - [ ] PDF import support
 - [ ] Current group highlighting in viewer based on time
@@ -648,7 +720,9 @@ state fields and can pass them to newly instantiated patterns via constructor pa
 ## Open Questions / Future Work
 
 ### Thanksgiving Planner Integration
+
 The thanksgiving-planner pattern will:
+
 - Import multiple food-recipe patterns
 - Create viewers for each recipe
 - Coordinate timing across recipes
@@ -656,6 +730,7 @@ The thanksgiving-planner pattern will:
 - Show critical path and timeline
 
 **Requirements from food-recipe**:
+
 - ✅ Step groups with timing information
 - ✅ Oven requirements (temp, duration)
 - ✅ Duration estimates per group
@@ -666,27 +741,35 @@ The thanksgiving-planner pattern will:
 - ✅ Derived ovenRequirements (needsOven, temps, tempChanges)
 
 ### Boxing Pattern for Completion Tracking
+
 Need to test if we can extend live-linked recipe data with completion flags:
+
 ```typescript
 // Can we do this?
-const boxedGroups = derive(sourceRecipe.stepGroups, (groups) =>
-  groups.map(group => ({ ...group, completed: false }))
+const boxedGroups = derive(
+  sourceRecipe.stepGroups,
+  (groups) => groups.map((group) => ({ ...group, completed: false })),
 );
 ```
 
 If not, fall back to:
+
 ```typescript
-completedGroups: Record<string, boolean>
+completedGroups: Record<string, boolean>;
 ```
 
 ### Parallel Execution
+
 Future enhancement: `parallelGroup: string` on steps/groups
+
 - Steps with same parallelGroup can run simultaneously
 - Viewer shows them side-by-side or marked with "⚡ Can do together"
 - Thanksgiving planner uses this for optimization
 
 ### Scaling + Timing
+
 Should scaling servings affect timing?
+
 - Probably not for most cases
 - But very large batches might need longer cooking times
 - Leave for future enhancement
@@ -698,6 +781,7 @@ Should scaling servings affect timing?
 ### Test Cases
 
 **Simple Recipe (Phase 1)**:
+
 - Recipe with 1-2 groups
 - Basic timing (minutes before serving)
 - No oven requirements
@@ -705,6 +789,7 @@ Should scaling servings affect timing?
 - Test image upload + extraction
 
 **Complex Recipe (Phase 2)**:
+
 - Recipe with 4-5 groups
 - Mix of nights before + minutes before timing
 - Multiple oven requirements at different temps
@@ -713,12 +798,14 @@ Should scaling servings affect timing?
 - Test reordering groups
 
 **LLM Timing (Phase 3)**:
+
 - Recipe with unclear timing
 - Test "Organize by Timing" tool
 - Test "Suggest Wait Times" tool
 - Verify suggestions are reasonable
 
 **Viewer (Phase 4)**:
+
 - Create viewer from recipe
 - Test completion tracking
 - Test live updates when recipe changes
@@ -726,6 +813,7 @@ Should scaling servings affect timing?
 - Test navigation between recipe and viewer
 
 **Thanksgiving Recipe (Integration)**:
+
 - Large turkey recipe (multiple groups, overnight timing)
 - Test oven scheduling display
 - Test wait time suggestions
@@ -790,7 +878,9 @@ This example shows how the new data model represents a complex recipe:
         { "description": "Remove turkey from brine, pat dry" },
         { "description": "Season with herbs and pepper" },
         { "description": "Preheat oven to 325°F" },
-        { "description": "Place turkey in roasting pan, roast until 165°F internal temp" }
+        {
+          "description": "Place turkey in roasting pan, roast until 165°F internal temp"
+        }
       ]
     },
     {
@@ -828,7 +918,8 @@ This example shows how the new data model represents a complex recipe:
 
 - **Main pattern**: `patterns/jkomoros/food-recipe.tsx`
 - **Viewer pattern**: `patterns/jkomoros/food-recipe-viewer.tsx` (new)
-- **Design doc**: `patterns/jkomoros/design/todo/food-recipe-improvements.md` (this file)
+- **Design doc**: `patterns/jkomoros/design/todo/food-recipe-improvements.md`
+  (this file)
 - **Work branch**: `food-recipe-improvements` (to be created)
 
 ---
@@ -845,5 +936,4 @@ This example shows how the new data model represents a complex recipe:
 
 ---
 
-**Last Updated**: 2025-11-22
-**Status**: Ready to implement
+**Last Updated**: 2025-11-22 **Status**: Ready to implement

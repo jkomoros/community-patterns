@@ -3,18 +3,23 @@
 ## Summary
 
 Using `derive()` inside `.map()` to render list items causes:
-1. **8x+ more derive calls than expected** - 250 items triggers 2000+ derive calls
+
+1. **8x+ more derive calls than expected** - 250 items triggers 2000+ derive
+   calls
 2. **Derives never stabilize** - keeps re-running indefinitely
 3. **CPU spike for 10+ minutes** with 200+ items
-4. **Each row's derive has a different charm ID** - suggests context isolation issue
+4. **Each row's derive has a different charm ID** - suggests context isolation
+   issue
 
 ## Minimal Reproduction
 
 **File:** `patterns/jkomoros/WIP/derive-perf-repro.tsx`
 
-**Deployed at:** `http://localhost:8000/calendar-debug/baedreibzit2rqbteayywdfdod335g2h7d7mzf3k2dr23h7uedk7olalsna`
+**Deployed at:**
+`http://localhost:8000/calendar-debug/baedreibzit2rqbteayywdfdod335g2h7d7mzf3k2dr23h7uedk7olalsna`
 
 **Steps:**
+
 1. Open the charm
 2. Open browser DevTools console
 3. Click "Generate 250 Events"
@@ -23,19 +28,25 @@ Using `derive()` inside `.map()` to render list items causes:
 ## The Problematic Pattern
 
 ```tsx
-{events.map((event) => (
-  <tr>
-    <td>
-      {derive(
-        { startDateTime: event.startDateTime, endDateTime: event.endDateTime, isAllDay: event.isAllDay },
-        ({ startDateTime, endDateTime, isAllDay }) => {
-          return formatEventDate(startDateTime, endDateTime, isAllDay);
-        }
-      )}
-    </td>
-    <td>{event.summary}</td>
-  </tr>
-))}
+{
+  events.map((event) => (
+    <tr>
+      <td>
+        {derive(
+          {
+            startDateTime: event.startDateTime,
+            endDateTime: event.endDateTime,
+            isAllDay: event.isAllDay,
+          },
+          ({ startDateTime, endDateTime, isAllDay }) => {
+            return formatEventDate(startDateTime, endDateTime, isAllDay);
+          },
+        )}
+      </td>
+      <td>{event.summary}</td>
+    </tr>
+  ));
+}
 ```
 
 ## Expected Behavior
@@ -66,7 +77,8 @@ Charm(baedreibp4iy2pnszgvupfhyymzzigyrbhpx7ulk6r42yje2y7kejf5khaa) [log]: format
 Charm(baedreiezcbt6t3dl5uv7q6grwttahvwxqjvxp6udhntpeppkpook6r35ii) [log]: formatEventDate[event3]
 ```
 
-This suggests each row's derive is creating a separate charm context, which may be the root cause.
+This suggests each row's derive is creating a separate charm context, which may
+be the root cause.
 
 ## Additional Symptoms
 
@@ -93,7 +105,8 @@ This suggests each row's derive is creating a separate charm context, which may 
 ## Files
 
 - **Minimal repro:** `patterns/jkomoros/WIP/derive-perf-repro.tsx`
-- **Original pattern with issue:** `patterns/jkomoros/google-calendar-importer.tsx`
+- **Original pattern with issue:**
+  `patterns/jkomoros/google-calendar-importer.tsx`
 
 ## Questions for Framework Team
 

@@ -12,10 +12,10 @@ import {
   handler,
   NAME,
   pattern,
+  safeDateNow,
   str,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 // Minimal extraction result
@@ -71,20 +71,21 @@ const PersonMinimalV2 = pattern<Input, Output>(
       return undefined;
     });
 
-    const { result: extractionResult, pending: extractionPending } = generateObject({
-      system: "Extract profile data from the text.",
-      prompt: guardedPrompt,
-      model: "anthropic:claude-sonnet-4-5",
-      schema: {
-        type: "object",
-        properties: {
-          givenName: { type: "string" },
-          familyName: { type: "string" },
-          email: { type: "string" },
-          remainingNotes: { type: "string" },
+    const { result: extractionResult, pending: extractionPending } =
+      generateObject({
+        system: "Extract profile data from the text.",
+        prompt: guardedPrompt,
+        model: "anthropic:claude-sonnet-4-5",
+        schema: {
+          type: "object",
+          properties: {
+            givenName: { type: "string" },
+            familyName: { type: "string" },
+            email: { type: "string" },
+            remainingNotes: { type: "string" },
+          },
         },
-      },
-    });
+      });
 
     const notesDisplay = computed(() => notes || "(empty)");
     const resultDisplay = computed(() =>
@@ -110,7 +111,13 @@ const PersonMinimalV2 = pattern<Input, Output>(
               <h3>Details Tab</h3>
               <p>Display Name: {effectiveDisplayName}</p>
               {resultDisplay && (
-                <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#d1fae5" }}>
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    padding: "0.5rem",
+                    backgroundColor: "#d1fae5",
+                  }}
+                >
                   <strong>Extraction Result:</strong>
                   <pre>{resultDisplay}</pre>
                 </div>
@@ -120,14 +127,22 @@ const PersonMinimalV2 = pattern<Input, Output>(
             {/* Tab 2: Notes */}
             <div style={{ padding: "1rem" }}>
               <h3>Notes Tab</h3>
-              <pre style={{ background: "#f5f5f5", padding: "0.5rem", whiteSpace: "pre-wrap" }}>
+              <pre
+                style={{
+                  background: "#f5f5f5",
+                  padding: "0.5rem",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {notesDisplay}
               </pre>
               <cf-button
                 onClick={triggerExtraction({ notes, extractTrigger })}
                 disabled={extractionPending}
               >
-                {extractionPending ? "Extracting..." : "Extract Data from Notes"}
+                {extractionPending
+                  ? "Extracting..."
+                  : "Extract Data from Notes"}
               </cf-button>
             </div>
           </cf-autolayout>

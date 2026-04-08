@@ -9,14 +9,19 @@ description: >
 
 # Recovery Strategies for Pattern Development
 
-**CRITICAL: Don't spin your wheels when stuck. Follow this escalation path AGGRESSIVELY.**
+**CRITICAL: Don't spin your wheels when stuck. Follow this escalation path
+AGGRESSIVELY.**
 
-When encountering any difficulty with pattern development - whether it's TypeScript errors, unexpected behavior, or uncertainty about framework features - **immediately begin this recovery sequence**. Do NOT:
+When encountering any difficulty with pattern development - whether it's
+TypeScript errors, unexpected behavior, or uncertainty about framework
+features - **immediately begin this recovery sequence**. Do NOT:
+
 - Continue trying the same approach repeatedly
 - Guess at solutions without checking documentation
 - Waste time in unproductive loops
 
-**If you find yourself stuck for more than 1-2 attempts, MOVE TO THE NEXT STEP.**
+**If you find yourself stuck for more than 1-2 attempts, MOVE TO THE NEXT
+STEP.**
 
 Use this escalation path:
 
@@ -28,7 +33,8 @@ Use this escalation path:
 "Use the pattern-dev skill to refresh your understanding of framework patterns"
 ```
 
-The pattern-dev skill reads all latest pattern documentation from labs. Pay **particular attention** to:
+The pattern-dev skill reads all latest pattern documentation from labs. Pay
+**particular attention** to:
 
 - **`~/Code/labs/docs/common/DEBUGGING.md`** - Common pitfalls and anti-patterns
   - Quick error reference table
@@ -36,11 +42,14 @@ The pattern-dev skill reads all latest pattern documentation from labs. Pay **pa
   - Style errors (object vs string syntax)
   - Reactivity issues (bidirectional binding, computed(), ifElse())
   - Runtime errors (DOM access, LLM in handlers, etc.)
-- **`~/Code/labs/docs/common/PATTERNS.md`** - Pattern examples and best practices
-- **`~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`** - Reactivity system details
+- **`~/Code/labs/docs/common/PATTERNS.md`** - Pattern examples and best
+  practices
+- **`~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`** - Reactivity system
+  details
 - **`~/Code/labs/docs/common/TYPES_AND_SCHEMAS.md`** - Type system rules
 
 **When to use:**
+
 - Encountering any TypeScript errors
 - Pattern compiles but doesn't work as expected
 - UI not updating reactively
@@ -48,6 +57,7 @@ The pattern-dev skill reads all latest pattern documentation from labs. Pay **pa
 - Before asking user for clarification on framework behavior
 
 **When to move to Step 2:**
+
 - After reading relevant docs but still unclear on solution
 - Error persists after applying documented fixes
 - Need to see concrete examples of working code
@@ -55,9 +65,11 @@ The pattern-dev skill reads all latest pattern documentation from labs. Pay **pa
 
 ## Step 2: Study Similar Working Patterns
 
-After refreshing documentation, look at existing working patterns **in this priority order:**
+After refreshing documentation, look at existing working patterns **in this
+priority order:**
 
 **1. Labs patterns** (highest priority - canonical examples):
+
 ```bash
 $PARENT_DIR/labs/packages/patterns/
 # These are the most up-to-date, authoritative examples
@@ -65,6 +77,7 @@ $PARENT_DIR/labs/packages/patterns/
 ```
 
 **2. Patterns repository** (if available - well-tested real-world examples):
+
 ```bash
 $PARENT_DIR/patterns/
 # These are well-tested real-world patterns
@@ -72,12 +85,14 @@ $PARENT_DIR/patterns/
 ```
 
 **3. Community patterns - examples** (curated examples):
+
 ```bash
 patterns/examples/
 # These are specifically chosen as good examples
 ```
 
 **4. Community patterns - jkomoros** (user patterns):
+
 ```bash
 patterns/jkomoros/
 # Prefer root-level (stable) over WIP/
@@ -85,11 +100,13 @@ patterns/jkomoros/
 ```
 
 **Within each directory:**
+
 - ✅ Prefer non-WIP patterns (stable, tested)
 - ⚠️ Use WIP/ patterns only if non-WIP doesn't exist
 - 📁 Check root level first, then WIP/ as fallback
 
 **How to find similar patterns:**
+
 ```bash
 # Get parent directory for relative paths
 PARENT_DIR="$(git rev-parse --show-toplevel)/.."
@@ -107,6 +124,7 @@ ls patterns/jkomoros/
 ```
 
 **When to move to Step 2.5:**
+
 - Can't find similar patterns for your use case
 - Examples don't solve your specific problem
 - After studying 2-3 similar patterns without clarity
@@ -114,17 +132,22 @@ ls patterns/jkomoros/
 
 ## Step 2.5: Strategic Investigation (Plan Mode + Subagents)
 
-**After 1-2 failed attempts, STOP trying variations. Enter plan mode and investigate properly.**
+**After 1-2 failed attempts, STOP trying variations. Enter plan mode and
+investigate properly.**
 
 Use the `strategic-investigation` skill to:
+
 1. Step back from implementation mode
 2. Launch parallel Explore agents to gather information
 3. Synthesize findings - understand WHY the solution is correct
 4. Execute with confidence
 
-**This step is critical.** Don't skip it thinking "I'll just try one more thing." Systematic investigation often reveals the idiomatic solution faster than trial-and-error.
+**This step is critical.** Don't skip it thinking "I'll just try one more
+thing." Systematic investigation often reveals the idiomatic solution faster
+than trial-and-error.
 
 **When to move to Step 3:**
+
 - After strategic investigation reveals a clear path forward
 - If investigation shows this is a simple problem after all
 - You now understand the idiomatic approach
@@ -140,6 +163,7 @@ If still stuck after Steps 1-2:
 5. Add complexity incrementally, testing after each addition
 
 **When to move to Step 4:**
+
 - After 1-2 reset attempts without progress
 - Problem persists despite fresh approaches
 - Suspect this might be a framework limitation or bug
@@ -157,7 +181,11 @@ If Steps 1-3 don't resolve the issue:
 ## Additional Resources
 
 **After exhausting Steps 1-4, consider:**
-- **Community superstitions** - Check `community-docs/superstitions/` for empirical knowledge (treat with skepticism)
-- **Issue filing** - Document complex framework questions for authors (requires user permission)
 
-**Remember:** This recovery strategy is your safety net. Follow it systematically to avoid spinning your wheels!
+- **Community superstitions** - Check `community-docs/superstitions/` for
+  empirical knowledge (treat with skepticism)
+- **Issue filing** - Document complex framework questions for authors (requires
+  user permission)
+
+**Remember:** This recovery strategy is your safety net. Follow it
+systematically to avoid spinning your wheels!

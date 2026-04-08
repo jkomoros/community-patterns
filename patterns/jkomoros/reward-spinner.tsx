@@ -1,5 +1,16 @@
 /// <cts-enable />
-import { computed, Default, handler, NAME, nonPrivateRandom, pattern, safeDateNow, str, UI, Writable } from "commonfabric";
+import {
+  computed,
+  Default,
+  handler,
+  NAME,
+  nonPrivateRandom,
+  pattern,
+  safeDateNow,
+  str,
+  UI,
+  Writable,
+} from "commonfabric";
 
 /**
  * Reward Spinner Pattern
@@ -80,7 +91,17 @@ const spin = handler<
     spinHistory: Writable<SpinRecord[]>;
   }
 >(
-  (_, { currentEmoji, isSpinning, generosity, spinSequence, spinCount, spinHistory }) => {
+  (
+    _,
+    {
+      currentEmoji,
+      isSpinning,
+      generosity,
+      spinSequence,
+      spinCount,
+      spinHistory,
+    },
+  ) => {
     const gen = generosity.get();
     const weights = calculatePrizeWeights(gen);
 
@@ -123,7 +144,8 @@ const spin = handler<
         sequence.push(finalEmoji);
       } else {
         // Random prize
-        const randomPrize = prizeOptions[Math.floor(nonPrivateRandom() * prizeOptions.length)];
+        const randomPrize =
+          prizeOptions[Math.floor(nonPrivateRandom() * prizeOptions.length)];
         sequence.push(randomPrize.emoji);
       }
     }
@@ -151,7 +173,7 @@ const spin = handler<
     // because for one frame the static display might show before
     // the animation kicks in. Instead, we'll derive the display emoji
     // from the last spin result when not animating.
-  }
+  },
 );
 
 const decrementGenerosity = handler<
@@ -164,7 +186,7 @@ const decrementGenerosity = handler<
       generosity.set(current - 1);
       payoutAnimationCount.set(payoutAnimationCount.get() + 1);
     }
-  }
+  },
 );
 
 const incrementGenerosity = handler<
@@ -177,15 +199,23 @@ const incrementGenerosity = handler<
       generosity.set(current + 1);
       payoutAnimationCount.set(payoutAnimationCount.get() + 1);
     }
-  }
+  },
 );
 
 const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
-  ({ currentEmoji, isSpinning, generosity, spinSequence, spinCount, payoutAnimationCount, spinHistory }) => {
+  (
+    {
+      currentEmoji,
+      isSpinning,
+      generosity,
+      spinSequence,
+      spinCount,
+      payoutAnimationCount,
+      spinHistory,
+    },
+  ) => {
     // Compute the TADA emoji display from generosity level (0-10 emojis, one per level)
-    const tadaDisplay = computed(() =>
-      "🎉".repeat(generosity.get())
-    );
+    const tadaDisplay = computed(() => "🎉".repeat(generosity.get()));
 
     // Compute whether buttons should be disabled
     const minusDisabled = computed(() => generosity.get() <= 0);
@@ -208,12 +238,15 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
     });
 
     // Compute which payout animation variant to show (toggles to restart animation)
-    const showPayoutAnimationVariant0 = computed(() => payoutAnimationCount.get() % 2 === 0);
+    const showPayoutAnimationVariant0 = computed(() =>
+      payoutAnimationCount.get() % 2 === 0
+    );
 
     // Calculate payout display as a computed JSX element (avoids mapping over computed array)
     const payoutDisplay = computed(() => {
       const gen = generosity.get();
-      const [weightThreeBeans, weightOneBean, hugWeight] = calculatePrizeWeights(gen);
+      const [weightThreeBeans, weightOneBean, hugWeight] =
+        calculatePrizeWeights(gen);
       const totalWeight = weightThreeBeans + weightOneBean + hugWeight;
 
       const threeBeansPct = Math.round((weightThreeBeans / totalWeight) * 100);
@@ -226,7 +259,11 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
       const hugDots = Math.round(hugPct / 10);
 
       const prizes = [
-        { emoji: "🍬🍬🍬", dots: "🟢".repeat(threeBeansDots), percent: threeBeansPct },
+        {
+          emoji: "🍬🍬🍬",
+          dots: "🟢".repeat(threeBeansDots),
+          percent: threeBeansPct,
+        },
         { emoji: "🍬", dots: "🟢".repeat(oneBeanDots), percent: oneBeanPct },
         { emoji: "🤗", dots: "🔴".repeat(hugDots), percent: hugPct },
       ];
@@ -242,8 +279,21 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
             whiteSpace: "nowrap",
           }}
         >
-          <span style={{ fontSize: "12px", minWidth: "36px", textAlign: "right", flexShrink: 0 }}>{prize.emoji}</span>
-          <span style={{ fontSize: "10px", letterSpacing: "0px", flexShrink: 0 }}>{prize.dots}</span>
+          <span
+            style={{
+              fontSize: "12px",
+              minWidth: "36px",
+              textAlign: "right",
+              flexShrink: 0,
+            }}
+          >
+            {prize.emoji}
+          </span>
+          <span
+            style={{ fontSize: "10px", letterSpacing: "0px", flexShrink: 0 }}
+          >
+            {prize.dots}
+          </span>
           <span style={{ fontSize: "9px", minWidth: "28px", flexShrink: 0 }}>
             {prize.percent}%
           </span>
@@ -287,316 +337,829 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
               touchAction: "manipulation",
             }}
           >
-          {/* Wrapper for emoji and sparkles */}
-          <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {/* "Tap to spin" message - shows on every page load */}
+            {/* Wrapper for emoji and sparkles */}
             <div
               style={{
-                position: "absolute",
-                top: "20%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                fontSize: "16px",
-                color: "#64748b",
-                letterSpacing: "0.5px",
-                opacity: 0,
-                animation: "tapToSpinFade 3s ease-in-out forwards",
-                pointerEvents: "none",
-                zIndex: 10,
-              }}
-            >
-              Tap to spin
-            </div>
-            {/* Slot Machine Display */}
-            <div
-              onClick={spin({
-                currentEmoji,
-                isSpinning,
-                generosity,
-                spinSequence,
-                spinCount,
-                spinHistory,
-              })}
-              style={{
-                width: "300px",
-                height: "200px",
-                overflow: "hidden",
+                position: "relative",
+                width: "100%",
+                height: "100%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                maskImage: "linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%)",
-                cursor: "pointer",
-                transform: "scale(2.0)",
               }}
             >
-            {shouldShowAnimation ? (
-              isEvenSpin ? (
-                // Animated sequence (even spins)
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    animation: "slotSpin1 6s cubic-bezier(0.05, 0.7, 0.3, 1)",
-                    animationFillMode: "forwards",
-                    position: "absolute",
-                    top: "0",
-                    left: "0",
-                    width: "100%",
-                  }}
-                >
-                  {spinSequence.map((emoji, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        fontSize: "105px",
-                        lineHeight: "200px",
-                        height: "200px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "100%",
-                        flexShrink: "0",
-                        position: "relative",
-                      }}
-                    >
-                      {emoji === "🍬🍬🍬" ? (
-                        <>
-                          {/* Left candy - behind and up-left */}
-                          <span style={{
-                            position: "absolute",
-                            left: "calc(50% - 40px)",
-                            top: "calc(50% - 15px)",
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 1,
-                          }}>🍬</span>
-                          {/* Right candy - behind and up-right */}
-                          <span style={{
-                            position: "absolute",
-                            left: "calc(50% + 40px)",
-                            top: "calc(50% - 15px)",
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 1,
-                          }}>🍬</span>
-                          {/* Middle candy - in front, centered */}
-                          <span style={{
-                            position: "absolute",
-                            left: "50%",
-                            top: "50%",
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 2,
-                          }}>🍬</span>
-                        </>
-                      ) : (
-                        <span style={{
-                          position: "absolute",
-                          left: "50%",
-                          top: "50%",
-                          transform: "translate(-50%, -50%)",
-                        }}>{emoji}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                // Animated sequence (odd spins)
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    animation: "slotSpin2 6s cubic-bezier(0.05, 0.7, 0.3, 1)",
-                    animationFillMode: "forwards",
-                    position: "absolute",
-                    top: "0",
-                    left: "0",
-                    width: "100%",
-                  }}
-                >
-                  {spinSequence.map((emoji, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        fontSize: "105px",
-                        lineHeight: "200px",
-                        height: "200px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "100%",
-                        flexShrink: "0",
-                        position: "relative",
-                      }}
-                    >
-                      {emoji === "🍬🍬🍬" ? (
-                        <>
-                          {/* Left candy - behind and up-left */}
-                          <span style={{
-                            position: "absolute",
-                            left: "calc(50% - 40px)",
-                            top: "calc(50% - 15px)",
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 1,
-                          }}>🍬</span>
-                          {/* Right candy - behind and up-right */}
-                          <span style={{
-                            position: "absolute",
-                            left: "calc(50% + 40px)",
-                            top: "calc(50% - 15px)",
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 1,
-                          }}>🍬</span>
-                          {/* Middle candy - in front, centered */}
-                          <span style={{
-                            position: "absolute",
-                            left: "50%",
-                            top: "50%",
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 2,
-                          }}>🍬</span>
-                        </>
-                      ) : (
-                        <span style={{
-                          position: "absolute",
-                          left: "50%",
-                          top: "50%",
-                          transform: "translate(-50%, -50%)",
-                        }}>{emoji}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : (
-              // Initial static display
+              {/* "Tap to spin" message - shows on every page load */}
               <div
                 style={{
-                  fontSize: "105px",
-                  lineHeight: "1",
+                  position: "absolute",
+                  top: "20%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  fontSize: "16px",
+                  color: "#64748b",
+                  letterSpacing: "0.5px",
+                  opacity: 0,
+                  animation: "tapToSpinFade 3s ease-in-out forwards",
+                  pointerEvents: "none",
+                  zIndex: 10,
+                }}
+              >
+                Tap to spin
+              </div>
+              {/* Slot Machine Display */}
+              <div
+                onClick={spin({
+                  currentEmoji,
+                  isSpinning,
+                  generosity,
+                  spinSequence,
+                  spinCount,
+                  spinHistory,
+                })}
+                style={{
+                  width: "300px",
                   height: "200px",
+                  overflow: "hidden",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: "100%",
-                  position: "relative",
+                  maskImage:
+                    "linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%)",
+                  cursor: "pointer",
+                  transform: "scale(2.0)",
                 }}
               >
-                {isThreeCandies ? (
-                  <>
-                    {/* Left candy - behind and up-left */}
-                    <span style={{
-                      position: "absolute",
-                      fontSize: "150px",
-                      left: "calc(50% - 60px)",
-                      top: "calc(50% - 15px)",
-                      transform: "translate(-50%, -50%)",
-                      zIndex: 1,
-                    }}>🍬</span>
-                    {/* Right candy - behind and up-right */}
-                    <span style={{
-                      position: "absolute",
-                      fontSize: "150px",
-                      left: "calc(50% + 60px)",
-                      top: "calc(50% - 15px)",
-                      transform: "translate(-50%, -50%)",
-                      zIndex: 1,
-                    }}>🍬</span>
-                    {/* Middle candy - in front, centered */}
-                    <span style={{
-                      position: "absolute",
-                      fontSize: "150px",
-                      left: "50%",
-                      top: "50%",
-                      transform: "translate(-50%, -50%)",
-                      zIndex: 2,
-                    }}>🍬</span>
-                  </>
-                ) : (
-                  <span style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "50%",
-                    transform: "translate(-50%, -50%)",
-                  }}>{displayEmoji}</span>
-                )}
+                {shouldShowAnimation
+                  ? (
+                    isEvenSpin
+                      ? (
+                        // Animated sequence (even spins)
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            animation:
+                              "slotSpin1 6s cubic-bezier(0.05, 0.7, 0.3, 1)",
+                            animationFillMode: "forwards",
+                            position: "absolute",
+                            top: "0",
+                            left: "0",
+                            width: "100%",
+                          }}
+                        >
+                          {spinSequence.map((emoji, index) => (
+                            <div
+                              key={index}
+                              style={{
+                                fontSize: "105px",
+                                lineHeight: "200px",
+                                height: "200px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "100%",
+                                flexShrink: "0",
+                                position: "relative",
+                              }}
+                            >
+                              {emoji === "🍬🍬🍬"
+                                ? (
+                                  <>
+                                    {/* Left candy - behind and up-left */}
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        left: "calc(50% - 40px)",
+                                        top: "calc(50% - 15px)",
+                                        transform: "translate(-50%, -50%)",
+                                        zIndex: 1,
+                                      }}
+                                    >
+                                      🍬
+                                    </span>
+                                    {/* Right candy - behind and up-right */}
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        left: "calc(50% + 40px)",
+                                        top: "calc(50% - 15px)",
+                                        transform: "translate(-50%, -50%)",
+                                        zIndex: 1,
+                                      }}
+                                    >
+                                      🍬
+                                    </span>
+                                    {/* Middle candy - in front, centered */}
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        left: "50%",
+                                        top: "50%",
+                                        transform: "translate(-50%, -50%)",
+                                        zIndex: 2,
+                                      }}
+                                    >
+                                      🍬
+                                    </span>
+                                  </>
+                                )
+                                : (
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      left: "50%",
+                                      top: "50%",
+                                      transform: "translate(-50%, -50%)",
+                                    }}
+                                  >
+                                    {emoji}
+                                  </span>
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                      : (
+                        // Animated sequence (odd spins)
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            animation:
+                              "slotSpin2 6s cubic-bezier(0.05, 0.7, 0.3, 1)",
+                            animationFillMode: "forwards",
+                            position: "absolute",
+                            top: "0",
+                            left: "0",
+                            width: "100%",
+                          }}
+                        >
+                          {spinSequence.map((emoji, index) => (
+                            <div
+                              key={index}
+                              style={{
+                                fontSize: "105px",
+                                lineHeight: "200px",
+                                height: "200px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "100%",
+                                flexShrink: "0",
+                                position: "relative",
+                              }}
+                            >
+                              {emoji === "🍬🍬🍬"
+                                ? (
+                                  <>
+                                    {/* Left candy - behind and up-left */}
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        left: "calc(50% - 40px)",
+                                        top: "calc(50% - 15px)",
+                                        transform: "translate(-50%, -50%)",
+                                        zIndex: 1,
+                                      }}
+                                    >
+                                      🍬
+                                    </span>
+                                    {/* Right candy - behind and up-right */}
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        left: "calc(50% + 40px)",
+                                        top: "calc(50% - 15px)",
+                                        transform: "translate(-50%, -50%)",
+                                        zIndex: 1,
+                                      }}
+                                    >
+                                      🍬
+                                    </span>
+                                    {/* Middle candy - in front, centered */}
+                                    <span
+                                      style={{
+                                        position: "absolute",
+                                        left: "50%",
+                                        top: "50%",
+                                        transform: "translate(-50%, -50%)",
+                                        zIndex: 2,
+                                      }}
+                                    >
+                                      🍬
+                                    </span>
+                                  </>
+                                )
+                                : (
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      left: "50%",
+                                      top: "50%",
+                                      transform: "translate(-50%, -50%)",
+                                    }}
+                                  >
+                                    {emoji}
+                                  </span>
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                  )
+                  : (
+                    // Initial static display
+                    <div
+                      style={{
+                        fontSize: "105px",
+                        lineHeight: "1",
+                        height: "200px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "100%",
+                        position: "relative",
+                      }}
+                    >
+                      {isThreeCandies
+                        ? (
+                          <>
+                            {/* Left candy - behind and up-left */}
+                            <span
+                              style={{
+                                position: "absolute",
+                                fontSize: "150px",
+                                left: "calc(50% - 60px)",
+                                top: "calc(50% - 15px)",
+                                transform: "translate(-50%, -50%)",
+                                zIndex: 1,
+                              }}
+                            >
+                              🍬
+                            </span>
+                            {/* Right candy - behind and up-right */}
+                            <span
+                              style={{
+                                position: "absolute",
+                                fontSize: "150px",
+                                left: "calc(50% + 60px)",
+                                top: "calc(50% - 15px)",
+                                transform: "translate(-50%, -50%)",
+                                zIndex: 1,
+                              }}
+                            >
+                              🍬
+                            </span>
+                            {/* Middle candy - in front, centered */}
+                            <span
+                              style={{
+                                position: "absolute",
+                                fontSize: "150px",
+                                left: "50%",
+                                top: "50%",
+                                transform: "translate(-50%, -50%)",
+                                zIndex: 2,
+                              }}
+                            >
+                              🍬
+                            </span>
+                          </>
+                        )
+                        : (
+                          <span
+                            style={{
+                              position: "absolute",
+                              left: "50%",
+                              top: "50%",
+                              transform: "translate(-50%, -50%)",
+                            }}
+                          >
+                            {displayEmoji}
+                          </span>
+                        )}
+                    </div>
+                  )}
               </div>
-            )}
+
+              {/* Sparkle Burst - alternates between two animation sets to restart on each spin */}
+              {shouldShowAnimation && (
+                (spinCount.get() % 2 === 0)
+                  ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        width: "0",
+                        height: "0",
+                        pointerEvents: "none",
+                        zIndex: 1000,
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "42px",
+                          opacity: 0,
+                          animation: "sparkleBurst0 1.2s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "75px",
+                          opacity: 0,
+                          animation: "sparkleBurst1 3.5s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "45px",
+                          opacity: 0,
+                          animation: "sparkleBurst2 0.9s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "38px",
+                          opacity: 0,
+                          animation: "sparkleBurst3 2.8s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "90px",
+                          opacity: 0,
+                          animation: "sparkleBurst4 1.4s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "35px",
+                          opacity: 0,
+                          animation: "sparkleBurst5 3.2s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "52px",
+                          opacity: 0,
+                          animation: "sparkleBurst6 1.1s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "68px",
+                          opacity: 0,
+                          animation: "sparkleBurst7 2.6s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "40px",
+                          opacity: 0,
+                          animation: "sparkleBurst8 0.8s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "80px",
+                          opacity: 0,
+                          animation: "sparkleBurst9 3.0s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "36px",
+                          opacity: 0,
+                          animation: "sparkleBurst10 2.4s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "48px",
+                          opacity: 0,
+                          animation: "sparkleBurst11 1.3s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "95px",
+                          opacity: 0,
+                          animation: "sparkleBurst12 1.6s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "32px",
+                          opacity: 0,
+                          animation: "sparkleBurst13 0.95s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "62px",
+                          opacity: 0,
+                          animation: "sparkleBurst14 3.3s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "44px",
+                          opacity: 0,
+                          animation: "sparkleBurst15 1.5s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "85px",
+                          opacity: 0,
+                          animation: "sparkleBurst16 2.2s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "38px",
+                          opacity: 0,
+                          animation: "sparkleBurst17 3.6s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "70px",
+                          opacity: 0,
+                          animation: "sparkleBurst18 1.0s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "40px",
+                          opacity: 0,
+                          animation: "sparkleBurst19 2.9s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                    </div>
+                  )
+                  : (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        width: "0",
+                        height: "0",
+                        pointerEvents: "none",
+                        zIndex: 1000,
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "42px",
+                          opacity: 0,
+                          animation: "sparkleBurst0Alt 1.2s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "75px",
+                          opacity: 0,
+                          animation: "sparkleBurst1Alt 3.5s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "45px",
+                          opacity: 0,
+                          animation: "sparkleBurst2Alt 0.9s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "38px",
+                          opacity: 0,
+                          animation: "sparkleBurst3Alt 2.8s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "90px",
+                          opacity: 0,
+                          animation: "sparkleBurst4Alt 1.4s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "35px",
+                          opacity: 0,
+                          animation: "sparkleBurst5Alt 3.2s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "52px",
+                          opacity: 0,
+                          animation: "sparkleBurst6Alt 1.1s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "68px",
+                          opacity: 0,
+                          animation: "sparkleBurst7Alt 2.6s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "40px",
+                          opacity: 0,
+                          animation: "sparkleBurst8Alt 0.8s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "80px",
+                          opacity: 0,
+                          animation: "sparkleBurst9Alt 3.0s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "36px",
+                          opacity: 0,
+                          animation: "sparkleBurst10Alt 2.4s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "48px",
+                          opacity: 0,
+                          animation: "sparkleBurst11Alt 1.3s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "95px",
+                          opacity: 0,
+                          animation: "sparkleBurst12Alt 1.6s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "32px",
+                          opacity: 0,
+                          animation: "sparkleBurst13Alt 0.95s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "62px",
+                          opacity: 0,
+                          animation: "sparkleBurst14Alt 3.3s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "44px",
+                          opacity: 0,
+                          animation: "sparkleBurst15Alt 1.5s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "85px",
+                          opacity: 0,
+                          animation: "sparkleBurst16Alt 2.2s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "38px",
+                          opacity: 0,
+                          animation: "sparkleBurst17Alt 3.6s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "70px",
+                          opacity: 0,
+                          animation: "sparkleBurst18Alt 1.0s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "0",
+                          top: "0",
+                          fontSize: "40px",
+                          opacity: 0,
+                          animation: "sparkleBurst19Alt 2.9s ease-out 6s",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                    </div>
+                  )
+              )}
             </div>
 
-            {/* Sparkle Burst - alternates between two animation sets to restart on each spin */}
-            {shouldShowAnimation && (
-              (spinCount.get() % 2 === 0) ? (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    width: "0",
-                    height: "0",
-                    pointerEvents: "none",
-                    zIndex: 1000,
-                  }}
-                >
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "42px", opacity: 0, animation: "sparkleBurst0 1.2s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "75px", opacity: 0, animation: "sparkleBurst1 3.5s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "45px", opacity: 0, animation: "sparkleBurst2 0.9s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "38px", opacity: 0, animation: "sparkleBurst3 2.8s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "90px", opacity: 0, animation: "sparkleBurst4 1.4s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "35px", opacity: 0, animation: "sparkleBurst5 3.2s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "52px", opacity: 0, animation: "sparkleBurst6 1.1s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "68px", opacity: 0, animation: "sparkleBurst7 2.6s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "40px", opacity: 0, animation: "sparkleBurst8 0.8s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "80px", opacity: 0, animation: "sparkleBurst9 3.0s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "36px", opacity: 0, animation: "sparkleBurst10 2.4s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "48px", opacity: 0, animation: "sparkleBurst11 1.3s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "95px", opacity: 0, animation: "sparkleBurst12 1.6s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "32px", opacity: 0, animation: "sparkleBurst13 0.95s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "62px", opacity: 0, animation: "sparkleBurst14 3.3s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "44px", opacity: 0, animation: "sparkleBurst15 1.5s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "85px", opacity: 0, animation: "sparkleBurst16 2.2s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "38px", opacity: 0, animation: "sparkleBurst17 3.6s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "70px", opacity: 0, animation: "sparkleBurst18 1.0s ease-out 6s" }}>⭐</div>
-              <div style={{ position: "absolute", left: "0", top: "0", fontSize: "40px", opacity: 0, animation: "sparkleBurst19 2.9s ease-out 6s" }}>⭐</div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    width: "0",
-                    height: "0",
-                    pointerEvents: "none",
-                    zIndex: 1000,
-                  }}
-                >
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "42px", opacity: 0, animation: "sparkleBurst0Alt 1.2s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "75px", opacity: 0, animation: "sparkleBurst1Alt 3.5s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "45px", opacity: 0, animation: "sparkleBurst2Alt 0.9s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "38px", opacity: 0, animation: "sparkleBurst3Alt 2.8s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "90px", opacity: 0, animation: "sparkleBurst4Alt 1.4s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "35px", opacity: 0, animation: "sparkleBurst5Alt 3.2s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "52px", opacity: 0, animation: "sparkleBurst6Alt 1.1s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "68px", opacity: 0, animation: "sparkleBurst7Alt 2.6s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "40px", opacity: 0, animation: "sparkleBurst8Alt 0.8s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "80px", opacity: 0, animation: "sparkleBurst9Alt 3.0s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "36px", opacity: 0, animation: "sparkleBurst10Alt 2.4s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "48px", opacity: 0, animation: "sparkleBurst11Alt 1.3s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "95px", opacity: 0, animation: "sparkleBurst12Alt 1.6s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "32px", opacity: 0, animation: "sparkleBurst13Alt 0.95s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "62px", opacity: 0, animation: "sparkleBurst14Alt 3.3s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "44px", opacity: 0, animation: "sparkleBurst15Alt 1.5s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "85px", opacity: 0, animation: "sparkleBurst16Alt 2.2s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "38px", opacity: 0, animation: "sparkleBurst17Alt 3.6s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "70px", opacity: 0, animation: "sparkleBurst18Alt 1.0s ease-out 6s" }}>⭐</div>
-                <div style={{ position: "absolute", left: "0", top: "0", fontSize: "40px", opacity: 0, animation: "sparkleBurst19Alt 2.9s ease-out 6s" }}>⭐</div>
-                </div>
-              )
-            )}
-          </div>
-
-          {/* CSS Animations */}
-          <style>{`
+            {/* CSS Animations */}
+            <style>
+              {`
             /* Tap to spin fade animation */
             @keyframes tapToSpinFade {
               0% { opacity: 0; }
@@ -693,99 +1256,112 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
                 opacity: 0;
               }
             }
-          `}</style>
+          `}
+            </style>
 
-          {/* Subtle controls at bottom - not obvious to kids */}
-          <div
-            style={{
-              position: "fixed",
-              bottom: "10px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "9px",
-              color: "#94a3b8",
-              padding: "6px 10px",
-            }}
-          >
-            {/* Payout visualization - auto-fades after 3s */}
-            {showPayoutAnimationVariant0 ? (
+            {/* Subtle controls at bottom - not obvious to kids */}
+            <div
+              style={{
+                position: "fixed",
+                bottom: "10px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "4px",
+                fontSize: "9px",
+                color: "#94a3b8",
+                padding: "6px 10px",
+              }}
+            >
+              {/* Payout visualization - auto-fades after 3s */}
+              {showPayoutAnimationVariant0
+                ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "3px",
+                      marginBottom: "6px",
+                      animation: "payoutFade0 3.5s ease-out forwards",
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      padding: "6px 10px",
+                      borderRadius: "3px",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {payoutDisplay}
+                  </div>
+                )
+                : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "3px",
+                      marginBottom: "6px",
+                      animation: "payoutFade1 3.5s ease-out forwards",
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      padding: "6px 10px",
+                      borderRadius: "3px",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {payoutDisplay}
+                  </div>
+                )}
+
+              {/* Visual readout: TADA emojis based on generosity level */}
               <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "3px",
-                  marginBottom: "6px",
-                  animation: "payoutFade0 3.5s ease-out forwards",
-                  backgroundColor: "rgba(255, 255, 255, 0.6)",
-                  padding: "6px 10px",
-                  borderRadius: "3px",
-                  backdropFilter: "blur(4px)",
-                }}
+                style={{ fontSize: "12px", minHeight: "16px", lineHeight: "1" }}
               >
-                {payoutDisplay}
+                {tadaDisplay}
               </div>
-            ) : (
+
+              {/* Controls */}
               <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "3px",
-                  marginBottom: "6px",
-                  animation: "payoutFade1 3.5s ease-out forwards",
-                  backgroundColor: "rgba(255, 255, 255, 0.6)",
-                  padding: "6px 10px",
-                  borderRadius: "3px",
-                  backdropFilter: "blur(4px)",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
-                {payoutDisplay}
+                <button
+                  onClick={decrementGenerosity({
+                    generosity,
+                    payoutAnimationCount,
+                  })}
+                  disabled={minusDisabled}
+                  style={{
+                    fontSize: "14px",
+                    padding: "2px 8px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "2px",
+                    background: "white",
+                    cursor: minusDisabled ? "not-allowed" : "pointer",
+                    opacity: minusDisabled ? 0.5 : 1,
+                  }}
+                >
+                  −
+                </button>
+                <button
+                  onClick={incrementGenerosity({
+                    generosity,
+                    payoutAnimationCount,
+                  })}
+                  disabled={plusDisabled}
+                  style={{
+                    fontSize: "14px",
+                    padding: "2px 8px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "2px",
+                    background: "white",
+                    cursor: plusDisabled ? "not-allowed" : "pointer",
+                    opacity: plusDisabled ? 0.5 : 1,
+                  }}
+                >
+                  +
+                </button>
               </div>
-            )}
-
-            {/* Visual readout: TADA emojis based on generosity level */}
-            <div style={{ fontSize: "12px", minHeight: "16px", lineHeight: "1" }}>
-              {tadaDisplay}
-            </div>
-
-            {/* Controls */}
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <button
-                onClick={decrementGenerosity({ generosity, payoutAnimationCount })}
-                disabled={minusDisabled}
-                style={{
-                  fontSize: "14px",
-                  padding: "2px 8px",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "2px",
-                  background: "white",
-                  cursor: minusDisabled ? "not-allowed" : "pointer",
-                  opacity: minusDisabled ? 0.5 : 1,
-                }}
-              >
-                −
-              </button>
-              <button
-                onClick={incrementGenerosity({ generosity, payoutAnimationCount })}
-                disabled={plusDisabled}
-                style={{
-                  fontSize: "14px",
-                  padding: "2px 8px",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "2px",
-                  background: "white",
-                  cursor: plusDisabled ? "not-allowed" : "pointer",
-                  opacity: plusDisabled ? 0.5 : 1,
-                }}
-              >
-                +
-              </button>
             </div>
           </div>
-        </div>
         </cf-screen>
       ),
       currentEmoji,
@@ -796,7 +1372,7 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
       payoutAnimationCount,
       spinHistory,
     };
-  }
+  },
 );
 
 export default RewardSpinner;

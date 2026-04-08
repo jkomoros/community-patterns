@@ -1,18 +1,24 @@
 # Issue: CLI Commands Show Null/Empty for Array Item Fields
 
-**Linear Issue:** [CT-1104](https://linear.app/common-tools/issue/CT-1104/cli-commands-show-nullempty-for-array-item-fields)
+**Linear Issue:**
+[CT-1104](https://linear.app/common-tools/issue/CT-1104/cli-commands-show-nullempty-for-array-item-fields)
 
 ## Summary
 
-The `ct charm get`, `ct charm inspect`, and other CLI commands display array item fields as `null` or `{}`, even when the actual data is stored correctly and works fine in the UI.
+The `ct charm get`, `ct charm inspect`, and other CLI commands display array
+item fields as `null` or `{}`, even when the actual data is stored correctly and
+works fine in the UI.
 
 **This is a CLI display/serialization issue, NOT a storage bug.**
 
 ## Evidence That Data Is Correct
 
-1. **UI shows correct values**: The Gmail Search Registry UI shows "4 Agent Types, 5 Total Queries" - the correct counts
-2. **Computed values work**: The `registries` computed view correctly groups queries by agent type
-3. **Handlers work**: `submitQuery` handler successfully adds queries (counts increase)
+1. **UI shows correct values**: The Gmail Search Registry UI shows "4 Agent
+   Types, 5 Total Queries" - the correct counts
+2. **Computed values work**: The `registries` computed view correctly groups
+   queries by agent type
+3. **Handlers work**: `submitQuery` handler successfully adds queries (counts
+   increase)
 4. **Runtime data is correct**: `derive()` callbacks receive the actual values
 
 ## CLI Output Showing Bug
@@ -84,9 +90,11 @@ $ deno task ct charm inspect --url "http://localhost:8000/jkomoros/baedreiac34vc
 ## Impact
 
 1. **Debugging is difficult**: Can't inspect actual cell values via CLI
-2. **Testing handlers is hard**: Can't verify handler changes without using the UI
+2. **Testing handlers is hard**: Can't verify handler changes without using the
+   UI
 3. **Automation blocked**: Can't script tests or data inspection
-4. **Misleading**: Initially thought this was a storage bug (spent hours debugging)
+4. **Misleading**: Initially thought this was a storage bug (spent hours
+   debugging)
 
 ## Pattern Structure
 
@@ -104,7 +112,7 @@ export interface SharedQuery {
 }
 
 export interface GmailSearchRegistryInput {
-  queries?: Default<SharedQuery[], []>;  // Flat array
+  queries?: Default<SharedQuery[], []>; // Flat array
 }
 ```
 
@@ -120,7 +128,10 @@ Test in the actual UI instead of relying on CLI for debugging array contents.
 
 ## Related
 
-- **Superstition (UPDATED):** `community-docs/superstitions/2025-12-06-deeply-nested-objects-become-null.md` - Originally thought to be a storage bug, now confirmed as CLI display issue only
+- **Superstition (UPDATED):**
+  `community-docs/superstitions/2025-12-06-deeply-nested-objects-become-null.md` -
+  Originally thought to be a storage bug, now confirmed as CLI display issue
+  only
 
 ## Environment
 
@@ -130,4 +141,5 @@ Test in the actual UI instead of relying on CLI for debugging array contents.
 
 ---
 
-**The CLI serialization is losing array item data during display, even though storage and runtime are working correctly.**
+**The CLI serialization is losing array item data during display, even though
+storage and runtime are working correctly.**

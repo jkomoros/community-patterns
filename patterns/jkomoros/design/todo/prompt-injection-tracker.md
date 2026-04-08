@@ -1,26 +1,41 @@
 # Prompt Injection Tracker - TODO
 
 ## Status
+
 **Active:** Nov 30, 2025 - Implemented 3-URL-per-article fixed slots approach
 
 ## ✅ IMPLEMENTED: 3 URL Slots Per Article (Fixed Slots Approach)
 
 ### Problem
-Previously, only the FIRST URL per article was processed through L2-L5. Articles often contain multiple security-related URLs (e.g., Log4j article has 3 links: NVD, Apache advisory, CISA guidance).
+
+Previously, only the FIRST URL per article was processed through L2-L5. Articles
+often contain multiple security-related URLs (e.g., Log4j article has 3 links:
+NVD, Apache advisory, CISA guidance).
 
 ### Solution: Fixed Slots (Per Superstition)
+
 Based on superstition `2025-11-29-map-only-over-cell-arrays-fixed-slots.md`:
 
-**Constraint:** Can only `.map()` over cell arrays, not derive results. So we can't dynamically map over all URLs extracted from an article.
+**Constraint:** Can only `.map()` over cell arrays, not derive results. So we
+can't dynamically map over all URLs extracted from an article.
 
 **Solution:** Use fixed slots (3 URLs per article max):
 
 ```typescript
 const processArticleUrls = (article: any) => {
   // Fixed 3 slots - extract up to 3 URLs
-  const url0 = derive(article.extraction, (ext) => ext?.result?.urls?.[0] || null);
-  const url1 = derive(article.extraction, (ext) => ext?.result?.urls?.[1] || null);
-  const url2 = derive(article.extraction, (ext) => ext?.result?.urls?.[2] || null);
+  const url0 = derive(
+    article.extraction,
+    (ext) => ext?.result?.urls?.[0] || null,
+  );
+  const url1 = derive(
+    article.extraction,
+    (ext) => ext?.result?.urls?.[1] || null,
+  );
+  const url2 = derive(
+    article.extraction,
+    (ext) => ext?.result?.urls?.[2] || null,
+  );
 
   // Process each slot through L2-L5 pipeline
   const slot0 = processUrlSlot(url0);
@@ -32,6 +47,7 @@ const processArticleUrls = (article: any) => {
 ```
 
 **Key helper - processUrlSlot():**
+
 ```typescript
 const processUrlSlot = (url: any) => {
   // L2: Fetch web content (with ifElse for null handling)
@@ -53,9 +69,11 @@ const processUrlSlot = (url: any) => {
 ### Test Results (Nov 30, 2025)
 
 **Before (1 URL per article):**
+
 - 5 articles → 4 URLs processed (1 per article with links)
 
 **After (3 URLs per article):**
+
 - 5 articles → 11 URLs processed (up to 3 per article)
 - Log4j: 3 URLs (NVD, Apache, CISA)
 - OWASP: 2 URLs
@@ -64,6 +82,7 @@ const processUrlSlot = (url: any) => {
 - Product Launch: 0 URLs
 
 **Pipeline flow:**
+
 - L1: 5/5 articles extracted
 - L2: 0/11 success, 11 fetch errors (external URLs, expected)
 - L3: 11/11 classified
@@ -72,6 +91,7 @@ const processUrlSlot = (url: any) => {
 - L5: 9/9 summarized
 
 ### Changes Made
+
 1. Added `processUrlSlot()` helper function (L2-L5 for single URL)
 2. Added `processArticleUrls()` with 3 fixed slots
 3. Changed mapping from `processArticleUrl` to `processArticleUrls`
@@ -80,6 +100,7 @@ const processUrlSlot = (url: any) => {
 6. Added defensive array checks for hydration safety
 
 ### Related
+
 - Superstition: `2025-11-29-map-only-over-cell-arrays-fixed-slots.md`
 - Commit: (pending)
 
@@ -89,27 +110,37 @@ const processUrlSlot = (url: any) => {
 
 ### Key Insight: Computation Re-runs, But Cache Hits Are Fast
 
-**Important clarification:** On page refresh, the reactive pipeline DOES re-run all computations. This is expected behavior. However, the framework caches results for:
+**Important clarification:** On page refresh, the reactive pipeline DOES re-run
+all computations. This is expected behavior. However, the framework caches
+results for:
+
 - `generateObject` - cached by prompt + schema + model
 - `fetchData` - cached by URL + method + body + headers
 
 **What happens on page refresh:**
+
 1. Input data (articles) is persisted and restored
 2. All reactive computations re-run (maps, derives, etc.)
 3. `generateObject` and `fetchData` calls hit the cache
 4. Results return quickly (no actual LLM calls or network requests)
 5. UI settles to the same final state
 
-**This is NOT a bug** - the computation graph re-executes, but expensive operations are cached. The UI may briefly show "processing..." states during hydration, but quickly settles.
+**This is NOT a bug** - the computation graph re-executes, but expensive
+operations are cached. The UI may briefly show "processing..." states during
+hydration, but quickly settles.
 
 ### Previous Investigation (Reference)
 
-Earlier we investigated what appeared to be caching issues. The actual root causes were:
+Earlier we investigated what appeared to be caching issues. The actual root
+causes were:
+
 1. **L2 counter bug** - checking `.result` instead of `!.pending` (FIXED)
-2. **Reactivity thrashing** - `derive()` inside map options creating new cells (FIXED)
+2. **Reactivity thrashing** - `derive()` inside map options creating new cells
+   (FIXED)
 3. **Hydration null checks** - array items undefined during hydration (FIXED)
 
-The "slow page refresh" observation was actually normal behavior - the reactive graph re-runs but cache hits are fast.
+The "slow page refresh" observation was actually normal behavior - the reactive
+graph re-runs but cache hits are fast.
 
 ### Pipeline Architecture (for reference)
 
@@ -132,9 +163,12 @@ L5: Summarize reports (generateObject)
 ## ✅ VERIFIED: Incremental Caching Works
 
 ### Test Goal
-Verify that when adding a new article to an existing set, only the NEW article triggers LLM calls. Existing articles should use cached results.
+
+Verify that when adding a new article to an existing set, only the NEW article
+triggers LLM calls. Existing articles should use cached results.
 
 ### Test Plan - ALL PASSED ✅
+
 1. ✅ Deploy pattern and load 5 test articles
 2. ✅ Wait for L1 extraction to complete (5/5)
 3. ✅ Add 1 additional article ("Spectre and Meltdown Update")
@@ -144,15 +178,18 @@ Verify that when adding a new article to an existing set, only the NEW article t
 ### Test Results (Nov 30, 2025)
 
 **Before adding article:**
+
 - L1: 5/5, L3: 4/4, L5: 3/3
 - 5 articles with completed extractions
 
 **Immediately after clicking "+ Add 1 Article":**
+
 - L1: 5/6 - Original 5 still show ✅, new article shows ⏳
 - Original articles retained all their extracted URLs instantly
 - **Only 1 new LLM call** - the new "Spectre and Meltdown Update" article
 
 **After processing settled:**
+
 - L1: 6/6 - All complete
 - New article extracted 3 URLs (Intel, NVD CVE-2017-5754, AMD)
 - Pipeline flowing correctly through L2-L5 for new URLs
@@ -160,12 +197,15 @@ Verify that when adding a new article to an existing set, only the NEW article t
 
 ### Conclusion
 
-**Incremental caching is working as designed.** When you add items to an array that's mapped over with `generateObject`:
+**Incremental caching is working as designed.** When you add items to an array
+that's mapped over with `generateObject`:
+
 - Existing items hit the cache and return results instantly
 - Only new items trigger actual LLM API calls
 - The "dumb map approach" works correctly for incremental updates
 
 ### Implementation Notes
+
 - Added "+ Add 1 Article" button to pattern for testing (commit pending)
 - Extra test article: "Spectre and Meltdown Update" with Intel/NVD/AMD URLs
 - Pattern: `baedreihbjvzxbvphyz6qx5j7tse6a4abykdz2zdyzfyeib7ikd4pcaraia`
@@ -180,8 +220,10 @@ Verify that when adding a new article to an existing set, only the NEW article t
    - L1: 30/30 ✓
    - L2: 0/28 ✗ (should show 28/28 if cached)
    - L3: 28/28 ✓
-   - This suggests cell structure differs when loaded from cache vs fresh computation
-   - The `fetchCompletedCount` check: `item.webContent?.result` - may not work on cached cells
+   - This suggests cell structure differs when loaded from cache vs fresh
+     computation
+   - The `fetchCompletedCount` check: `item.webContent?.result` - may not work
+     on cached cells
 
 2. **Symptom: "null" URL string instead of actual null**
    - Fixed in commit a59cc38
@@ -197,11 +239,14 @@ Verify that when adding a new article to an existing set, only the NEW article t
 ### Hypotheses
 
 **H1: Cell structure differs between fresh and cached states**
-- When generateObject/fetchData return from cache, the cell wrapper might have different properties
+
+- When generateObject/fetchData return from cache, the cell wrapper might have
+  different properties
 - Checking `.result` might work fresh but not from cache
 - Need to investigate: What does a cached cell look like vs fresh cell?
 
 **H2: Inputs aren't as stable as we think**
+
 - If inputs to generateObject/fetchData change slightly, cache is missed
 - Possible sources of instability:
   - URL normalization differences
@@ -210,11 +255,13 @@ Verify that when adding a new article to an existing set, only the NEW article t
 - Need to add logging to verify exact inputs
 
 **H3: ifElse reactive primitive issues**
+
 - L4 uses `ifElse(needsOriginalFetch, fetchData(...), null)`
 - `ifElse` might not cache correctly or might re-evaluate unexpectedly
 - Need to verify ifElse behavior with cached inputs
 
 **H4: derive() creating new objects breaks reference equality**
+
 - Pipeline passes data through multiple derive() calls
 - If derive creates new objects each time, downstream caches miss
 - Need to verify object stability through pipeline
@@ -260,6 +307,7 @@ Verify that when adding a new article to an existing set, only the NEW article t
 ### Test Fixtures Needed
 
 For reproducible testing, we need:
+
 - [ ] Extract 5-10 real emails from deployed charm as JSON fixtures
 - [ ] Include variety: some with links, some without
 - [ ] Save as `test-fixtures/emails.json` in pattern or WIP
@@ -268,35 +316,39 @@ For reproducible testing, we need:
 ### Progress Log
 
 **Nov 29, 2025 - Session 1:**
+
 - Deployed tracker with Gmail auth
 - Connected to Gmail, fetched 30 emails
 - Observed L2 counter bug: shows 0/28 when L3 shows 28/28
 - Identified "null" URL string bug - FIXED in commit a59cc38
 - Server crashed during testing, restarted with --clear-cache
-- Deployment infrastructure hitting ConflictErrors, couldn't deploy fixed version
+- Deployment infrastructure hitting ConflictErrors, couldn't deploy fixed
+  version
 - Created this investigation plan
 
 **Nov 29, 2025 - Session 2 (Phase 1 Complete):**
+
 - Added instrumentation to pattern (DEBUG_LOGGING flag)
 - Deployed instrumented version and tested with 5 test articles
 - **CRITICAL FINDING: L2 counter bug root cause identified!**
 
 ### 🔴 ROOT CAUSE IDENTIFIED: L2 Counter Bug
 
-**The Problem:**
-The L2 webContent cell has `.result` property but its VALUE is `undefined` even when `pending` is `false`:
+**The Problem:** The L2 webContent cell has `.result` property but its VALUE is
+`undefined` even when `pending` is `false`:
 
 ```json
 {
   "hasPendingProp": true,
-  "hasResultProp": true,      // HAS the property
-  "pendingValue": false,       // NOT pending
-  "resultIsUndefined": true,   // BUT result is UNDEFINED!
+  "hasResultProp": true, // HAS the property
+  "pendingValue": false, // NOT pending
+  "resultIsUndefined": true, // BUT result is UNDEFINED!
   "allKeys": ["pending", "result", "error"]
 }
 ```
 
 **Why L2 fails but L3 works:**
+
 - L2 check: `!item.webContent?.pending && item.webContent?.result`
   - `pending` is `false` ✓
   - `result` is `undefined` (falsy) ✗ → **FAILS**
@@ -304,27 +356,36 @@ The L2 webContent cell has `.result` property but its VALUE is `undefined` even 
   - `pending` is `false` ✓ → **PASSES**
 
 **Contributing factor:** 422 errors from `/api/agent-tools/web-read`:
+
 ```
 [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)
 ```
-When fetchData fails, `.result` stays `undefined` but `.pending` becomes `false`.
 
-**The Fix:**
-Change L2 counter to match L3's approach - only check `!pending`:
+When fetchData fails, `.result` stays `undefined` but `.pending` becomes
+`false`.
+
+**The Fix:** Change L2 counter to match L3's approach - only check `!pending`:
+
 ```typescript
 // Current (broken):
-list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result)
+list.filter((item: any) =>
+  item.sourceUrl && !item.webContent?.pending && item.webContent?.result
+);
 
 // Fixed:
-list.filter((item: any) => item.sourceUrl && !item.webContent?.pending)
+list.filter((item: any) => item.sourceUrl && !item.webContent?.pending);
 ```
 
 Or for "completed successfully" (not including errors):
+
 ```typescript
-list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.webContent?.error)
+list.filter((item: any) =>
+  item.sourceUrl && !item.webContent?.pending && !item.webContent?.error
+);
 ```
 
 **Current Status:**
+
 - Root cause IDENTIFIED ✅
 - Fix IMPLEMENTED ✅ (commit 5e07160)
 - Tested with 5 articles: L2 now shows "1/4 ⚠️3" correctly
@@ -332,7 +393,8 @@ list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.
 
 ### Next Steps
 
-1. ~~**Decide on counter semantics:**~~ → **Option C chosen**: Show separate counts
+1. ~~**Decide on counter semantics:**~~ → **Option C chosen**: Show separate
+   counts
 2. ~~**Implement the fix** for L2 counter~~ → **DONE** (commit 5e07160)
 3. ~~**Verify fix** with test data~~ → **DONE** - L2 counter works correctly
 4. **Investigate page refresh issues** - See Session 3 findings below
@@ -342,70 +404,87 @@ list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.
 **Nov 29, 2025 - Session 3 Findings:**
 
 After page refresh, observed:
+
 - **L1: 5/5** ✅ - Articles preserved correctly
 - **L2: 3/4** - No error indicator (some fetches succeeded on retry?)
 - **L3: 0/4** ❌ - Classifications not counting after refresh
 - **Dedupe: 11→0** ❌ - Not flowing through to later stages
 - **"Too many iterations: 101 action"** error - Reactivity loop detected
-- **Many storage transaction failures** - Framework struggling with concurrent updates
-- **TypeError: Cannot read properties of undefined (reading 'sourceUrl')** - Array items undefined during hydration
+- **Many storage transaction failures** - Framework struggling with concurrent
+  updates
+- **TypeError: Cannot read properties of undefined (reading 'sourceUrl')** -
+  Array items undefined during hydration
 
 **Nov 29, 2025 - Session 4: ROOT CAUSE IDENTIFIED & FIXED**
 
-The reactivity loop and thrashing were caused by **derive() calls inside generateObject/fetchData options**:
+The reactivity loop and thrashing were caused by **derive() calls inside
+generateObject/fetchData options**:
 
 ```typescript
 // ❌ BAD: derive inside options creates new cells each reactive pass
 const webContent = fetchData({
-  body: derive(url, (u) => ({ url: u })),  // NEW CELL EACH PASS!
+  body: derive(url, (u) => ({ url: u })), // NEW CELL EACH PASS!
 });
 
 // ✅ GOOD: derive outside options, reference by variable
-const webContentBody = derive(url, (u) => ({ url: u }));  // Stable reference
+const webContentBody = derive(url, (u) => ({ url: u })); // Stable reference
 const webContent = fetchData({
-  body: webContentBody,  // Same cell reference
+  body: webContentBody, // Same cell reference
 });
 ```
 
 **Fixes applied:**
+
 1. Moved derive() calls OUTSIDE of fetchData/generateObject options
 2. Added null checks in counter derives for hydration safety
 3. Disabled DEBUG_LOGGING (debug derives were also contributing to thrashing)
 
-**Result:** Pattern now processes 5 test articles correctly with stable UI, all 4 reports render with summaries.
+**Result:** Pattern now processes 5 test articles correctly with stable UI, all
+4 reports render with summaries.
 
-**Related superstition:** `community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md`
+**Related superstition:**
+`community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md`
 
 **Nov 30, 2025 - Session 5: Real Gmail Testing**
 
-Tested pattern with real Gmail data (alex@common.tools Google Alerts for "prompt injection"):
+Tested pattern with real Gmail data (alex@common.tools Google Alerts for "prompt
+injection"):
 
 **Results:**
+
 - ✅ Gmail OAuth worked correctly via `charm link` workaround (CT-1085)
 - ✅ L1 URL extraction: 33/33 emails processed, 66 URLs extracted
 - ⚠️ L2 web fetching: Server overwhelmed by ~60 concurrent fetchData calls
   - Server crashed with "Socket is in unknown state" error
   - After restart: 30 errors initially, gradually recovered to ~2 errors
-- ✅ L3 classification: Working - detecting "has-security-links" vs "news-article"
+- ✅ L3 classification: Working - detecting "has-security-links" vs
+  "news-article"
 - ✅ Pipeline architecture is sound - data flows correctly between stages
 
 **Key Finding: fetchData Throttling Needed**
 
-When mapping over 60+ items with fetchData, all requests fire simultaneously, overwhelming the server. Patterns cannot implement throttling themselves (no userland timing for security reasons).
+When mapping over 60+ items with fetchData, all requests fire simultaneously,
+overwhelming the server. Patterns cannot implement throttling themselves (no
+userland timing for security reasons).
 
-**Filed Issue:** `patterns/jkomoros/issues/ISSUE-FetchData-Throttling-For-Bulk-Operations.md`
+**Filed Issue:**
+`patterns/jkomoros/issues/ISSUE-FetchData-Throttling-For-Bulk-Operations.md`
 
 Recommended solutions:
+
 1. Server-side rate limiting on `/api/agent-tools/web-read`
 2. Global concurrency limit in `fetchData` primitive
 
 **Charm IDs (for reference):**
+
 - Tracker: `baedreib4vmls7zg6ijvpchqjuvqa7auierox64bc2ogalrhdewhdc7n6r4`
 - Gmail Auth: `baedreie4yfvq32lup7vouua6radjfgv4mw6bwkzhsdzgtik4qt3fcxsz7m`
 
 ### Future: Retry Failed Fetches
 
-`fetchData` caches by inputs - failed requests won't automatically retry because inputs don't change. Options:
+`fetchData` caches by inputs - failed requests won't automatically retry because
+inputs don't change. Options:
+
 - Add "Retry Failed" button with cache-busting timestamp
 - Framework-level retry support (check if exists)
 - Automatic retry with exponential backoff (complex)
@@ -442,6 +521,7 @@ const extractions = articles.map((article) => ({
 ```
 
 **Verified behaviors:**
+
 - Adding 1 item → only 1 new LLM call (others stay cached)
 - Per-item caching works automatically within a session
 - NO manual caching layer needed
@@ -453,6 +533,7 @@ const extractions = articles.map((article) => ({
 > "Ugh, no, it is building another layer of caching on top"
 
 **DON'T:**
+
 - Build webPageCache or similar caching layers
 - Manually cast away from OpaqueRef
 - Manually add OpaqueRef casts in handlers
@@ -460,6 +541,7 @@ const extractions = articles.map((article) => ({
 - Create complex reactive trigger patterns
 
 **DO:**
+
 - Use simple `.map()` over items with `generateObject`
 - Let the framework handle caching automatically
 - Keep handlers simple (just fetch web content)
@@ -510,13 +592,15 @@ const extractions = articles.map((article) => ({
 - [x] Verify basic map + generateObject flow works
 
 **Result:** FULLY WORKING! URL extraction functional.
+
 - 5 test articles processed correctly
 - 12 total URLs extracted successfully
 - Real security URLs extracted (NVD, OWASP, heartbleed.com, CISA, etc.)
 
 **CRITICAL FINDING: Empty Array + Handler Pattern**
 
-The key breakthrough: **Use empty array default + handler to load data, NOT pre-populated defaults.**
+The key breakthrough: **Use empty array default + handler to load data, NOT
+pre-populated defaults.**
 
 ```typescript
 // ❌ BROKEN: Pre-populated default - .result is UNDEFINED
@@ -534,15 +618,18 @@ const loadArticles = handler<unknown, { articles: Cell<Article[]> }>(
     for (const article of TEST_ARTICLES) {
       articles.push(article);
     }
-  }
+  },
 );
 ```
 
-**Why:** Items added via handler go through the reactive system properly, wiring up generateObject results. Pre-populated defaults bypass this.
+**Why:** Items added via handler go through the reactive system properly, wiring
+up generateObject results. Pre-populated defaults bypass this.
 
-See: `community-docs/superstitions/2025-11-29-generateObject-empty-array-handler-pattern.md`
+See:
+`community-docs/superstitions/2025-11-29-generateObject-empty-array-handler-pattern.md`
 
 **Other learnings:**
+
 - Check `!pending` for completion, not `.result`
 - Direct `item.content` access works with empty array + handler pattern
 - Template strings in prompts need derive() to avoid "opaque value" error
@@ -627,7 +714,8 @@ patterns/jkomoros/
 ## Known Limitations
 
 1. **Reload behavior**: Reactive state not preserved across page reloads
-   - Framework author: "need to remember reactive state - non-trivial runtime change"
+   - Framework author: "need to remember reactive state - non-trivial runtime
+     change"
    - LLM results will re-request on reload (but API-level caching may help)
 
 2. **Storage conflicts**: At scale (100+ items), may see transaction failures
@@ -636,6 +724,7 @@ patterns/jkomoros/
 ## Reference: Working Pattern
 
 See `map-test-100-items.tsx` for verified working code:
+
 - `Default<Item[], []>` for input types
 - `derive(items, (list) => list.length)` for counts
 - `items.map((item) => generateObject({...}))` for per-item LLM

@@ -1,5 +1,15 @@
 /// <cts-enable />
-import { Writable, computed, Default, fetchData, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  computed,
+  Default,
+  fetchData,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+  Writable,
+} from "commonfabric";
 
 /**
  * GitHub Personal Access Token Authentication
@@ -65,7 +75,8 @@ const clearToken = handler<
 });
 
 // GitHub token creation URL
-const GITHUB_TOKEN_URL = "https://github.com/settings/tokens/new?description=Common%20Tools%20GitHub%20Access&scopes=";
+const GITHUB_TOKEN_URL =
+  "https://github.com/settings/tokens/new?description=Common%20Tools%20GitHub%20Access&scopes=";
 
 export default pattern<Input, Output>(({ token }) => {
   // Only fetch when we have a non-empty token
@@ -74,7 +85,9 @@ export default pattern<Input, Output>(({ token }) => {
 
   // Derive URLs that are empty when no token (fetchData skips fetch when URL is empty)
   const userUrl = computed(() => hasToken ? "https://api.github.com/user" : "");
-  const rateLimitUrl = computed(() => hasToken ? "https://api.github.com/rate_limit" : "");
+  const rateLimitUrl = computed(() =>
+    hasToken ? "https://api.github.com/rate_limit" : ""
+  );
 
   // Fetch user info to validate token (skipped when URL is empty)
   const userResponse = fetchData<GitHubUser>({
@@ -116,7 +129,9 @@ export default pattern<Input, Output>(({ token }) => {
   // Derive user info
   const username = computed(() => userResponse?.result?.login || "");
   const avatarUrl = computed(() => userResponse?.result?.avatar_url || "");
-  const displayName = computed(() => userResponse?.result?.name || userResponse?.result?.login || "");
+  const displayName = computed(() =>
+    userResponse?.result?.name || userResponse?.result?.login || ""
+  );
 
   // Derive rate limit info
   const rateLimit = computed(() => {
@@ -131,31 +146,46 @@ export default pattern<Input, Output>(({ token }) => {
   });
 
   // Check if currently validating
-  const isValidating = computed(() => !!token && userResponse?.pending === true);
+  const isValidating = computed(() =>
+    !!token && userResponse?.pending === true
+  );
 
   // Check for error
   const hasError = computed(() => {
     if (!token) return false;
-    return !!userResponse?.error || (userResponse?.result === null && !userResponse?.pending);
+    return !!userResponse?.error ||
+      (userResponse?.result === null && !userResponse?.pending);
   });
 
   return {
     [NAME]: "GitHub Auth",
     [UI]: (
-      <div style={{ padding: "24px", maxWidth: "600px", fontFamily: "system-ui, sans-serif" }}>
-        <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>GitHub Authentication</h2>
+      <div
+        style={{
+          padding: "24px",
+          maxWidth: "600px",
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        <h2 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>
+          GitHub Authentication
+        </h2>
         <p style={{ margin: "0 0 24px 0", color: "#666", fontSize: "14px" }}>
           Personal Access Token for GitHub API access
         </p>
 
         {/* Status Section */}
-        <div style={{
-          padding: "16px",
-          borderRadius: "8px",
-          marginBottom: "20px",
-          backgroundColor: computed(() => isValid ? "#d4edda" : "#f8f9fa"),
-          border: computed(() => isValid ? "1px solid #28a745" : "1px solid #dee2e6"),
-        }}>
+        <div
+          style={{
+            padding: "16px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            backgroundColor: computed(() => isValid ? "#d4edda" : "#f8f9fa"),
+            border: computed(() =>
+              isValid ? "1px solid #28a745" : "1px solid #dee2e6"
+            ),
+          }}
+        >
           {ifElse(
             isValid,
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -165,9 +195,19 @@ export default pattern<Input, Output>(({ token }) => {
                 style={{ width: "48px", height: "48px", borderRadius: "50%" }}
               />
               <div>
-                <div style={{ fontWeight: "600", fontSize: "16px" }}>{displayName}</div>
-                <div style={{ color: "#666", fontSize: "14px" }}>@{username}</div>
-                <div style={{ color: "#28a745", fontSize: "13px", marginTop: "4px" }}>
+                <div style={{ fontWeight: "600", fontSize: "16px" }}>
+                  {displayName}
+                </div>
+                <div style={{ color: "#666", fontSize: "14px" }}>
+                  @{username}
+                </div>
+                <div
+                  style={{
+                    color: "#28a745",
+                    fontSize: "13px",
+                    marginTop: "4px",
+                  }}
+                >
                   Authenticated
                 </div>
               </div>
@@ -180,38 +220,47 @@ export default pattern<Input, Output>(({ token }) => {
                 {ifElse(
                   hasError,
                   "Invalid token - please check and try again",
-                  "Enter your GitHub token below"
+                  "Enter your GitHub token below",
                 )}
               </div>
-            </div>
+            </div>,
           )}
         </div>
 
         {/* Rate Limit Info (only when authenticated) */}
         {ifElse(
           isValid,
-          <div style={{
-            padding: "12px 16px",
-            backgroundColor: "#e3f2fd",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            fontSize: "14px",
-          }}>
-            <strong>API Rate Limit:</strong>{" "}
-            {computed(() => `${rateLimit.remaining.toLocaleString()} / ${rateLimit.limit.toLocaleString()}`)} remaining
-            {computed(() => rateLimit.resetAt ? ` (resets at ${rateLimit.resetAt})` : "")}
+          <div
+            style={{
+              padding: "12px 16px",
+              backgroundColor: "#e3f2fd",
+              borderRadius: "8px",
+              marginBottom: "20px",
+              fontSize: "14px",
+            }}
+          >
+            <strong>API Rate Limit:</strong> {computed(() =>
+              `${rateLimit.remaining.toLocaleString()} / ${rateLimit.limit.toLocaleString()}`
+            )} remaining
+            {computed(() =>
+              rateLimit.resetAt ? ` (resets at ${rateLimit.resetAt})` : ""
+            )}
           </div>,
-          null
+          null,
         )}
 
         {/* Token Input Section */}
-        <div style={{
-          padding: "16px",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "8px",
-          marginBottom: "20px",
-        }}>
-          <label style={{ display: "block", fontWeight: "500", marginBottom: "8px" }}>
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+            marginBottom: "20px",
+          }}
+        >
+          <label
+            style={{ display: "block", fontWeight: "500", marginBottom: "8px" }}
+          >
             Personal Access Token
           </label>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -239,69 +288,94 @@ export default pattern<Input, Output>(({ token }) => {
               >
                 Clear
               </button>,
-              null
+              null,
             )}
           </div>
         </div>
 
         {/* Instructions */}
-        <details style={{
-          padding: "16px",
-          backgroundColor: "#fff3cd",
-          borderRadius: "8px",
-          marginBottom: "20px",
-          border: "1px solid #ffc107",
-        }}>
+        <details
+          style={{
+            padding: "16px",
+            backgroundColor: "#fff3cd",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            border: "1px solid #ffc107",
+          }}
+        >
           <summary style={{ cursor: "pointer", fontWeight: "500" }}>
             How to create a token
           </summary>
-          <ol style={{ marginTop: "12px", paddingLeft: "20px", lineHeight: "1.8" }}>
+          <ol
+            style={{
+              marginTop: "12px",
+              paddingLeft: "20px",
+              lineHeight: "1.8",
+            }}
+          >
             <li>
-              <a href={GITHUB_TOKEN_URL} target="_blank" rel="noopener noreferrer" style={{ color: "#0366d6" }}>
+              <a
+                href={GITHUB_TOKEN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#0366d6" }}
+              >
                 Click here to create a new token
-              </a>
-              {" "}(opens GitHub)
+              </a>{" "}
+              (opens GitHub)
             </li>
             <li>Sign in to GitHub if prompted</li>
             <li>Set a name like "Common Fabric GitHub Access"</li>
             <li>
               <strong style={{ color: "#dc3545" }}>
                 DO NOT check any scope boxes
-              </strong>
-              {" "}- no scopes = read-only = safe
+              </strong>{" "}
+              - no scopes = read-only = safe
             </li>
             <li>Click "Generate token"</li>
             <li>Copy the token and paste it above</li>
           </ol>
-          <div style={{
-            marginTop: "12px",
-            padding: "8px 12px",
-            backgroundColor: "#d4edda",
-            borderRadius: "4px",
-            fontSize: "13px",
-          }}>
-            A token with no scopes can only read public data. It cannot modify anything.
+          <div
+            style={{
+              marginTop: "12px",
+              padding: "8px 12px",
+              backgroundColor: "#d4edda",
+              borderRadius: "4px",
+              fontSize: "13px",
+            }}
+          >
+            A token with no scopes can only read public data. It cannot modify
+            anything.
           </div>
         </details>
 
         {/* Favorite Reminder (only when authenticated) */}
         {ifElse(
           isValid,
-          <div style={{
-            padding: "16px",
-            backgroundColor: "#d4edda",
-            borderRadius: "8px",
-            border: "1px solid #28a745",
-            fontSize: "14px",
-          }}>
-            <strong>Tip:</strong> Favorite this charm (click ⭐) to share your GitHub auth
-            across all your patterns. Any pattern using{" "}
-            <code style={{ backgroundColor: "#e9ecef", padding: "2px 6px", borderRadius: "3px" }}>
+          <div
+            style={{
+              padding: "16px",
+              backgroundColor: "#d4edda",
+              borderRadius: "8px",
+              border: "1px solid #28a745",
+              fontSize: "14px",
+            }}
+          >
+            <strong>Tip:</strong>{" "}
+            Favorite this charm (click ⭐) to share your GitHub auth across all
+            your patterns. Any pattern using{" "}
+            <code
+              style={{
+                backgroundColor: "#e9ecef",
+                padding: "2px 6px",
+                borderRadius: "3px",
+              }}
+            >
               wish("#githubAuth")
             </code>{" "}
             will automatically find and use this token.
           </div>,
-          null
+          null,
         )}
       </div>
     ),

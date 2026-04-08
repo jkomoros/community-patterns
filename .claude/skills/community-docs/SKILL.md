@@ -10,9 +10,12 @@ description: >
 
 **Location:** `community-docs/` in community-patterns repo
 
-**CRITICAL:** These are NOT official framework documentation. Always check `~/Code/labs/docs/common/` first.
+**CRITICAL:** These are NOT official framework documentation. Always check
+`~/Code/labs/docs/common/` first.
 
-Community docs capture empirical observations discovered during pattern development - unverified things that seemed to work but may be coincidence or context-specific.
+Community docs capture empirical observations discovered during pattern
+development - unverified things that seemed to work but may be coincidence or
+context-specific.
 
 ## Superstitions (⚠️ Treat With Skepticism)
 
@@ -28,12 +31,14 @@ Single observations only. May be wrong, incomplete, or context-specific.
 ## When to Consult Superstitions
 
 **After checking official labs/docs/ first:**
+
 - Encountering undocumented edge cases
 - Framework behaving unexpectedly
 - TypeScript errors not explained in official docs
 - Before creating new superstition (check if already documented)
 
-**Do NOT consult before official docs** - labs/docs/ is always more authoritative!
+**Do NOT consult before official docs** - labs/docs/ is always more
+authoritative!
 
 ## Searching Superstitions
 
@@ -67,8 +72,10 @@ ls community-docs/superstitions/ | grep "reactivity-"
    grep -r "your topic" community-docs/superstitions/
    ```
 
-2. **Create file:** `community-docs/superstitions/YYYY-MM-DD-topic-brief-description.md`
-   - Use topic prefixes: `types-`, `reactivity-`, `jsx-`, `handlers-`, `llm-`, `patterns-`, etc.
+2. **Create file:**
+   `community-docs/superstitions/YYYY-MM-DD-topic-brief-description.md`
+   - Use topic prefixes: `types-`, `reactivity-`, `jsx-`, `handlers-`, `llm-`,
+     `patterns-`, etc.
 
 3. **Copy template** from `community-docs/superstitions/README.md`
 
@@ -84,24 +91,30 @@ ls community-docs/superstitions/ | grep "reactivity-"
 
 6. **Commit:** `"Add superstition: [brief description]"`
 
-**Remember:** You're creating a hypothesis, not stating fact! Be humble about uncertainty.
+**Remember:** You're creating a hypothesis, not stating fact! Be humble about
+uncertainty.
 
 ## Deprecated Tiers
 
-The `blessed/` and `folk_wisdom/` directories are **deprecated**. Previously we had a three-tier promotion system. Now, verified knowledge should be upstreamed directly to labs docs.
+The `blessed/` and `folk_wisdom/` directories are **deprecated**. Previously we
+had a three-tier promotion system. Now, verified knowledge should be upstreamed
+directly to labs docs.
 
 ## Important Notes
 
 **Skepticism is critical:**
+
 - Superstitions may be wrong or context-specific
 - **Always prefer official labs/docs/ when they exist**
 
 **Do NOT:**
+
 - Trust superstitions blindly
 - Skip checking official docs first
 - Create superstition for things in official docs
 
 **DO:**
+
 - Read disclaimer on every superstition
 - Verify against official docs
 - Test thoroughly before relying on it

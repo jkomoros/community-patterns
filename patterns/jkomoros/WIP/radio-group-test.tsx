@@ -33,7 +33,13 @@ export default pattern<RadioTestInput>(({ selectedSize, selectedPriority }) => {
           </div>
         </cf-vstack>
 
-        <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "1rem 0" }} />
+        <div
+          style={{
+            height: "1px",
+            backgroundColor: "#e5e7eb",
+            margin: "1rem 0",
+          }}
+        />
 
         {/* Horizontal radio group */}
         <cf-vstack gap="2">

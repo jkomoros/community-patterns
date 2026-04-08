@@ -10,7 +10,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -18,6 +17,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // Types
@@ -39,7 +39,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
@@ -49,7 +49,7 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 const toggleFetching = handler<unknown, { enableFetching: Writable<boolean> }>(
   (_, { enableFetching }) => {
     enableFetching.set(!enableFetching.get());
-  }
+  },
 );
 
 // Simulate makeGitHubHeaders from github-momentum-tracker
@@ -73,10 +73,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const apiUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && r ? `https://jsonplaceholder.typicode.com/users/${r.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && r
+          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+          : "";
+      },
     );
 
     // THE KEY DIFFERENCE: fetchData with options.headers derived from cell
@@ -94,10 +100,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const todosUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && r ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && r
+          ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}`
+          : "";
+      },
     );
 
     const todosData = fetchData<{ id: number; title: string }[]>({
@@ -122,8 +134,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
       <div style={{ padding: "20px", fontFamily: "system-ui" }}>
         <h1>fetchData Options Repro</h1>
 
-        <p style={{ background: "#fff3cd", padding: "10px", borderRadius: "4px" }}>
-          <strong>Hypothesis:</strong> Bug triggers with fetchData + options.headers derived from cell + empty URL
+        <p
+          style={{
+            background: "#fff3cd",
+            padding: "10px",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>Hypothesis:</strong>{" "}
+          Bug triggers with fetchData + options.headers derived from cell +
+          empty URL
         </p>
 
         <div style={{ marginBottom: "20px" }}>
@@ -133,45 +153,72 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
           <button
             onClick={toggleFetching({ enableFetching })}
             style={{
-              background: derive(enableFetching, e => e ? "#28a745" : "#dc3545"),
+              background: derive(
+                enableFetching,
+                (e) => e ? "#28a745" : "#dc3545",
+              ),
               color: "white",
               border: "none",
               padding: "5px 10px",
-              borderRadius: "4px"
+              borderRadius: "4px",
             }}
           >
-            Fetching: {derive(enableFetching, e => e ? "ON" : "OFF")}
+            Fetching: {derive(enableFetching, (e) => e ? "ON" : "OFF")}
           </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
-          <strong>hasAuth:</strong> {derive(hasAuth, h => h ? "YES" : "NO")}
+          <strong>hasAuth:</strong> {derive(hasAuth, (h) => h ? "YES" : "NO")}
         </div>
 
         <h2>Results:</h2>
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
-              <div>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result?.name || (u?.pending ? "..." : "—"))}
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
               </div>
               <div>
-                <strong>Todos:</strong>{" "}
-                {derive(item.todosData, (t) => t?.result?.length ? `${t.result.length} items` : (t?.pending ? "..." : "—"))}
+                <strong>User:</strong> {derive(
+                  item.userData,
+                  (u) => u?.result?.name || (u?.pending ? "..." : "—"),
+                )}
+              </div>
+              <div>
+                <strong>Todos:</strong> {derive(item.todosData, (t) =>
+                  t?.result?.length
+                    ? `${t.result.length} items`
+                    : (t?.pending ? "..." : "—"))}
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#f8d7da", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#f8d7da",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Steps:</strong>
           <ol>
-            <li>Keep "Fetching: OFF" (URLs empty, but options.headers still evaluated)</li>
+            <li>
+              Keep "Fetching: OFF" (URLs empty, but options.headers still
+              evaluated)
+            </li>
             <li>Click "Add ID 1"</li>
             <li>Check console for Frame mismatch</li>
           </ol>

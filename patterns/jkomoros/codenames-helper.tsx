@@ -1,5 +1,17 @@
 /// <cts-enable />
-import { computed, Default, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI, Writable } from "commonfabric";
+import {
+  computed,
+  Default,
+  generateObject,
+  handler,
+  ifElse,
+  ImageData,
+  NAME,
+  pattern,
+  toSchema,
+  UI,
+  Writable,
+} from "commonfabric";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -57,27 +69,28 @@ const PHOTO_EXTRACTION_SCHEMA = {
     photoType: {
       type: "string",
       enum: ["board", "keycard", "unknown"],
-      description: "Type of photo: board (game board), keycard (key card), or unknown"
+      description:
+        "Type of photo: board (game board), keycard (key card), or unknown",
     },
     boardWords: {
       type: "array",
       description: "Array of 25 words from the game board (5×5 grid)",
-      items: { $ref: "#/$defs/BoardWordData" }
+      items: { $ref: "#/$defs/BoardWordData" },
     },
     keyCardColors: {
       type: "array",
       description: "Array of 25 color assignments from the key card (5×5 grid)",
-      items: { $ref: "#/$defs/KeyCardColorData" }
+      items: { $ref: "#/$defs/KeyCardColorData" },
     },
     confidence: {
       type: "string",
       enum: ["high", "medium", "low"],
-      description: "Confidence level of the extraction"
+      description: "Confidence level of the extraction",
     },
     notes: {
       type: "string",
-      description: "Additional notes or observations about the extraction"
-    }
+      description: "Additional notes or observations about the extraction",
+    },
   },
   required: ["photoType"],
   $defs: {
@@ -86,39 +99,39 @@ const PHOTO_EXTRACTION_SCHEMA = {
       properties: {
         word: {
           type: "string",
-          description: "The word on the card (uppercase)"
+          description: "The word on the card (uppercase)",
         },
         row: {
           type: "number",
-          description: "Row position (0-4, top to bottom)"
+          description: "Row position (0-4, top to bottom)",
         },
         col: {
           type: "number",
-          description: "Column position (0-4, left to right)"
-        }
+          description: "Column position (0-4, left to right)",
+        },
       },
-      required: ["word", "row", "col"]
+      required: ["word", "row", "col"],
     },
     KeyCardColorData: {
       type: "object",
       properties: {
         row: {
           type: "number",
-          description: "Row position (0-4, top to bottom)"
+          description: "Row position (0-4, top to bottom)",
         },
         col: {
           type: "number",
-          description: "Column position (0-4, left to right)"
+          description: "Column position (0-4, left to right)",
         },
         color: {
           type: "string",
           enum: ["red", "blue", "neutral", "assassin"],
-          description: "Color/team assignment for this position"
-        }
+          description: "Color/team assignment for this position",
+        },
       },
-      required: ["row", "col", "color"]
-    }
-  }
+      required: ["row", "col", "color"],
+    },
+  },
 } as const;
 
 const CLUE_SUGGESTIONS_SCHEMA = {
@@ -127,8 +140,8 @@ const CLUE_SUGGESTIONS_SCHEMA = {
     clues: {
       type: "array",
       description: "Array of 3 clue suggestions for the spymaster",
-      items: { $ref: "#/$defs/ClueIdea" }
-    }
+      items: { $ref: "#/$defs/ClueIdea" },
+    },
   },
   required: ["clues"],
   $defs: {
@@ -137,25 +150,26 @@ const CLUE_SUGGESTIONS_SCHEMA = {
       properties: {
         clue: {
           type: "string",
-          description: "The one-word clue (no hyphens, spaces, or compound words)"
+          description:
+            "The one-word clue (no hyphens, spaces, or compound words)",
         },
         number: {
           type: "number",
-          description: "Number of words this clue connects (typically 2-4)"
+          description: "Number of words this clue connects (typically 2-4)",
         },
         targetWords: {
           type: "array",
           items: { type: "string" },
-          description: "List of target words this clue is meant to connect"
+          description: "List of target words this clue is meant to connect",
         },
         reasoning: {
           type: "string",
-          description: "Explanation of why this clue connects these words"
-        }
+          description: "Explanation of why this clue connects these words",
+        },
       },
-      required: ["clue", "number", "targetWords", "reasoning"]
-    }
-  }
+      required: ["clue", "number", "targetWords", "reasoning"],
+    },
+  },
 } as const;
 
 // ===== HELPER FUNCTIONS =====
@@ -224,11 +238,15 @@ function validateExtraction(result: any): ValidationResult {
       wordTexts.indexOf(word) !== idx
     );
     if (duplicates.length > 0) {
-      warnings.push(`Duplicate words found: ${[...new Set(duplicates)].join(", ")}`);
+      warnings.push(
+        `Duplicate words found: ${[...new Set(duplicates)].join(", ")}`,
+      );
     }
 
     // Check for empty words
-    const emptyCount = words.filter((w: any) => !w.word || w.word.trim() === "").length;
+    const emptyCount = words.filter((w: any) =>
+      !w.word || w.word.trim() === ""
+    ).length;
     if (emptyCount > 0) {
       warnings.push(`${emptyCount} empty word(s) detected`);
     }
@@ -257,13 +275,15 @@ function validateExtraction(result: any): ValidationResult {
     });
 
     // Valid patterns: (9,8,7,1) or (8,9,7,1)
-    const validPattern1 = counts.red === 9 && counts.blue === 8 && counts.neutral === 7 && counts.assassin === 1;
-    const validPattern2 = counts.red === 8 && counts.blue === 9 && counts.neutral === 7 && counts.assassin === 1;
+    const validPattern1 = counts.red === 9 && counts.blue === 8 &&
+      counts.neutral === 7 && counts.assassin === 1;
+    const validPattern2 = counts.red === 8 && counts.blue === 9 &&
+      counts.neutral === 7 && counts.assassin === 1;
 
     if (!validPattern1 && !validPattern2) {
       warnings.push(
         `Unusual color distribution: ${counts.red} red, ${counts.blue} blue, ${counts.neutral} neutral, ${counts.assassin} assassin. ` +
-        `Expected: (9 red, 8 blue, 7 neutral, 1 assassin) or (8 red, 9 blue, 7 neutral, 1 assassin)`
+          `Expected: (9 red, 8 blue, 7 neutral, 1 assassin) or (8 red, 9 blue, 7 neutral, 1 assassin)`,
       );
     }
 
@@ -279,15 +299,19 @@ function validateExtraction(result: any): ValidationResult {
   };
 }
 
-
 // Get color for word based on owner
 function getWordColor(owner: WordOwner): string {
   switch (owner) {
-    case "red": return "#dc2626";
-    case "blue": return "#2563eb";
-    case "neutral": return "#d4d4d8";
-    case "assassin": return "#000000";
-    case "unassigned": return "#e5e7eb";
+    case "red":
+      return "#dc2626";
+    case "blue":
+      return "#2563eb";
+    case "neutral":
+      return "#d4d4d8";
+    case "assassin":
+      return "#000000";
+    case "unassigned":
+      return "#e5e7eb";
   }
 }
 
@@ -302,7 +326,14 @@ function getWordBackgroundColor(owner: WordOwner): string {
 // Apply extracted board data from AI (after approval)
 const applyExtractedData = handler<
   unknown,
-  { board: Writable<BoardWord[]>; extraction: any; approvalState: Writable<Array<{ correctionText: string; applied: boolean }>>; idx: number }
+  {
+    board: Writable<BoardWord[]>;
+    extraction: any;
+    approvalState: Writable<
+      Array<{ correctionText: string; applied: boolean }>
+    >;
+    idx: number;
+  }
 >((_event, { board, extraction, approvalState, idx }) => {
   if (!extraction || !extraction.result) return;
 
@@ -318,7 +349,7 @@ const applyExtractedData = handler<
       if (index >= 0) {
         currentBoard[index] = {
           ...currentBoard[index],
-          word: wordData.word.toUpperCase()
+          word: wordData.word.toUpperCase(),
         };
       }
     });
@@ -333,7 +364,7 @@ const applyExtractedData = handler<
       if (index >= 0) {
         currentBoard[index] = {
           ...currentBoard[index],
-          owner: colorData.color as WordOwner
+          owner: colorData.color as WordOwner,
         };
       }
     });
@@ -354,7 +385,13 @@ const applyExtractedData = handler<
 // Reject extraction
 const rejectExtraction = handler<
   unknown,
-  { uploadedPhotos: Writable<ImageData[]>; idx: number; approvalState: Writable<Array<{ correctionText: string; applied: boolean }>> }
+  {
+    uploadedPhotos: Writable<ImageData[]>;
+    idx: number;
+    approvalState: Writable<
+      Array<{ correctionText: string; applied: boolean }>
+    >;
+  }
 >((_event, { uploadedPhotos, idx, approvalState }) => {
   // Remove from uploaded photos
   const photos = uploadedPhotos.get().slice();
@@ -370,7 +407,12 @@ const rejectExtraction = handler<
 // Update correction text
 const updateCorrectionText = handler<
   any,
-  { approvalState: Writable<Array<{ correctionText: string; applied: boolean }>>; idx: number }
+  {
+    approvalState: Writable<
+      Array<{ correctionText: string; applied: boolean }>
+    >;
+    idx: number;
+  }
 >((event, { approvalState, idx }) => {
   const text = event.target.value;
   const currentApprovals = approvalState.get().slice();
@@ -385,7 +427,11 @@ const updateCorrectionText = handler<
 // Assign color to selected word
 const assignColor = handler<
   unknown,
-  { board: Writable<BoardWord[]>; selectedWordIndex: Writable<number>; owner: WordOwner }
+  {
+    board: Writable<BoardWord[]>;
+    selectedWordIndex: Writable<number>;
+    owner: WordOwner;
+  }
 >((_event, { board, selectedWordIndex, owner }) => {
   const selIdx = selectedWordIndex.get();
   if (selIdx >= 0 && selIdx < 25) {
@@ -430,7 +476,13 @@ const updateWord = handler<
 // Handle cell click (setup mode: select, play mode: reveal)
 const cellClick = handler<
   unknown,
-  { board: Writable<BoardWord[]>; setupMode: Writable<boolean>; selectedWordIndex: Writable<number>; row: number; col: number }
+  {
+    board: Writable<BoardWord[]>;
+    setupMode: Writable<boolean>;
+    selectedWordIndex: Writable<number>;
+    row: number;
+    col: number;
+  }
 >((_event, { board, setupMode, selectedWordIndex, row, col }) => {
   const currentBoard = board.get();
 
@@ -475,10 +527,12 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     const uploadedPhotos = Writable.of<ImageData[]>([]);
 
     // Approval state for each photo (tracks corrections, approval status)
-    const approvalState = Writable.of<Array<{
-      correctionText: string;
-      applied: boolean;
-    }>>([]);
+    const approvalState = Writable.of<
+      Array<{
+        correctionText: string;
+        applied: boolean;
+      }>
+    >([]);
 
     // AI extraction for each uploaded photo
     // Note: uploadedPhotos.map() returns reactive values
@@ -486,7 +540,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     const photoExtractions = uploadedPhotos.map((photo) => {
       return generateObject({
         model: "anthropic:claude-sonnet-4-5",
-        system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
+        system:
+          `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
 
 You will receive either:
 1. A photo of the game board (5×5 grid of 25 word cards)
@@ -532,19 +587,20 @@ If it's a KEY CARD photo:
 - Beige/tan squares indicate neutral words
 - Black square indicates the assassin
 
-Provide the extracted information in the appropriate format.`
-            }
+Provide the extracted information in the appropriate format.`,
+            },
           ];
         }),
         // Try using toSchema<T>() now that we have model parameter
-        schema: toSchema<PhotoExtractionResult>()
+        schema: toSchema<PhotoExtractionResult>(),
       });
     });
 
     // AI Clue Suggestions - only in Game Mode
     const clueSuggestions = generateObject({
       model: "anthropic:claude-sonnet-4-5",
-      system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
+      system:
+        `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
 
 CRITICAL RULES:
 1. Clues must be ONE WORD only (no hyphens, spaces, or compound words)
@@ -566,13 +622,23 @@ CRITICAL RULES:
         }
 
         // Get unrevealed words by team
-        const myWords = boardData.filter((w: BoardWord) => w.owner === myTeamValue && w.state === "unrevealed").map((w: BoardWord) => w.word);
+        const myWords = boardData.filter((w: BoardWord) =>
+          w.owner === myTeamValue && w.state === "unrevealed"
+        ).map((w: BoardWord) => w.word);
         const opponentTeam = myTeamValue === "red" ? "blue" : "red";
-        const opponentWords = boardData.filter((w: BoardWord) => w.owner === opponentTeam && w.state === "unrevealed").map((w: BoardWord) => w.word);
-        const neutralWords = boardData.filter((w: BoardWord) => w.owner === "neutral" && w.state === "unrevealed").map((w: BoardWord) => w.word);
-        const assassinWords = boardData.filter((w: BoardWord) => w.owner === "assassin" && w.state === "unrevealed").map((w: BoardWord) => w.word);
+        const opponentWords = boardData.filter((w: BoardWord) =>
+          w.owner === opponentTeam && w.state === "unrevealed"
+        ).map((w: BoardWord) => w.word);
+        const neutralWords = boardData.filter((w: BoardWord) =>
+          w.owner === "neutral" && w.state === "unrevealed"
+        ).map((w: BoardWord) => w.word);
+        const assassinWords = boardData.filter((w: BoardWord) =>
+          w.owner === "assassin" && w.state === "unrevealed"
+        ).map((w: BoardWord) => w.word);
 
-        if (myWords.length === 0) return "No more words to guess for your team!";
+        if (myWords.length === 0) {
+          return "No more words to guess for your team!";
+        }
 
         return `Team: ${myTeamValue.toUpperCase()}
 
@@ -591,19 +657,22 @@ ${assassinWords.join(", ")}
 Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
       }),
       // Try using toSchema<T>() now that we have model parameter
-      schema: toSchema<ClueSuggestionsResult>()
+      schema: toSchema<ClueSuggestionsResult>(),
     });
 
     return {
       [NAME]: "Codenames Helper",
       [UI]: (
-        <div style={{
-          padding: "1rem",
-          fontFamily: "system-ui, sans-serif",
-          maxWidth: "600px",
-          margin: "0 auto",
-        }}>
-          <style>{`
+        <div
+          style={{
+            padding: "1rem",
+            fontFamily: "system-ui, sans-serif",
+            maxWidth: "600px",
+            margin: "0 auto",
+          }}
+        >
+          <style>
+            {`
             /* Team selection buttons */
             ct-button.team-red-active::part(button) {
               background-color: #dc2626;
@@ -718,39 +787,50 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-          `}</style>
+          `}
+          </style>
 
           {/* Header */}
-          <div style={{
-            marginBottom: "1rem",
-            textAlign: "center",
-          }}>
-            <h1 style={{
-              fontSize: "1.25rem",
-              fontWeight: "bold",
-              marginBottom: "0.5rem",
-            }}>
+          <div
+            style={{
+              marginBottom: "1rem",
+              textAlign: "center",
+            }}
+          >
+            <h1
+              style={{
+                fontSize: "1.25rem",
+                fontWeight: "bold",
+                marginBottom: "0.5rem",
+              }}
+            >
               Codenames Spymaster Helper
             </h1>
 
             {/* Team Selection */}
-            <div style={{
-              display: "flex",
-              gap: "0.5rem",
-              justifyContent: "center",
-              alignItems: "center",
-              marginBottom: "1rem",
-            }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: "1rem",
+              }}
+            >
               <span style={{ fontWeight: "500" }}>My Team:</span>
               <cf-button
                 onClick={() => myTeam.set("red")}
-                className={myTeam.get() === "red" ? "team-red-active" : "team-red-inactive"}
+                className={myTeam.get() === "red"
+                  ? "team-red-active"
+                  : "team-red-inactive"}
               >
                 Red Team
               </cf-button>
               <cf-button
                 onClick={() => myTeam.set("blue")}
-                className={myTeam.get() === "blue" ? "team-blue-active" : "team-blue-inactive"}
+                className={myTeam.get() === "blue"
+                  ? "team-blue-active"
+                  : "team-blue-inactive"}
               >
                 Blue Team
               </cf-button>
@@ -769,13 +849,17 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
           {computed(() => {
             const boardData = board.get();
             // Check if board is initialized and is an array
-            if (!boardData || !Array.isArray(boardData) || boardData.length === 0) {
+            if (
+              !boardData || !Array.isArray(boardData) || boardData.length === 0
+            ) {
               // Board not initialized or empty, show the button
               return (
-                <div style={{
-                  marginBottom: "1rem",
-                  textAlign: "center",
-                }}>
+                <div
+                  style={{
+                    marginBottom: "1rem",
+                    textAlign: "center",
+                  }}
+                >
                   <cf-button
                     onClick={initializeBoardHandler({ board, setupMode })}
                     className="btn-initialize"
@@ -787,15 +871,19 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             // Board exists, check if it has content
-            const hasContent = boardData.some((word) => word.word.trim() !== "");
+            const hasContent = boardData.some((word) =>
+              word.word.trim() !== ""
+            );
             if (hasContent) return null;
 
             // Board exists but is empty, show the button
             return (
-              <div style={{
-                marginBottom: "1rem",
-                textAlign: "center",
-              }}>
+              <div
+                style={{
+                  marginBottom: "1rem",
+                  textAlign: "center",
+                }}
+              >
                 <cf-button
                   onClick={initializeBoardHandler({ board, setupMode })}
                   className="btn-initialize"
@@ -807,130 +895,148 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
           })}
 
           {/* Board Display */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 1fr)",
-            gap: "0.25rem",
-            marginBottom: "1rem",
-          }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gap: "0.25rem",
+              marginBottom: "1rem",
+            }}
+          >
             {board.map((word, index) => {
               return (
                 <div
                   key={index}
-                  style={
-                    word.owner === "red"
-                      ? {
-                          aspectRatio: "1",
-                          border: "2px solid #000",
-                          borderRadius: "0.25rem",
-                          padding: "0.25rem",
-                          backgroundColor: "#dc2626",
-                          opacity: word.state === "revealed" ? 0.2 : 1,
-                          color: "white",
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          position: "relative",
-                          cursor: "pointer",
-                        }
-                      : word.owner === "blue"
-                      ? {
-                          aspectRatio: "1",
-                          border: "2px solid #000",
-                          borderRadius: "0.25rem",
-                          padding: "0.25rem",
-                          backgroundColor: "#2563eb",
-                          opacity: word.state === "revealed" ? 0.2 : 1,
-                          color: "white",
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          position: "relative",
-                          cursor: "pointer",
-                        }
-                      : word.owner === "neutral"
-                      ? {
-                          aspectRatio: "1",
-                          border: "2px solid #000",
-                          borderRadius: "0.25rem",
-                          padding: "0.25rem",
-                          backgroundColor: "#d4d4d8",
-                          opacity: word.state === "revealed" ? 0.2 : 1,
-                          color: "black",
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          position: "relative",
-                          cursor: "pointer",
-                        }
-                      : word.owner === "assassin"
-                      ? {
-                          aspectRatio: "1",
-                          border: "2px solid #000",
-                          borderRadius: "0.25rem",
-                          padding: "0.25rem",
-                          backgroundColor: "#000000",
-                          opacity: word.state === "revealed" ? 0.2 : 1,
-                          color: "white",
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          position: "relative",
-                          cursor: "pointer",
-                        }
-                      : {
-                          aspectRatio: "1",
-                          border: "2px solid #000",
-                          borderRadius: "0.25rem",
-                          padding: "0.25rem",
-                          backgroundColor: "#e5e7eb",
-                          opacity: word.state === "revealed" ? 0.2 : 1,
-                          color: "black",
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          position: "relative",
-                          cursor: "pointer",
-                        }
-                  }
-                  onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
-                >
-                {/* Word Display/Input */}
-                {ifElse(
-                  setupMode,
-                  <input
-                    type="text"
-                    value={word.word}
-                    placeholder={`${word.position.row},${word.position.col}`}
-                    onChange={updateWord({ board, row: word.position.row, col: word.position.col })}
-                    onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
-                    style={{
-                      width: "90%",
-                      height: "80%",
-                      textAlign: "center",
-                      fontSize: "0.7rem",
-                      fontWeight: "600",
-                      textTransform: "uppercase",
-                      border: "none",
-                      background: "transparent",
-                      color: "inherit",
-                      pointerEvents: "auto",
+                  style={word.owner === "red"
+                    ? {
+                      aspectRatio: "1",
+                      border: "2px solid #000",
+                      borderRadius: "0.25rem",
+                      padding: "0.25rem",
+                      backgroundColor: "#dc2626",
+                      opacity: word.state === "revealed" ? 0.2 : 1,
+                      color: "white",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      position: "relative",
+                      cursor: "pointer",
+                    }
+                    : word.owner === "blue"
+                    ? {
+                      aspectRatio: "1",
+                      border: "2px solid #000",
+                      borderRadius: "0.25rem",
+                      padding: "0.25rem",
+                      backgroundColor: "#2563eb",
+                      opacity: word.state === "revealed" ? 0.2 : 1,
+                      color: "white",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      position: "relative",
+                      cursor: "pointer",
+                    }
+                    : word.owner === "neutral"
+                    ? {
+                      aspectRatio: "1",
+                      border: "2px solid #000",
+                      borderRadius: "0.25rem",
+                      padding: "0.25rem",
+                      backgroundColor: "#d4d4d8",
+                      opacity: word.state === "revealed" ? 0.2 : 1,
+                      color: "black",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      position: "relative",
+                      cursor: "pointer",
+                    }
+                    : word.owner === "assassin"
+                    ? {
+                      aspectRatio: "1",
+                      border: "2px solid #000",
+                      borderRadius: "0.25rem",
+                      padding: "0.25rem",
+                      backgroundColor: "#000000",
+                      opacity: word.state === "revealed" ? 0.2 : 1,
+                      color: "white",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      position: "relative",
+                      cursor: "pointer",
+                    }
+                    : {
+                      aspectRatio: "1",
+                      border: "2px solid #000",
+                      borderRadius: "0.25rem",
+                      padding: "0.25rem",
+                      backgroundColor: "#e5e7eb",
+                      opacity: word.state === "revealed" ? 0.2 : 1,
+                      color: "black",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      position: "relative",
+                      cursor: "pointer",
                     }}
-                  />,
-                  <span style={{
-                    fontSize: "0.7rem",
-                    fontWeight: "600",
-                    textAlign: "center",
-                    wordBreak: "break-word",
-                  }}>
-                    {word.word || "—"}
-                  </span>
-                )}
+                  onClick={cellClick({
+                    board,
+                    setupMode,
+                    selectedWordIndex,
+                    row: word.position.row,
+                    col: word.position.col,
+                  })}
+                >
+                  {/* Word Display/Input */}
+                  {ifElse(
+                    setupMode,
+                    <input
+                      type="text"
+                      value={word.word}
+                      placeholder={`${word.position.row},${word.position.col}`}
+                      onChange={updateWord({
+                        board,
+                        row: word.position.row,
+                        col: word.position.col,
+                      })}
+                      onClick={cellClick({
+                        board,
+                        setupMode,
+                        selectedWordIndex,
+                        row: word.position.row,
+                        col: word.position.col,
+                      })}
+                      style={{
+                        width: "90%",
+                        height: "80%",
+                        textAlign: "center",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        textTransform: "uppercase",
+                        border: "none",
+                        background: "transparent",
+                        color: "inherit",
+                        pointerEvents: "auto",
+                      }}
+                    />,
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        textAlign: "center",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {word.word || "—"}
+                    </span>,
+                  )}
                 </div>
               );
             })}
@@ -939,33 +1045,39 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
           {/* Setup Controls */}
           {ifElse(
             setupMode,
-            <div style={{
-              marginBottom: "1rem",
-              padding: "1rem",
-              backgroundColor: "#f9fafb",
-              borderRadius: "0.5rem",
-              border: "1px solid #e5e7eb",
-            }}>
-              <h3 style={{
-                fontSize: "0.9rem",
-                fontWeight: "600",
-                marginBottom: "0.75rem",
-              }}>
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "1rem",
+                backgroundColor: "#f9fafb",
+                borderRadius: "0.5rem",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: "600",
+                  marginBottom: "0.75rem",
+                }}
+              >
                 Assign Colors (click a word, then choose a color)
               </h3>
 
               {/* Color Counts */}
-              <div style={{
-                display: "flex",
-                gap: "0.5rem",
-                marginBottom: "0.75rem",
-                padding: "0.5rem",
-                backgroundColor: "#ffffff",
-                borderRadius: "0.375rem",
-                border: "1px solid #e5e7eb",
-                fontSize: "0.75rem",
-                flexWrap: "wrap",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  marginBottom: "0.75rem",
+                  padding: "0.5rem",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #e5e7eb",
+                  fontSize: "0.75rem",
+                  flexWrap: "wrap",
+                }}
+              >
                 {computed(() => {
                   const boardData = board.get();
                   const counts: Record<WordOwner, number> = {
@@ -1000,38 +1112,60 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 })}
               </div>
 
-              <div style={{
-                display: "flex",
-                gap: "0.5rem",
-                flexWrap: "wrap",
-                marginBottom: "1rem",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  flexWrap: "wrap",
+                  marginBottom: "1rem",
+                }}
+              >
                 <cf-button
-                  onClick={assignColor({ board, selectedWordIndex, owner: "red" })}
+                  onClick={assignColor({
+                    board,
+                    selectedWordIndex,
+                    owner: "red",
+                  })}
                   className="color-red"
                 >
                   red
                 </cf-button>
                 <cf-button
-                  onClick={assignColor({ board, selectedWordIndex, owner: "blue" })}
+                  onClick={assignColor({
+                    board,
+                    selectedWordIndex,
+                    owner: "blue",
+                  })}
                   className="color-blue"
                 >
                   blue
                 </cf-button>
                 <cf-button
-                  onClick={assignColor({ board, selectedWordIndex, owner: "neutral" })}
+                  onClick={assignColor({
+                    board,
+                    selectedWordIndex,
+                    owner: "neutral",
+                  })}
                   className="color-neutral"
                 >
                   neutral
                 </cf-button>
                 <cf-button
-                  onClick={assignColor({ board, selectedWordIndex, owner: "assassin" })}
+                  onClick={assignColor({
+                    board,
+                    selectedWordIndex,
+                    owner: "assassin",
+                  })}
                   className="color-assassin"
                 >
                   assassin
                 </cf-button>
                 <cf-button
-                  onClick={assignColor({ board, selectedWordIndex, owner: "unassigned" })}
+                  onClick={assignColor({
+                    board,
+                    selectedWordIndex,
+                    owner: "unassigned",
+                  })}
                   className="color-clear"
                 >
                   Clear
@@ -1039,10 +1173,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               </div>
 
               {/* Reset Board Colors button */}
-              <div style={{
-                marginTop: "0.5rem",
-                textAlign: "center",
-              }}>
+              <div
+                style={{
+                  marginTop: "0.5rem",
+                  textAlign: "center",
+                }}
+              >
                 <cf-button
                   onClick={resetAllColors({ board, selectedWordIndex })}
                   className="btn-reset"
@@ -1052,27 +1188,34 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               </div>
 
               {/* AI Image Upload */}
-              <div style={{
-                marginTop: "1.5rem",
-                padding: "1rem",
-                backgroundColor: "#ffffff",
-                borderRadius: "0.375rem",
-                border: "2px solid #8b5cf6",
-              }}>
-                <h4 style={{
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
-                  marginBottom: "0.75rem",
-                  color: "#6b21a8",
-                }}>
+              <div
+                style={{
+                  marginTop: "1.5rem",
+                  padding: "1rem",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "0.375rem",
+                  border: "2px solid #8b5cf6",
+                }}
+              >
+                <h4
+                  style={{
+                    fontSize: "0.9rem",
+                    fontWeight: "600",
+                    marginBottom: "0.75rem",
+                    color: "#6b21a8",
+                  }}
+                >
                   📷 AI-Powered Board Setup
                 </h4>
-                <p style={{
-                  fontSize: "0.75rem",
-                  color: "#71717a",
-                  marginBottom: "0.75rem",
-                }}>
-                  Upload photos of your board and key card to automatically extract words and colors.
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#71717a",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  Upload photos of your board and key card to automatically
+                  extract words and colors.
                 </p>
                 <cf-image-input
                   multiple
@@ -1089,218 +1232,325 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                   // Use photoIdx directly from .map() parameter
 
                   return computed(() => {
-                      // In computed(), access Cell values using .get() for local cells
-                      const pending = extraction.pending;
-                      const result = extraction.result;
-                      const approvalStateValue = approvalState.get();
+                    // In computed(), access Cell values using .get() for local cells
+                    const pending = extraction.pending;
+                    const result = extraction.result;
+                    const approvalStateValue = approvalState.get();
 
-                      const approval = approvalStateValue[photoIdx] || { correctionText: "", applied: false };
+                    const approval = approvalStateValue[photoIdx] ||
+                      { correctionText: "", applied: false };
 
-                      if (pending) {
-                        return (
-                          <div
-                            key={photoIdx}
-                            style={{
-                              marginTop: "0.75rem",
-                              padding: "0.75rem",
-                              backgroundColor: "#fef3c7",
-                              borderRadius: "0.375rem",
-                              border: "1px solid #f59e0b",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.75rem", color: "#92400e" }}>
-                              <cf-loader size="sm" show-elapsed></cf-loader>
-                              Photo {photoIdx + 1}: Analyzing...
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      if (!result) return null;
-
-                      const photoType = result.photoType || "unknown";
-                      const confidence = result.confidence || "unknown";
-                      const notes = result.notes || "";
-                      const validation = validateExtraction(result);
-
-                      // If already applied, show compact success message
-                      if (approval.applied) {
-                        return (
-                          <div
-                            key={photoIdx}
-                            style={{
-                              marginTop: "0.75rem",
-                              padding: "0.5rem",
-                              backgroundColor: "#d1fae5",
-                              borderRadius: "0.375rem",
-                              border: "1px solid #10b981",
-                              fontSize: "0.7rem",
-                              color: "#065f46",
-                            }}
-                          >
-                            ✓ Photo {photoIdx + 1} applied to board
-                          </div>
-                        );
-                      }
-
+                    if (pending) {
                       return (
                         <div
                           key={photoIdx}
                           style={{
                             marginTop: "0.75rem",
                             padding: "0.75rem",
-                            backgroundColor: validation.isValid ? "#f0fdf4" : "#fef2f2",
+                            backgroundColor: "#fef3c7",
                             borderRadius: "0.375rem",
-                            border: validation.isValid ? "2px solid #22c55e" : "2px solid #f59e0b",
+                            border: "1px solid #f59e0b",
                           }}
                         >
-                          {/* Header with photo type and confidence */}
-                          <div style={{
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              fontSize: "0.75rem",
+                              color: "#92400e",
+                            }}
+                          >
+                            <cf-loader size="sm" show-elapsed></cf-loader>
+                            Photo {photoIdx + 1}: Analyzing...
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (!result) return null;
+
+                    const photoType = result.photoType || "unknown";
+                    const confidence = result.confidence || "unknown";
+                    const notes = result.notes || "";
+                    const validation = validateExtraction(result);
+
+                    // If already applied, show compact success message
+                    if (approval.applied) {
+                      return (
+                        <div
+                          key={photoIdx}
+                          style={{
+                            marginTop: "0.75rem",
+                            padding: "0.5rem",
+                            backgroundColor: "#d1fae5",
+                            borderRadius: "0.375rem",
+                            border: "1px solid #10b981",
+                            fontSize: "0.7rem",
+                            color: "#065f46",
+                          }}
+                        >
+                          ✓ Photo {photoIdx + 1} applied to board
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={photoIdx}
+                        style={{
+                          marginTop: "0.75rem",
+                          padding: "0.75rem",
+                          backgroundColor: validation.isValid
+                            ? "#f0fdf4"
+                            : "#fef2f2",
+                          borderRadius: "0.375rem",
+                          border: validation.isValid
+                            ? "2px solid #22c55e"
+                            : "2px solid #f59e0b",
+                        }}
+                      >
+                        {/* Header with photo type and confidence */}
+                        <div
+                          style={{
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
                             marginBottom: "0.75rem",
-                          }}>
-                            <p style={{ fontSize: "0.8rem", fontWeight: "600", color: "#166534" }}>
-                              📸 Photo {photoIdx + 1}: {photoType === "board" ? "Game Board" : photoType === "keycard" ? "Key Card" : "Unknown"}
-                            </p>
-                            <span style={{
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontSize: "0.8rem",
+                              fontWeight: "600",
+                              color: "#166534",
+                            }}
+                          >
+                            📸 Photo {photoIdx + 1}: {photoType === "board"
+                              ? "Game Board"
+                              : photoType === "keycard"
+                              ? "Key Card"
+                              : "Unknown"}
+                          </p>
+                          <span
+                            style={{
                               fontSize: "0.65rem",
                               padding: "0.125rem 0.375rem",
-                              backgroundColor: confidence === "high" ? "#22c55e" : confidence === "medium" ? "#f59e0b" : "#ef4444",
+                              backgroundColor: confidence === "high"
+                                ? "#22c55e"
+                                : confidence === "medium"
+                                ? "#f59e0b"
+                                : "#ef4444",
                               color: "white",
                               borderRadius: "0.25rem",
                               fontWeight: "600",
-                            }}>
-                              {confidence} confidence
-                            </span>
-                          </div>
+                            }}
+                          >
+                            {confidence} confidence
+                          </span>
+                        </div>
 
-                          {/* Validation errors */}
-                          {validation.errors.length > 0 && (
-                            <div style={{
+                        {/* Validation errors */}
+                        {validation.errors.length > 0 && (
+                          <div
+                            style={{
                               marginBottom: "0.75rem",
                               padding: "0.5rem",
                               backgroundColor: "#fee2e2",
                               borderRadius: "0.25rem",
                               border: "1px solid #ef4444",
-                            }}>
-                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#991b1b", marginBottom: "0.25rem" }}>
-                                ⚠️ Errors:
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: "600",
+                                color: "#991b1b",
+                                marginBottom: "0.25rem",
+                              }}
+                            >
+                              ⚠️ Errors:
+                            </p>
+                            {validation.errors.map((err, i) => (
+                              <p
+                                key={i}
+                                style={{
+                                  fontSize: "0.65rem",
+                                  color: "#991b1b",
+                                  margin: "0.125rem 0",
+                                }}
+                              >
+                                • {err}
                               </p>
-                              {validation.errors.map((err, i) => (
-                                <p key={i} style={{ fontSize: "0.65rem", color: "#991b1b", margin: "0.125rem 0" }}>
-                                  • {err}
-                                </p>
-                              ))}
-                            </div>
-                          )}
+                            ))}
+                          </div>
+                        )}
 
-                          {/* Validation warnings */}
-                          {validation.warnings.length > 0 && (
-                            <div style={{
+                        {/* Validation warnings */}
+                        {validation.warnings.length > 0 && (
+                          <div
+                            style={{
                               marginBottom: "0.75rem",
                               padding: "0.5rem",
                               backgroundColor: "#fef3c7",
                               borderRadius: "0.25rem",
                               border: "1px solid #f59e0b",
-                            }}>
-                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#92400e", marginBottom: "0.25rem" }}>
-                                ⚠️ Warnings:
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: "600",
+                                color: "#92400e",
+                                marginBottom: "0.25rem",
+                              }}
+                            >
+                              ⚠️ Warnings:
+                            </p>
+                            {validation.warnings.map((warn, i) => (
+                              <p
+                                key={i}
+                                style={{
+                                  fontSize: "0.65rem",
+                                  color: "#92400e",
+                                  margin: "0.125rem 0",
+                                }}
+                              >
+                                • {warn}
                               </p>
-                              {validation.warnings.map((warn, i) => (
-                                <p key={i} style={{ fontSize: "0.65rem", color: "#92400e", margin: "0.125rem 0" }}>
-                                  • {warn}
-                                </p>
-                              ))}
-                            </div>
-                          )}
+                            ))}
+                          </div>
+                        )}
 
-                          {/* Visual preview for key card */}
-                          {photoType === "keycard" && result.keyCardColors && (
-                            <div style={{ marginBottom: "0.75rem" }}>
-                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
-                                Key Card Preview:
-                              </p>
-                              <div style={{
+                        {/* Visual preview for key card */}
+                        {photoType === "keycard" && result.keyCardColors && (
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <p
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: "600",
+                                color: "#166534",
+                                marginBottom: "0.5rem",
+                              }}
+                            >
+                              Key Card Preview:
+                            </p>
+                            <div
+                              style={{
                                 display: "grid",
                                 gridTemplateColumns: "repeat(5, 1fr)",
                                 gap: "2px",
                                 maxWidth: "150px",
-                              }}>
-                                {Array.from({ length: 25 }).map((_, cellIdx) => {
-                                  const row = Math.floor(cellIdx / 5);
-                                  const col = cellIdx % 5;
-                                  const colorData = result.keyCardColors.find((c: any) => c.row === row && c.col === col);
-                                  const color = colorData ? colorData.color : "unassigned";
-                                  return (
-                                    <div
-                                      key={cellIdx}
-                                      style={{
-                                        aspectRatio: "1",
-                                        backgroundColor: color === "red" ? "#dc2626"
-                                          : color === "blue" ? "#2563eb"
-                                          : color === "neutral" ? "#d4d4d8"
-                                          : color === "assassin" ? "#000000"
-                                          : "#e5e7eb",
-                                        borderRadius: "2px",
-                                      }}
-                                    />
-                                  );
-                                })}
-                              </div>
+                              }}
+                            >
+                              {Array.from({ length: 25 }).map((_, cellIdx) => {
+                                const row = Math.floor(cellIdx / 5);
+                                const col = cellIdx % 5;
+                                const colorData = result.keyCardColors.find((
+                                  c: any,
+                                ) =>
+                                  c.row === row && c.col === col
+                                );
+                                const color = colorData
+                                  ? colorData.color
+                                  : "unassigned";
+                                return (
+                                  <div
+                                    key={cellIdx}
+                                    style={{
+                                      aspectRatio: "1",
+                                      backgroundColor: color === "red"
+                                        ? "#dc2626"
+                                        : color === "blue"
+                                        ? "#2563eb"
+                                        : color === "neutral"
+                                        ? "#d4d4d8"
+                                        : color === "assassin"
+                                        ? "#000000"
+                                        : "#e5e7eb",
+                                      borderRadius: "2px",
+                                    }}
+                                  />
+                                );
+                              })}
                             </div>
-                          )}
+                          </div>
+                        )}
 
-                          {/* Visual preview for board words */}
-                          {photoType === "board" && result.boardWords && (
-                            <div style={{ marginBottom: "0.75rem" }}>
-                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
-                                Board Preview: ({result.boardWords.length} words)
-                              </p>
-                              {/* Debug info */}
-                              <div style={{ fontSize: "0.5rem", color: "#666", marginBottom: "0.5rem", backgroundColor: "#f0f0f0", padding: "0.25rem" }}>
-                                First word structure: {JSON.stringify(result.boardWords[0])}
-                              </div>
-                              <div style={{
+                        {/* Visual preview for board words */}
+                        {photoType === "board" && result.boardWords && (
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <p
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: "600",
+                                color: "#166534",
+                                marginBottom: "0.5rem",
+                              }}
+                            >
+                              Board Preview: ({result.boardWords.length} words)
+                            </p>
+                            {/* Debug info */}
+                            <div
+                              style={{
+                                fontSize: "0.5rem",
+                                color: "#666",
+                                marginBottom: "0.5rem",
+                                backgroundColor: "#f0f0f0",
+                                padding: "0.25rem",
+                              }}
+                            >
+                              First word structure:{" "}
+                              {JSON.stringify(result.boardWords[0])}
+                            </div>
+                            <div
+                              style={{
                                 display: "grid",
                                 gridTemplateColumns: "repeat(5, 1fr)",
                                 gap: "2px",
                                 fontSize: "0.45rem",
                                 maxWidth: "250px",
-                              }}>
-                                {Array.from({ length: 25 }).map((_, cellIdx) => {
-                                  const row = Math.floor(cellIdx / 5);
-                                  const col = cellIdx % 5;
-                                  const wordData = result.boardWords.find((w: any) => w.row === row && w.col === col);
-                                  return (
-                                    <div
-                                      key={cellIdx}
-                                      style={{
-                                        aspectRatio: "1",
-                                        backgroundColor: "#f3f4f6",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "2px",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        padding: "1px",
-                                        textAlign: "center",
-                                        wordBreak: "break-word",
-                                        lineHeight: "1",
-                                      }}
-                                    >
-                                      {wordData && wordData.word ? wordData.word.substring(0, 8) : "—"}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                              }}
+                            >
+                              {Array.from({ length: 25 }).map((_, cellIdx) => {
+                                const row = Math.floor(cellIdx / 5);
+                                const col = cellIdx % 5;
+                                const wordData = result.boardWords.find((
+                                  w: any,
+                                ) =>
+                                  w.row === row && w.col === col
+                                );
+                                return (
+                                  <div
+                                    key={cellIdx}
+                                    style={{
+                                      aspectRatio: "1",
+                                      backgroundColor: "#f3f4f6",
+                                      border: "1px solid #d1d5db",
+                                      borderRadius: "2px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      padding: "1px",
+                                      textAlign: "center",
+                                      wordBreak: "break-word",
+                                      lineHeight: "1",
+                                    }}
+                                  >
+                                    {wordData && wordData.word
+                                      ? wordData.word.substring(0, 8)
+                                      : "—"}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          )}
+                          </div>
+                        )}
 
-                          {/* Notes from AI */}
-                          {notes && (
-                            <div style={{
+                        {/* Notes from AI */}
+                        {notes && (
+                          <div
+                            style={{
                               fontSize: "0.65rem",
                               color: "#78716c",
                               fontStyle: "italic",
@@ -1308,109 +1558,140 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               padding: "0.5rem",
                               backgroundColor: "#fafaf9",
                               borderRadius: "0.25rem",
-                            }}>
-                              Note: {notes}
-                            </div>
-                          )}
+                            }}
+                          >
+                            Note: {notes}
+                          </div>
+                        )}
 
-                          {/* Correction text box */}
-                          <div style={{ marginBottom: "0.75rem" }}>
-                            <label style={{
+                        {/* Correction text box */}
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <label
+                            style={{
                               display: "block",
                               fontSize: "0.7rem",
                               fontWeight: "600",
                               color: "#374151",
                               marginBottom: "0.25rem",
-                            }}>
-                              Corrections (optional):
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g., 'top right should be blue not red'"
-                              value={approval.correctionText}
-                              onChange={updateCorrectionText({ approvalState, idx: photoIdx })}
-                              style={{
-                                width: "100%",
-                                padding: "0.375rem",
-                                fontSize: "0.7rem",
-                                border: "1px solid #d1d5db",
-                                borderRadius: "0.25rem",
-                                fontFamily: "system-ui, sans-serif",
-                              }}
-                            />
-                          </div>
+                            }}
+                          >
+                            Corrections (optional):
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g., 'top right should be blue not red'"
+                            value={approval.correctionText}
+                            onChange={updateCorrectionText({
+                              approvalState,
+                              idx: photoIdx,
+                            })}
+                            style={{
+                              width: "100%",
+                              padding: "0.375rem",
+                              fontSize: "0.7rem",
+                              border: "1px solid #d1d5db",
+                              borderRadius: "0.25rem",
+                              fontFamily: "system-ui, sans-serif",
+                            }}
+                          />
+                        </div>
 
-                          {/* Action buttons */}
-                          <div style={{
+                        {/* Action buttons */}
+                        <div
+                          style={{
                             display: "flex",
                             gap: "0.5rem",
                             flexWrap: "wrap",
-                          }}>
-                            <cf-button
-                              onClick={applyExtractedData({ board, extraction, approvalState, idx: photoIdx })}
-                              disabled={!validation.isValid}
-                              style={{
-                                fontSize: "0.75rem",
-                                padding: "0.5rem 0.75rem",
-                                backgroundColor: validation.isValid ? "#22c55e" : "#9ca3af",
-                                color: "white",
-                                borderRadius: "0.25rem",
-                                fontWeight: "600",
-                                cursor: validation.isValid ? "pointer" : "not-allowed",
-                              }}
-                            >
-                              ✓ Approve & Apply to Board
-                            </cf-button>
-                            <cf-button
-                              onClick={rejectExtraction({ uploadedPhotos, idx: photoIdx, approvalState })}
-                              style={{
-                                fontSize: "0.75rem",
-                                padding: "0.5rem 0.75rem",
-                                backgroundColor: "#ef4444",
-                                color: "white",
-                                borderRadius: "0.25rem",
-                                fontWeight: "600",
-                              }}
-                            >
-                              ✗ Reject
-                            </cf-button>
-                          </div>
+                          }}
+                        >
+                          <cf-button
+                            onClick={applyExtractedData({
+                              board,
+                              extraction,
+                              approvalState,
+                              idx: photoIdx,
+                            })}
+                            disabled={!validation.isValid}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "0.5rem 0.75rem",
+                              backgroundColor: validation.isValid
+                                ? "#22c55e"
+                                : "#9ca3af",
+                              color: "white",
+                              borderRadius: "0.25rem",
+                              fontWeight: "600",
+                              cursor: validation.isValid
+                                ? "pointer"
+                                : "not-allowed",
+                            }}
+                          >
+                            ✓ Approve & Apply to Board
+                          </cf-button>
+                          <cf-button
+                            onClick={rejectExtraction({
+                              uploadedPhotos,
+                              idx: photoIdx,
+                              approvalState,
+                            })}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "0.5rem 0.75rem",
+                              backgroundColor: "#ef4444",
+                              color: "white",
+                              borderRadius: "0.25rem",
+                              fontWeight: "600",
+                            }}
+                          >
+                            ✗ Reject
+                          </cf-button>
                         </div>
-                      );
+                      </div>
+                    );
                   });
                 })}
               </div>
             </div>,
-            <div style={{
-              padding: "1rem",
-              backgroundColor: "#f9fafb",
-              borderRadius: "0.5rem",
-              border: "1px solid #e5e7eb",
-              textAlign: "center",
-              marginBottom: "1rem",
-            }}>
-              <p style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Game Mode</p>
-              <p style={{ fontSize: "0.875rem" }}>Click cards to mark them as guessed (faded = out of play)</p>
-            </div>
+            <div
+              style={{
+                padding: "1rem",
+                backgroundColor: "#f9fafb",
+                borderRadius: "0.5rem",
+                border: "1px solid #e5e7eb",
+                textAlign: "center",
+                marginBottom: "1rem",
+              }}
+            >
+              <p style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
+                Game Mode
+              </p>
+              <p style={{ fontSize: "0.875rem" }}>
+                Click cards to mark them as guessed (faded = out of play)
+              </p>
+            </div>,
           )}
 
           {/* AI Clue Suggestions - Only in Game Mode */}
           {ifElse(
             setupMode,
             null,
-            <div style={{
-              marginBottom: "1rem",
-              padding: "1rem",
-              backgroundColor: "#fef3c7",
-              borderRadius: "0.5rem",
-              border: "2px solid #f59e0b",
-            }}>
-              <h3 style={{
-                fontSize: "1rem",
-                fontWeight: "bold",
-                marginBottom: "0.75rem",
-                color: "#92400e",
-              }}>
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "1rem",
+                backgroundColor: "#fef3c7",
+                borderRadius: "0.5rem",
+                border: "2px solid #f59e0b",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                  marginBottom: "0.75rem",
+                  color: "#92400e",
+                }}
+              >
                 🤖 AI Clue Suggestions
               </h3>
 
@@ -1420,15 +1701,17 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
 
                 if (pending) {
                   return (
-                    <div style={{
-                      padding: "1rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "0.75rem",
-                      color: "#92400e",
-                      fontSize: "0.875rem",
-                    }}>
+                    <div
+                      style={{
+                        padding: "1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.75rem",
+                        color: "#92400e",
+                        fontSize: "0.875rem",
+                      }}
+                    >
                       <cf-loader show-elapsed></cf-loader>
                       Analyzing board and generating clues...
                     </div>
@@ -1437,23 +1720,27 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
 
                 if (!result || !result.clues || result.clues.length === 0) {
                   return (
-                    <div style={{
-                      padding: "1rem",
-                      textAlign: "center",
-                      color: "#92400e",
-                      fontSize: "0.875rem",
-                    }}>
+                    <div
+                      style={{
+                        padding: "1rem",
+                        textAlign: "center",
+                        color: "#92400e",
+                        fontSize: "0.875rem",
+                      }}
+                    >
                       No clues available yet. Make sure the board is set up!
                     </div>
                   );
                 }
 
                 return (
-                  <div style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
                     {result.clues.map((clue: any, idx: number) => (
                       <div
                         key={idx}
@@ -1464,42 +1751,53 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           border: "1px solid #f59e0b",
                         }}
                       >
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          marginBottom: "0.5rem",
-                        }}>
-                          <span style={{
-                            fontSize: "1.25rem",
-                            fontWeight: "bold",
-                            color: "#92400e",
-                            textTransform: "uppercase",
-                          }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "1.25rem",
+                              fontWeight: "bold",
+                              color: "#92400e",
+                              textTransform: "uppercase",
+                            }}
+                          >
                             {clue.clue}
                           </span>
-                          <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "600",
-                            color: "#d97706",
-                          }}>
+                          <span
+                            style={{
+                              fontSize: "1rem",
+                              fontWeight: "600",
+                              color: "#d97706",
+                            }}
+                          >
                             ({clue.number})
                           </span>
                         </div>
 
-                        <div style={{
-                          fontSize: "0.75rem",
-                          color: "#78716c",
-                          marginBottom: "0.25rem",
-                        }}>
-                          <strong>Connects:</strong> {clue.targetWords.join(", ")}
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#78716c",
+                            marginBottom: "0.25rem",
+                          }}
+                        >
+                          <strong>Connects:</strong>{" "}
+                          {clue.targetWords.join(", ")}
                         </div>
 
-                        <div style={{
-                          fontSize: "0.75rem",
-                          color: "#78716c",
-                          fontStyle: "italic",
-                        }}>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#78716c",
+                            fontStyle: "italic",
+                          }}
+                        >
                           {clue.reasoning}
                         </div>
                       </div>
@@ -1507,16 +1805,18 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                   </div>
                 );
               })}
-            </div>
+            </div>,
           )}
 
           {/* Reset Board Button - always visible at bottom */}
-          <div style={{
-            marginTop: "1.5rem",
-            textAlign: "center",
-            paddingTop: "1rem",
-            borderTop: "2px solid #e5e7eb",
-          }}>
+          <div
+            style={{
+              marginTop: "1.5rem",
+              textAlign: "center",
+              paddingTop: "1rem",
+              borderTop: "2px solid #e5e7eb",
+            }}
+          >
             <cf-button
               onClick={initializeBoardHandler({ board, setupMode })}
               className="btn-reset"
@@ -1531,5 +1831,5 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
       setupMode,
       selectedWordIndex,
     };
-  }
+  },
 );

@@ -2,18 +2,26 @@
 
 ## Goal
 
-Create a pattern that helps users map their grocery store layout for use with aisle-sorted shopping lists. The map should be easy to create through natural interaction (typing/pasting OR photos) and use AI to help users identify missing sections.
+Create a pattern that helps users map their grocery store layout for use with
+aisle-sorted shopping lists. The map should be easy to create through natural
+interaction (typing/pasting OR photos) and use AI to help users identify missing
+sections.
 
 ## Problem Statement
 
-Current shopping-list-launcher.tsx has a hardcoded `KROGER_OUTLINE`. Users shopping at different stores (Safeway, Whole Foods, local markets) need to create their own store maps. Manually typing structured layouts is tedious.
+Current shopping-list-launcher.tsx has a hardcoded `KROGER_OUTLINE`. Users
+shopping at different stores (Safeway, Whole Foods, local markets) need to
+create their own store maps. Manually typing structured layouts is tedious.
 
 ## Design Principles
 
-1. **Natural Input First**: Users should be able to just talk/paste/type naturally
-2. **AI as Assistant**: AI helps organize and validate, doesn't force a rigid flow
+1. **Natural Input First**: Users should be able to just talk/paste/type
+   naturally
+2. **AI as Assistant**: AI helps organize and validate, doesn't force a rigid
+   flow
 3. **Flexible Methods**: Support both text input AND photo capture
-4. **Smart Suggestions**: AI detects gaps and missing sections, but user has final say
+4. **Smart Suggestions**: AI detects gaps and missing sections, but user has
+   final say
 5. **Simple Data Model**: Just name + description per aisle
 
 ## User Experience
@@ -54,12 +62,14 @@ Current shopping-list-launcher.tsx has a hardcoded `KROGER_OUTLINE`. Users shopp
 ### Interactions
 
 **Adding Aisles Manually:**
+
 1. Click [+ Add Aisle]
 2. Type name: "Aisle 1 - Produce"
 3. Type description: "fruits, veggies, herbs"
 4. Or paste full outline and let AI parse it
 
 **Adding from Photo:**
+
 1. Click [📷 Add from Photo]
 2. Upload one or more aisle sign photos
 3. AI extracts text: "AISLE 5 | Frozen Foods • Ice Cream"
@@ -68,11 +78,13 @@ Current shopping-list-launcher.tsx has a hardcoded `KROGER_OUTLINE`. Users shopp
 6. User can edit if needed
 
 **Handling Suggestions:**
-- Click suggestion tag `[Aisle 3]` → Adds empty Aisle 3 entry, focuses cursor
-- Click `×` on suggestion → Adds to "Not in Store" list, tag disappears, AI won't suggest again
 
-**Natural Text Parsing:**
-User can paste this:
+- Click suggestion tag `[Aisle 3]` → Adds empty Aisle 3 entry, focuses cursor
+- Click `×` on suggestion → Adds to "Not in Store" list, tag disappears, AI
+  won't suggest again
+
+**Natural Text Parsing:** User can paste this:
+
 ```
 Aisle 1 - Produce: fruits, vegetables
 Aisle 2 - Bakery: bread, pastries
@@ -86,19 +98,19 @@ AI parses and creates appropriate aisle entries.
 
 ```typescript
 interface StoreAisle {
-  name: string;                      // "Aisle 1 - Produce" or "Bakery"
-  description: Default<string, "">;  // Freeform what's in this aisle
+  name: string; // "Aisle 1 - Produce" or "Bakery"
+  description: Default<string, "">; // Freeform what's in this aisle
 }
 
 interface StoreMapInput {
   storeName: Default<string, "">;
   aisles: Default<StoreAisle[], []>;
-  notInStore: Default<string[], []>;  // Sections confirmed to NOT exist
+  notInStore: Default<string[], []>; // Sections confirmed to NOT exist
 }
 
 interface StoreMapOutput extends StoreMapInput {
   // Formatted outline for shopping-list to consume
-  outline: string;  // "# Aisle 1 - Produce\nfruits, vegetables\n\n# Aisle 2..."
+  outline: string; // "# Aisle 1 - Produce\nfruits, vegetables\n\n# Aisle 2..."
 }
 ```
 
@@ -106,14 +118,18 @@ interface StoreMapOutput extends StoreMapInput {
 
 ### 1. Missing Section Detection
 
-Continuously analyzes the map and suggests missing sections as tags at the bottom.
+Continuously analyzes the map and suggests missing sections as tags at the
+bottom.
 
 **Detection Logic:**
+
 - **Gap Detection**: Aisle 1, 2, 4 → suggest "Aisle 3"
-- **Common Sections**: Check for typical departments (Produce, Bakery, Deli, Dairy, Meat, Pharmacy)
+- **Common Sections**: Check for typical departments (Produce, Bakery, Deli,
+  Dairy, Meat, Pharmacy)
 - **Respect Exclusions**: Don't suggest anything in `notInStore` array
 
 **LLM Call:**
+
 ```typescript
 const detectedMissing = llm({
   system: `Analyze store map. Return array of likely missing sections.
@@ -131,20 +147,20 @@ const detectedMissing = llm({
     content: str`Store: ${storeName}
 
 Aisles:
-${aisles.map(a => `${a.name}: ${a.description}`).join('\n')}
+${aisles.map((a) => `${a.name}: ${a.description}`).join("\n")}
 
-Not in Store: ${notInStore.join(', ') || 'None'}
+Not in Store: ${notInStore.join(", ") || "None"}
 
-What sections are likely missing?`
+What sections are likely missing?`,
   }],
 
-  model: "anthropic:claude-sonnet-4-5"
+  model: "anthropic:claude-sonnet-4-5",
 });
 
 const missingSections = derive(detectedMissing.result, (result) => {
-  if (!result || typeof result !== 'string') return [];
+  if (!result || typeof result !== "string") return [];
   // Parse LLM response into array of section names
-  return result.split('\n').map(s => s.trim()).filter(Boolean);
+  return result.split("\n").map((s) => s.trim()).filter(Boolean);
 });
 ```
 
@@ -153,41 +169,44 @@ const missingSections = derive(detectedMissing.result, (result) => {
 When user uploads photo, extract aisle information and merge into map.
 
 **Vision LLM Call:**
+
 ```typescript
-const photoData = cell<string>("");  // Base64 from file upload
+const photoData = cell<string>(""); // Base64 from file upload
 
 const extractedAisle = generateObject({
-  model: "google:gemini-2.5-pro",  // Vision model
+  model: "google:gemini-2.5-pro", // Vision model
 
   messages: [{
     role: "user",
     content: [
       {
         type: "text",
-        text: "Extract aisle information from this grocery store sign. Return the aisle name and list of product categories shown."
+        text:
+          "Extract aisle information from this grocery store sign. Return the aisle name and list of product categories shown.",
       },
       {
         type: "image",
-        image: photoData  // Base64 string
-      }
-    ]
+        image: photoData, // Base64 string
+      },
+    ],
   }],
 
   schema: {
     type: "object",
     properties: {
-      name: { type: "string" },       // "Aisle 5 - Frozen Foods"
-      description: { type: "string" } // "Ice cream, frozen vegetables, frozen meals, pizza"
-    }
-  }
+      name: { type: "string" }, // "Aisle 5 - Frozen Foods"
+      description: { type: "string" }, // "Ice cream, frozen vegetables, frozen meals, pizza"
+    },
+  },
 });
 ```
 
 **Auto-Insertion Logic:**
+
 ```typescript
 const handlePhotoExtracted = handler<
   unknown,
-  { extractedAisle: any, aisles: Cell<StoreAisle[]> }
+  { extractedAisle: any; aisles: Cell<StoreAisle[]> }
 >((_event, { extractedAisle, aisles }) => {
   const data = extractedAisle;
   if (!data?.name) return;
@@ -212,14 +231,14 @@ const handlePhotoExtracted = handler<
     const updated = [...currentAisles];
     updated.splice(insertIdx, 0, {
       name: data.name,
-      description: data.description || ""
+      description: data.description || "",
     });
     aisles.set(updated);
   } else {
     // Non-numbered section, add at end
     aisles.push({
       name: data.name,
-      description: data.description || ""
+      description: data.description || "",
     });
   }
 });
@@ -256,11 +275,13 @@ const parseBulkText = handler<
 ### Camera vs Upload
 
 `common-input-file` with `accept="image/*"`:
+
 - Desktop: Opens file picker
 - Mobile: **May** offer camera option (browser-dependent)
 - Can add `capture="environment"` attribute for direct camera on mobile
 
 If we want explicit camera button:
+
 ```html
 <input type="file" accept="image/*" capture="environment">
 ```
@@ -270,6 +291,7 @@ This would need a custom web component wrapping the native input.
 ## Implementation Plan
 
 ### Phase 1: Basic Manual Entry (30 min)
+
 - [ ] Create store-mapper.tsx pattern
 - [ ] Store name input
 - [ ] Aisle array with name + description
@@ -278,6 +300,7 @@ This would need a custom web component wrapping the native input.
 - [ ] Export formatted outline
 
 ### Phase 2: Missing Section Detection (45 min)
+
 - [ ] LLM call to detect missing sections
 - [ ] Parse response into array of suggestions
 - [ ] Render suggestion tags at bottom
@@ -287,6 +310,7 @@ This would need a custom web component wrapping the native input.
 - [ ] Show "Not in this store: X, Y, Z" list
 
 ### Phase 3: Photo Upload & Vision Extraction (60 min)
+
 - [ ] Add `common-input-file` component
 - [ ] Handler to receive base64 images
 - [ ] Vision LLM call with image content
@@ -295,6 +319,7 @@ This would need a custom web component wrapping the native input.
 - [ ] Handle multiple photos in batch
 
 ### Phase 4: Polish & Testing (30 min)
+
 - [ ] Gap detection for numbered aisles
 - [ ] Auto-sort numbered aisles if out of order
 - [ ] Test with various input methods
@@ -302,6 +327,7 @@ This would need a custom web component wrapping the native input.
 - [ ] Export outline format compatible with shopping-list
 
 ### Phase 5: Integration (30 min)
+
 - [ ] Link store-mapper to shopping-list-launcher
 - [ ] Replace hardcoded KROGER_OUTLINE with mapped store
 - [ ] Allow selecting from multiple saved store maps
@@ -309,21 +335,23 @@ This would need a custom web component wrapping the native input.
 
 ## Open Questions
 
-1. **Photo quality**: Will photos of aisle signs work well enough? (Need real-world testing)
+1. **Photo quality**: Will photos of aisle signs work well enough? (Need
+   real-world testing)
 2. **Multi-store**: Should users be able to save multiple store maps?
 3. **Sharing**: Should store maps be shareable between users?
-4. **Mobile camera**: Do we need custom web component or is `accept="image/*"` enough?
-5. **Outline format**: Should match current KROGER_OUTLINE structure or improve it?
+4. **Mobile camera**: Do we need custom web component or is `accept="image/*"`
+   enough?
+5. **Outline format**: Should match current KROGER_OUTLINE structure or improve
+   it?
 
 ## Success Criteria
 
-✅ User can create store map by typing aisle names and descriptions
-✅ User can upload photos of aisle signs to auto-populate
-✅ AI detects and suggests missing sections (numbered gaps + common departments)
-✅ User can dismiss suggestions that don't apply to their store
-✅ AI respects dismissed suggestions (doesn't re-suggest)
-✅ Exported outline works with shopping-list aisle sorting
-✅ Testing with 2-3 different store layouts
+✅ User can create store map by typing aisle names and descriptions ✅ User can
+upload photos of aisle signs to auto-populate ✅ AI detects and suggests missing
+sections (numbered gaps + common departments) ✅ User can dismiss suggestions
+that don't apply to their store ✅ AI respects dismissed suggestions (doesn't
+re-suggest) ✅ Exported outline works with shopping-list aisle sorting ✅
+Testing with 2-3 different store layouts
 
 ## Future Enhancements
 

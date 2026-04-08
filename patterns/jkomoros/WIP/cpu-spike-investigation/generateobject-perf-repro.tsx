@@ -17,22 +17,26 @@
  * - `claim()` - called excessively during LLM result processing
  */
 import {
+  computed,
   derive,
   generateObject,
-  pattern,
-  UI,
-  NAME,
-  toSchema,
-  Writable,
-  computed,
   handler,
+  NAME,
+  pattern,
   safeDateNow,
+  toSchema,
+  UI,
+  Writable,
 } from "commonfabric";
 
 // Handler to trigger extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { trigger: Writable<string>; startTimeMs: Writable<number>; elapsedMs: Writable<number | null> }
+  {
+    trigger: Writable<string>;
+    startTimeMs: Writable<number>;
+    elapsedMs: Writable<number | null>;
+  }
 >(
   (_, { trigger, startTimeMs, elapsedMs }) => {
     console.log("[PERF] Starting 14-field extraction...");
@@ -115,8 +119,9 @@ export default pattern(() => {
             marginBottom: "1rem",
           }}
         >
-          <strong>⚠️ PROBLEM:</strong> generateObject with 14+ field schema
-          causes ~60 second CPU freeze AFTER the LLM responds.
+          <strong>⚠️ PROBLEM:</strong>{" "}
+          generateObject with 14+ field schema causes ~60 second CPU freeze
+          AFTER the LLM responds.
         </div>
 
         <cf-button
@@ -126,32 +131,41 @@ export default pattern(() => {
         </cf-button>
 
         <h2>Status</h2>
-        {!trigger.get() ? (
-          <p>Click the button to start extraction</p>
-        ) : result.pending ? (
-          <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem" }}>
-            ⏳ Extracting... (check console for timing)
-          </div>
-        ) : result.error ? (
-          <div style={{ backgroundColor: "#fee2e2", padding: "0.5rem" }}>
-            ❌ Error: {String(result.error)}
-          </div>
-        ) : result.result ? (
-          <div style={{ backgroundColor: "#d1fae5", padding: "0.5rem" }}>
-            <p>
-              <strong>✅ Completed!</strong>
-            </p>
-            {derive(elapsedMs, (ms: number | null) => ms !== null ? (
+        {!trigger.get()
+          ? <p>Click the button to start extraction</p>
+          : result.pending
+          ? (
+            <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem" }}>
+              ⏳ Extracting... (check console for timing)
+            </div>
+          )
+          : result.error
+          ? (
+            <div style={{ backgroundColor: "#fee2e2", padding: "0.5rem" }}>
+              ❌ Error: {String(result.error)}
+            </div>
+          )
+          : result.result
+          ? (
+            <div style={{ backgroundColor: "#d1fae5", padding: "0.5rem" }}>
               <p>
-                <strong>Time:</strong> {ms}ms (
-                {(ms as number / 1000).toFixed(1)}s)
+                <strong>✅ Completed!</strong>
               </p>
-            ) : <></>)}
-            <pre style={{ fontSize: "0.8rem", overflow: "auto" }}>
+              {derive(elapsedMs, (ms: number | null) =>
+                ms !== null
+                  ? (
+                    <p>
+                      <strong>Time:</strong> {ms}ms (
+                      {(ms as number / 1000).toFixed(1)}s)
+                    </p>
+                  )
+                  : <></>)}
+              <pre style={{ fontSize: "0.8rem", overflow: "auto" }}>
               {JSON.stringify(result.result, null, 2)}
-            </pre>
-          </div>
-        ) : <></>}
+              </pre>
+            </div>
+          )
+          : <></>}
 
         <h2>Debugging Steps</h2>
         <ol>
@@ -183,12 +197,12 @@ export default pattern(() => {
         <h2>Technical Details</h2>
         <p>
           The CPU spike happens AFTER the LLM response arrives, during framework
-          processing in <code>intern()</code> and <code>claim()</code> functions
-          in <code>memory/reference.ts</code>.
+          processing in <code>intern()</code> and <code>claim()</code>{" "}
+          functions in <code>memory/reference.ts</code>.
         </p>
         <p>
-          DERIVE DEBUG SUMMARY will show <code>total=0</code> because the
-          blocking is NOT in the reactive system.
+          DERIVE DEBUG SUMMARY will show <code>total=0</code>{" "}
+          because the blocking is NOT in the reactive system.
         </p>
       </div>
     ),

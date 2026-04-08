@@ -16,10 +16,10 @@ import {
   handler,
   NAME,
   pattern,
+  safeDateNow,
   toSchema,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 // 14-field schema to match person.tsx
@@ -48,7 +48,9 @@ const triggerExtraction = handler<
   (_, { extractTrigger, startTimeMs }) => {
     console.log("[V2-RECIPE] Starting extraction...");
     startTimeMs.set(safeDateNow());
-    extractTrigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford.\n---EXTRACT-${safeDateNow()}---`);
+    extractTrigger.set(
+      `Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford.\n---EXTRACT-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -102,16 +104,32 @@ const ExtractTargetV2 = pattern<Input, Output>(
         <div style={{ padding: "1rem", fontFamily: "monospace" }}>
           <h1>Extract Target V2 (recipe)</h1>
 
-          <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST 1:</strong> Using pattern() wrapper instead of pattern()
+          <div
+            style={{
+              backgroundColor: "#fef3c7",
+              padding: "0.5rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <strong>TEST 1:</strong>{" "}
+            Using pattern() wrapper instead of pattern()
           </div>
 
-          <cf-button onClick={triggerExtraction({ extractTrigger, startTimeMs })} disabled={pending}>
+          <cf-button
+            onClick={triggerExtraction({ extractTrigger, startTimeMs })}
+            disabled={pending}
+          >
             {pending ? "Extracting..." : "Run Extraction"}
           </cf-button>
 
           {result && (
-            <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#f0fdf4" }}>
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.5rem",
+                backgroundColor: "#f0fdf4",
+              }}
+            >
               <strong>Result:</strong> {JSON.stringify(result)}
             </div>
           )}

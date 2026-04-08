@@ -2,11 +2,16 @@
 
 ## Summary
 
-When using `Cell<T[]>.map()` in JSX, accessing array item properties within style attributes (using ternary expressions) does not create reactive bindings. The counter that uses `derive()` updates correctly, but the visual styles computed from the same data remain static.
+When using `Cell<T[]>.map()` in JSX, accessing array item properties within
+style attributes (using ternary expressions) does not create reactive bindings.
+The counter that uses `derive()` updates correctly, but the visual styles
+computed from the same data remain static.
 
 ## Expected Behavior
 
-When I update an array item's property (e.g., `word.owner` changes from "unassigned" to "red"), the JSX style attributes that reference that property should reactively update and re-render with the new computed style.
+When I update an array item's property (e.g., `word.owner` changes from
+"unassigned" to "red"), the JSX style attributes that reference that property
+should reactively update and re-render with the new computed style.
 
 ## Actual Behavior
 
@@ -20,7 +25,17 @@ Here's a simplified version demonstrating the issue:
 
 ```tsx
 /// <cts-enable />
-import { cell, Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  Cell,
+  cell,
+  Default,
+  derive,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+} from "commonfabric";
 
 type WordOwner = "red" | "blue" | "neutral" | "unassigned";
 
@@ -59,7 +74,11 @@ interface CodenamesHelperOutput {
 // Assign color to selected word
 const assignColor = handler<
   unknown,
-  { board: Cell<BoardWord[]>; selectedWordIndex: Cell<number>; owner: WordOwner }
+  {
+    board: Cell<BoardWord[]>;
+    selectedWordIndex: Cell<number>;
+    owner: WordOwner;
+  }
 >((_event, { board, selectedWordIndex, owner }) => {
   const selIdx = selectedWordIndex.get();
   if (selIdx >= 0 && selIdx < 25) {
@@ -73,7 +92,12 @@ const assignColor = handler<
 // Handle cell click to select
 const cellClick = handler<
   unknown,
-  { board: Cell<BoardWord[]>; selectedWordIndex: Cell<number>; row: number; col: number }
+  {
+    board: Cell<BoardWord[]>;
+    selectedWordIndex: Cell<number>;
+    row: number;
+    col: number;
+  }
 >((_event, { board, selectedWordIndex, row, col }) => {
   const currentBoard = board.get();
   const index = currentBoard.findIndex((el: BoardWord) =>
@@ -107,21 +131,23 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
               });
               return (
                 <span>
-                  Red: {counts.red}, Blue: {counts.blue},
-                  Neutral: {counts.neutral}, Unassigned: {counts.unassigned}
+                  Red: {counts.red}, Blue: {counts.blue}, Neutral:{" "}
+                  {counts.neutral}, Unassigned: {counts.unassigned}
                 </span>
               );
             })}
           </div>
 
           {/* This board grid DOESN'T WORK - colors don't update reactively */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 1fr)",
-            gap: "0.25rem",
-            marginTop: "1rem",
-            marginBottom: "1rem",
-          }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gap: "0.25rem",
+              marginTop: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
             {board.map((word, index) => (
               <div
                 key={index}
@@ -134,15 +160,25 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                   justifyContent: "center",
                   cursor: "pointer",
                   // THIS DOESN'T UPDATE REACTIVELY:
-                  backgroundColor: word.owner === "red" ? "#dc2626"
-                    : word.owner === "blue" ? "#2563eb"
-                    : word.owner === "neutral" ? "#d4d4d8"
+                  backgroundColor: word.owner === "red"
+                    ? "#dc2626"
+                    : word.owner === "blue"
+                    ? "#2563eb"
+                    : word.owner === "neutral"
+                    ? "#d4d4d8"
                     : "#e5e7eb",
                   // THIS ALSO DOESN'T UPDATE REACTIVELY:
-                  color: (word.owner === "neutral" || word.owner === "unassigned")
-                    ? "black" : "white",
+                  color:
+                    (word.owner === "neutral" || word.owner === "unassigned")
+                      ? "black"
+                      : "white",
                 }}
-                onClick={cellClick({ board, selectedWordIndex, row: word.position.row, col: word.position.col })}
+                onClick={cellClick({
+                  board,
+                  selectedWordIndex,
+                  row: word.position.row,
+                  col: word.position.col,
+                })}
               >
                 <span style={{ fontSize: "0.7rem" }}>
                   {word.position.row},{word.position.col}
@@ -153,13 +189,23 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
 
           {/* Color assignment buttons */}
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button onClick={assignColor({ board, selectedWordIndex, owner: "red" })}>
+            <button
+              onClick={assignColor({ board, selectedWordIndex, owner: "red" })}
+            >
               Assign Red
             </button>
-            <button onClick={assignColor({ board, selectedWordIndex, owner: "blue" })}>
+            <button
+              onClick={assignColor({ board, selectedWordIndex, owner: "blue" })}
+            >
               Assign Blue
             </button>
-            <button onClick={assignColor({ board, selectedWordIndex, owner: "neutral" })}>
+            <button
+              onClick={assignColor({
+                board,
+                selectedWordIndex,
+                owner: "neutral",
+              })}
+            >
               Assign Neutral
             </button>
           </div>
@@ -168,7 +214,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
       board,
       selectedWordIndex,
     };
-  }
+  },
 );
 ```
 
@@ -184,18 +230,27 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
 ## What I've Tried
 
 ### Approach 1: Using `derive()` to pre-compute styles
+
 ```tsx
-{derive(board, (boardData) => {
-  return boardData.map((word, index) => (
-    <div style={{ backgroundColor: word.owner === "red" ? "#dc2626" : "#e5e7eb" }}>
-      ...
-    </div>
-  ));
-})}
+{
+  derive(board, (boardData) => {
+    return boardData.map((word, index) => (
+      <div
+        style={{
+          backgroundColor: word.owner === "red" ? "#dc2626" : "#e5e7eb",
+        }}
+      >
+        ...
+      </div>
+    ));
+  });
+}
 ```
+
 **Result:** Board grid disappeared completely, no rendering at all.
 
 ### Approach 2: Computed const variables inside `.map()`
+
 ```tsx
 {board.map((word, index) => {
   const bgColor = word.owner === "red" ? "#dc2626" : "#e5e7eb";
@@ -203,38 +258,57 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
   return <div style={{ backgroundColor: bgColor, color: textColor }}>...</div>;
 })}
 ```
+
 **Result:** Board didn't render initially.
 
 ### Approach 3: Inline ternary expressions (current attempt)
+
 ```tsx
-{board.map((word, index) => (
-  <div style={{
-    backgroundColor: word.owner === "red" ? "#dc2626" : "#e5e7eb"
-  }}>...</div>
-))}
+{
+  board.map((word, index) => (
+    <div
+      style={{
+        backgroundColor: word.owner === "red" ? "#dc2626" : "#e5e7eb",
+      }}
+    >
+      ...
+    </div>
+  ));
+}
 ```
+
 **Result:** Board renders initially, but styles don't update when data changes.
 
 ### Approach 4: Wrapping in `derive()` with handlers inside
-**Result:** Got "Frame mismatch" error with `board_1` being created, suggesting the framework detected conflicting uses of the `board` Cell.
+
+**Result:** Got "Frame mismatch" error with `board_1` being created, suggesting
+the framework detected conflicting uses of the `board` Cell.
 
 ## Context
 
-I'm building a Codenames helper that displays a 5×5 grid of words with team color assignments. The counter (which uses `derive()`) correctly reflects data changes, but the visual appearance of the cells (which should change color based on `word.owner`) remains static.
+I'm building a Codenames helper that displays a 5×5 grid of words with team
+color assignments. The counter (which uses `derive()`) correctly reflects data
+changes, but the visual appearance of the cells (which should change color based
+on `word.owner`) remains static.
 
 ## Reference Patterns
 
 I've studied these patterns from labs:
-- `list-operations.tsx` - Shows `.map()` works with derive for transformations
-- `array-in-cell-ast-nocomponents.tsx` - Shows `.map()` works for simple property display in JSX children (`{item.text}`)
 
-However, I couldn't find an example of `.map()` with **computed style attributes** that need to react to array item property changes.
+- `list-operations.tsx` - Shows `.map()` works with derive for transformations
+- `array-in-cell-ast-nocomponents.tsx` - Shows `.map()` works for simple
+  property display in JSX children (`{item.text}`)
+
+However, I couldn't find an example of `.map()` with **computed style
+attributes** that need to react to array item property changes.
 
 ## Questions
 
-1. What's the correct pattern for reactive style computation from array item properties?
+1. What's the correct pattern for reactive style computation from array item
+   properties?
 2. Should I be using `lift()` or another construct?
-3. Is there a way to make inline ternary expressions in style attributes reactive?
+3. Is there a way to make inline ternary expressions in style attributes
+   reactive?
 4. Should I restructure to use CSS classes computed via `derive()` instead?
 
 ## Environment
@@ -249,7 +323,9 @@ The complete pattern with all features is available at:
 `/Users/alex/Code/community-patterns-2/patterns/jkomoros/WIP/codenames-helper.tsx`
 
 Key sections:
-- Lines 709-765: Board rendering with `.map()` and inline style ternaries (not reactive)
+
+- Lines 709-765: Board rendering with `.map()` and inline style ternaries (not
+  reactive)
 - Lines 837-876: Color counter using `derive()` (works correctly)
 - Lines 237-249: `assignColor` handler that updates the data
 

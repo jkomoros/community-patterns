@@ -3,13 +3,7 @@
  * @title Person Test Launcher
  * @description Fresh launcher to test person.tsx via navigateTo
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import Person from "./person.tsx";
 
@@ -34,8 +28,15 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Person Test Launcher</h1>
 
-        <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>TEST:</strong> Fresh launcher importing person.tsx (not a copy)
+        <div
+          style={{
+            backgroundColor: "#fef3c7",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>TEST:</strong>{" "}
+          Fresh launcher importing person.tsx (not a copy)
         </div>
 
         <cf-button onClick={launchPerson()}>

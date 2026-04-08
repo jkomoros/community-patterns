@@ -7,7 +7,6 @@
  */
 import {
   BuiltInLLMMessage,
-  Writable,
   computed,
   Default,
   generateObject,
@@ -15,9 +14,10 @@ import {
   llmDialog,
   NAME,
   pattern,
+  safeDateNow,
   Stream,
   UI,
-  safeDateNow,
+  Writable,
 } from "commonfabric";
 
 // Nested type structure matching the original
@@ -155,24 +155,24 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
           </div>
           <div style={{ flex: 1 }}>
             <h3>Assumptions</h3>
-            {hasAssumptions ? (
-              assumptions.map((a) => (
-                <div key={a.id}>
-                  <strong>{a.label}</strong>
-                  <div>
-                    {a.alternatives.map((alt, i) => (
-                      <span key={i}>
-                        {i === a.selectedIndex ? "* " : ""}
-                        {alt.value}
-                        {i < a.alternatives.length - 1 ? ", " : ""}
-                      </span>
-                    ))}
+            {hasAssumptions
+              ? (
+                assumptions.map((a) => (
+                  <div key={a.id}>
+                    <strong>{a.label}</strong>
+                    <div>
+                      {a.alternatives.map((alt, i) => (
+                        <span key={i}>
+                          {i === a.selectedIndex ? "* " : ""}
+                          {alt.value}
+                          {i < a.alternatives.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <p>No assumptions yet</p>
-            )}
+                ))
+              )
+              : <p>No assumptions yet</p>}
           </div>
         </div>
         <cf-prompt-input

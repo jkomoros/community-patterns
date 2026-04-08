@@ -8,10 +8,10 @@ import {
   llmDialog,
   NAME,
   pattern,
+  safeDateNow,
   Stream,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 // ============================================================================
@@ -44,10 +44,10 @@ interface MessageAssumptions {
 
 // Tracks user corrections to assumption selections
 interface Correction {
-  messageIndex: number;    // Which message's assumption
+  messageIndex: number; // Which message's assumption
   assumptionLabel: string; // Identify assumption by label
-  originalIndex: number;   // What the LLM originally selected
-  correctedIndex: number;  // What the user selected
+  originalIndex: number; // What the LLM originally selected
+  correctedIndex: number; // What the user selected
 }
 
 interface UserContextNote {
@@ -86,7 +86,8 @@ interface AnalysisResult {
   assumptions: AnalyzedAssumption[];
 }
 
-const ANALYZER_SYSTEM_PROMPT = `Identify implicit assumptions in the assistant's response.
+const ANALYZER_SYSTEM_PROMPT =
+  `Identify implicit assumptions in the assistant's response.
 
 For each assumption:
 - label: 2-4 words (e.g., "Language", "Skill Level")
@@ -149,7 +150,18 @@ const onAssumptionChange = handler<
     corrections: Writable<Record<string, Correction>>;
     userContext: Writable<UserContextNote[]>;
   }
->(({ detail }, { messageIndex, assumptionLabel, originalIndex, alternatives, addMessage, corrections, userContext }) => {
+>((
+  { detail },
+  {
+    messageIndex,
+    assumptionLabel,
+    originalIndex,
+    alternatives,
+    addMessage,
+    corrections,
+    userContext,
+  },
+) => {
   const newIndex = parseInt(detail.value, 10);
   if (isNaN(newIndex)) return;
 
@@ -157,7 +169,7 @@ const onAssumptionChange = handler<
   const newValue = alternatives[newIndex]?.value ?? "";
 
   // Key for this correction (replace spaces with underscores for framework compatibility)
-  const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, '_')}`;
+  const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, "_")}`;
 
   // If clicking the already-selected option, do nothing
   const existing = corrections.key(key).get();
@@ -169,7 +181,8 @@ const onAssumptionChange = handler<
   }
 
   // Send correction message
-  const correctionText = `Regarding ${assumptionLabel.toLowerCase()}: ${newValue} rather than ${oldValue}.`;
+  const correctionText =
+    `Regarding ${assumptionLabel.toLowerCase()}: ${newValue} rather than ${oldValue}.`;
 
   addMessage.send({
     role: "user",
@@ -178,7 +191,15 @@ const onAssumptionChange = handler<
 
   // Update or add correction using spread (workaround for .key().set() on empty Records)
   const current = corrections.get() ?? {};
-  corrections.set({ ...current, [key]: { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex } });
+  corrections.set({
+    ...current,
+    [key]: {
+      messageIndex,
+      assumptionLabel,
+      originalIndex,
+      correctedIndex: newIndex,
+    },
+  });
 
   // Add user context note
   const contextNote: UserContextNote = {
@@ -205,9 +226,22 @@ const selectAlternative = handler<
     corrections: Writable<Record<string, Correction>>;
     userContext: Writable<UserContextNote[]>;
   }
->((_, { messageIndex, assumptionLabel, originalIndex, newIndex, oldValue, newValue, addMessage, corrections, userContext }) => {
+>((
+  _,
+  {
+    messageIndex,
+    assumptionLabel,
+    originalIndex,
+    newIndex,
+    oldValue,
+    newValue,
+    addMessage,
+    corrections,
+    userContext,
+  },
+) => {
   // Key for this correction (replace spaces with underscores for framework compatibility)
-  const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, '_')}`;
+  const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, "_")}`;
 
   // If clicking the already-selected option, do nothing
   const existing = corrections.key(key).get();
@@ -219,7 +253,8 @@ const selectAlternative = handler<
   }
 
   // Send correction message
-  const correctionText = `Regarding ${assumptionLabel.toLowerCase()}: ${newValue} rather than ${oldValue}.`;
+  const correctionText =
+    `Regarding ${assumptionLabel.toLowerCase()}: ${newValue} rather than ${oldValue}.`;
 
   addMessage.send({
     role: "user",
@@ -228,7 +263,15 @@ const selectAlternative = handler<
 
   // Update or add correction using spread (workaround for .key().set() on empty Records)
   const current = corrections.get() ?? {};
-  corrections.set({ ...current, [key]: { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex } });
+  corrections.set({
+    ...current,
+    [key]: {
+      messageIndex,
+      assumptionLabel,
+      originalIndex,
+      correctedIndex: newIndex,
+    },
+  });
 
   // Add user context note
   const contextNote: UserContextNote = {
@@ -246,8 +289,11 @@ const selectAlternative = handler<
 // ============================================================================
 
 // Helper function to find unanalyzed message index
-function findUnanalyzedIndex(msgList: readonly BuiltInLLMMessage[], analyzed: readonly MessageAssumptions[]): number {
-  const analyzedIndices = new Set(analyzed.map(a => a.messageIndex));
+function findUnanalyzedIndex(
+  msgList: readonly BuiltInLLMMessage[],
+  analyzed: readonly MessageAssumptions[],
+): number {
+  const analyzedIndices = new Set(analyzed.map((a) => a.messageIndex));
   for (let i = msgList.length - 1; i >= 0; i--) {
     if (msgList[i]?.role === "assistant" && !analyzedIndices.has(i)) {
       return i;
@@ -274,13 +320,15 @@ function getMessageText(msg: BuiltInLLMMessage): string {
 // ============================================================================
 
 export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
-  ({ messages, assumptionsByMessage, corrections, userContext, systemPrompt }) => {
+  (
+    { messages, assumptionsByMessage, corrections, userContext, systemPrompt },
+  ) => {
     const model = Writable.of<string>("anthropic:claude-sonnet-4-5");
 
     // Set up llmDialog for the main chat
     const { addMessage, cancelGeneration, pending } = llmDialog({
       system: computed(
-        () => systemPrompt ?? "You are a helpful, concise assistant."
+        () => systemPrompt ?? "You are a helpful, concise assistant.",
       ),
       messages,
       model,
@@ -412,7 +460,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
 
         // Check if user has corrected this assumption - direct key lookup!
         // Key uses underscores instead of spaces for framework compatibility
-        const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, '_')}`;
+        const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, "_")}`;
         const correction = correctionsMap[key];
         const currentSelectedIndex = correction
           ? correction.correctedIndex
@@ -464,7 +512,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                 })}
               />
             </div>
-          </div>
+          </div>,
         );
       }
 
@@ -482,7 +530,12 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                 variant="pill"
                 type="button"
                 title="Clear chat"
-                onClick={clearChat({ messages, assumptionsByMessage, corrections, userContext })}
+                onClick={clearChat({
+                  messages,
+                  assumptionsByMessage,
+                  corrections,
+                  userContext,
+                })}
               >
                 Clear
               </cf-button>
@@ -555,10 +608,12 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
               </div>
 
               <cf-vscroll style="padding: 1rem; flex: 1;" flex showScrollbar>
-                {/* JSX computed inside assumptionsJsx to enable reactivity
+                {
+                  /* JSX computed inside assumptionsJsx to enable reactivity
                     See: community-docs/superstitions/2025-11-21-cannot-map-computed-arrays-in-jsx.md
                     Also avoids CPU loop by reading generateObject result directly
-                    See: community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md */}
+                    See: community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md */
+                }
                 {assumptionsJsx}
               </cf-vscroll>
 
@@ -608,5 +663,5 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
       corrections,
       userContext,
     };
-  }
+  },
 );

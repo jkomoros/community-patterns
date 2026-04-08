@@ -37,7 +37,6 @@
  * - Avoid relying on vision API's native PDF support (if it exists)
  */
 import {
-  Writable,
   computed,
   Default,
   equals,
@@ -46,15 +45,20 @@ import {
   ifElse,
   NAME,
   navigateTo,
+  nonPrivateRandom,
   pattern,
+  safeDateNow,
   str,
   UI,
   wish,
-  safeDateNow,
-  nonPrivateRandom,
+  Writable,
 } from "commonfabric";
 import { type MentionablePiece } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
-import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
+import {
+  compareFields,
+  computeWordDiff,
+  type DiffChunk,
+} from "./utils/diff-utils.ts";
 import RecipeAnalyzer from "./recipe-analyzer.tsx";
 import FoodRecipeViewer from "./food-recipe-viewer.tsx";
 
@@ -129,7 +133,17 @@ interface RecipeInput {
   cookTime?: Default<number, 0>; // minutes
   restTime?: Default<number, 0>; // Minutes to rest after cooking before serving
   holdTime?: Default<number, 0>; // Minutes dish can wait while maintaining quality
-  category?: Default<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other", "other">;
+  category?: Default<
+    | "appetizer"
+    | "main"
+    | "side"
+    | "starch"
+    | "vegetable"
+    | "dessert"
+    | "bread"
+    | "other",
+    "other"
+  >;
   ingredients?: Default<Ingredient[], []>;
   stepGroups?: Default<StepGroup[], []>;
   tags?: Default<string[], []>;
@@ -256,7 +270,10 @@ const moveGroupUp = handler<
 
   // Swap with previous group
   const newGroups = [...currentGroups];
-  [newGroups[index - 1], newGroups[index]] = [newGroups[index], newGroups[index - 1]];
+  [newGroups[index - 1], newGroups[index]] = [
+    newGroups[index],
+    newGroups[index - 1],
+  ];
   stepGroups.set(newGroups);
 });
 
@@ -273,7 +290,10 @@ const moveGroupDown = handler<
 
   // Swap with next group
   const newGroups = [...currentGroups];
-  [newGroups[index], newGroups[index + 1]] = [newGroups[index + 1], newGroups[index]];
+  [newGroups[index], newGroups[index + 1]] = [
+    newGroups[index + 1],
+    newGroups[index],
+  ];
   stepGroups.set(newGroups);
 });
 
@@ -313,7 +333,10 @@ const moveStepUp = handler<
   const group = stepGroup.get();
   const steps = [...group.steps];
   // Swap with previous step
-  [steps[stepIndex - 1], steps[stepIndex]] = [steps[stepIndex], steps[stepIndex - 1]];
+  [steps[stepIndex - 1], steps[stepIndex]] = [
+    steps[stepIndex],
+    steps[stepIndex - 1],
+  ];
   stepGroup.set({
     ...group,
     steps,
@@ -331,7 +354,10 @@ const moveStepDown = handler<
   if (stepIndex >= group.steps.length - 1) return; // Can't move last step down
   const steps = [...group.steps];
   // Swap with next step
-  [steps[stepIndex], steps[stepIndex + 1]] = [steps[stepIndex + 1], steps[stepIndex]];
+  [steps[stepIndex], steps[stepIndex + 1]] = [
+    steps[stepIndex + 1],
+    steps[stepIndex],
+  ];
   stepGroup.set({
     ...group,
     steps,
@@ -350,7 +376,8 @@ const updateOvenTemp = handler<
     requiresOven: {
       temperature: temp,
       duration: group.requiresOven?.duration ?? 0,
-      racksNeeded: group.requiresOven?.racksNeeded ?? { heightSlots: 1, width: "full" },
+      racksNeeded: group.requiresOven?.racksNeeded ??
+        { heightSlots: 1, width: "full" },
     },
   });
 });
@@ -366,7 +393,8 @@ const updateOvenDuration = handler<
     requiresOven: {
       temperature: group.requiresOven?.temperature ?? 0,
       duration,
-      racksNeeded: group.requiresOven?.racksNeeded ?? { heightSlots: 1, width: "full" },
+      racksNeeded: group.requiresOven?.racksNeeded ??
+        { heightSlots: 1, width: "full" },
     },
   });
 });
@@ -516,7 +544,16 @@ const applyExtractedData = handler<
     cookTime: Writable<number>;
     restTime: Writable<number>;
     holdTime: Writable<number>;
-    category: Writable<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other">;
+    category: Writable<
+      | "appetizer"
+      | "main"
+      | "side"
+      | "starch"
+      | "vegetable"
+      | "dessert"
+      | "bread"
+      | "other"
+    >;
     ingredients: Writable<Ingredient[]>;
     stepGroups: Writable<StepGroup[]>;
     tags: Writable<string[]>;
@@ -608,12 +645,17 @@ const applyExtractedData = handler<
 // LLM Timing Suggestion Handlers
 const triggerTimingSuggestion = handler<
   Record<string, never>,
-  { stepGroups: Writable<Array<Writable<StepGroup>>>; timingSuggestionTrigger: Writable<string> }
+  {
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
+    timingSuggestionTrigger: Writable<string>;
+  }
 >(
   (_, { stepGroups, timingSuggestionTrigger }) => {
     // Unwrap cells before serializing
-    const groups = stepGroups.get().map(g => g.get ? g.get() : g);
-    timingSuggestionTrigger.set(`${JSON.stringify(groups)}\n---TIMING-${safeDateNow()}---`);
+    const groups = stepGroups.get().map((g) => g.get ? g.get() : g);
+    timingSuggestionTrigger.set(
+      `${JSON.stringify(groups)}\n---TIMING-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -632,7 +674,7 @@ const applyTimingSuggestions = handler<
 
     // Match suggestions to existing groups by ID
     suggestions.stepGroups.forEach((suggestion: any) => {
-      const groupIndex = currentGroups.findIndex(g => {
+      const groupIndex = currentGroups.findIndex((g) => {
         const groupData = (g.get ? g.get() : g) as StepGroup;
         return groupData.id === suggestion.id;
       });
@@ -662,12 +704,17 @@ const applyTimingSuggestions = handler<
 // LLM Wait Time Suggestion Handlers
 const triggerWaitTimeSuggestion = handler<
   Record<string, never>,
-  { stepGroups: Writable<Array<Writable<StepGroup>>>; waitTimeSuggestionTrigger: Writable<string> }
+  {
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
+    waitTimeSuggestionTrigger: Writable<string>;
+  }
 >(
   (_, { stepGroups, waitTimeSuggestionTrigger }) => {
     // Unwrap cells before serializing
-    const groups = stepGroups.get().map(g => g.get ? g.get() : g);
-    waitTimeSuggestionTrigger.set(`${JSON.stringify(groups)}\n---WAIT-${safeDateNow()}---`);
+    const groups = stepGroups.get().map((g) => g.get ? g.get() : g);
+    waitTimeSuggestionTrigger.set(
+      `${JSON.stringify(groups)}\n---WAIT-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -709,7 +756,7 @@ const applyWaitTimeSuggestions = handler<
 
     // Match suggestions to existing groups by ID
     suggestions.stepGroups.forEach((suggestion: any) => {
-      const groupIndex = currentGroups.findIndex(g => {
+      const groupIndex = currentGroups.findIndex((g) => {
         const groupData = (g.get ? g.get() : g) as StepGroup;
         return groupData.id === suggestion.id;
       });
@@ -755,7 +802,7 @@ const applyImageText = handler<
 
     // Clear the uploaded image to reset the extraction state
     uploadedImage.set(null);
-  }
+  },
 );
 
 // Handler to clear timing suggestions
@@ -763,7 +810,7 @@ const clearTimingSuggestions = handler<
   Record<string, never>,
   { timingSuggestions: Writable<any> }
 >(
-  (_, { timingSuggestions }) => timingSuggestions.set(null)
+  (_, { timingSuggestions }) => timingSuggestions.set(null),
 );
 
 // Handler to clear wait time suggestions
@@ -771,7 +818,7 @@ const clearWaitTimeSuggestions = handler<
   Record<string, never>,
   { waitTimeSuggestions: Writable<any> }
 >(
-  (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null)
+  (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null),
 );
 
 const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
@@ -814,7 +861,9 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
 
     // Computed ingredient list text for copying
     const ingredientListText = computed(() =>
-      ingredients.map((ing) => `${ing.amount} ${ing.unit} ${ing.item}`).join("\n"),
+      ingredients.map((ing) => `${ing.amount} ${ing.unit} ${ing.item}`).join(
+        "\n",
+      )
     );
 
     // Computed oven requirements for meal planning
@@ -869,15 +918,16 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
         prompt: computed(() => {
           const img = uploadedImage.get();
           if (!img || !img.data) {
-            return "";  // Return empty string instead of text to prevent unnecessary API call
+            return ""; // Return empty string instead of text to prevent unnecessary API call
           }
 
           return [
             { type: "image" as const, image: img.data },
             {
               type: "text" as const,
-              text: `Extract all text from this recipe image. Preserve the complete recipe text including title, ingredients, instructions, timing, and any notes.`
-            }
+              text:
+                `Extract all text from this recipe image. Preserve the complete recipe text including title, ingredients, instructions, timing, and any notes.`,
+            },
           ];
         }),
         model: "anthropic:claude-sonnet-4-5",
@@ -952,7 +1002,19 @@ Return only the fields you can confidently extract. Be thorough with ingredients
             cookTime: { type: "number" },
             restTime: { type: "number" },
             holdTime: { type: "number" },
-            category: { type: "string", enum: ["appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", "other"] },
+            category: {
+              type: "string",
+              enum: [
+                "appetizer",
+                "main",
+                "side",
+                "starch",
+                "vegetable",
+                "dessert",
+                "bread",
+                "other",
+              ],
+            },
             source: { type: "string" },
             ingredients: {
               type: "array",
@@ -1038,9 +1100,13 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     // This prevents N² re-evaluation during recipe discovery when map items change.
     // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
     const notesDiffChunks = computed(() => {
-      const notesChange = changesPreview.find((c: { field: string }) => c.field === "Notes");
-      if (!notesChange || !notesChange.from || !notesChange.to ||
-          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
+      const notesChange = changesPreview.find((c: { field: string }) =>
+        c.field === "Notes"
+      );
+      if (
+        !notesChange || !notesChange.from || !notesChange.to ||
+        notesChange.from === "(empty)" || notesChange.to === "(empty)"
+      ) {
         return [];
       }
       return computeWordDiff(notesChange.from, notesChange.to);
@@ -1164,11 +1230,22 @@ Return suggestions for ALL groups with their IDs preserved.`,
       [UI]: (
         <cf-vstack gap={1} style="padding: 12px; max-width: 800px;">
           {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <h1 style={{ margin: "0", fontSize: "20px" }}>{displayName}</h1>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <cf-button
-                onClick={createCookingView({ name, servings, ingredients, stepGroups })}
+                onClick={createCookingView({
+                  name,
+                  servings,
+                  ingredients,
+                  stepGroups,
+                })}
                 variant="secondary"
               >
                 👨‍🍳 Create Cooking View
@@ -1182,7 +1259,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Recipe Input Section - Notes with Image Upload */}
           <cf-card>
             <cf-vstack gap={1}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <cf-image-input
@@ -1197,40 +1280,58 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   >
                     {ifElse(
                       extractionPending,
-                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
                         <cf-loader size="sm" show-elapsed></cf-loader>
                         Extracting...
                       </span>,
-                      "Extract Recipe Data"
+                      "Extract Recipe Data",
                     )}
                   </cf-button>
                 </div>
               </div>
 
               {/* Show image extraction status - simple always-visible approach */}
-              <div style={{
-                padding: "8px",
-                background: "#f0fdf4",
-                border: "1px solid #86efac",
-                borderRadius: "4px",
-                fontSize: "13px",
-                color: "#166534",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}>
+              <div
+                style={{
+                  padding: "8px",
+                  background: "#f0fdf4",
+                  border: "1px solid #86efac",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                  color: "#166534",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <span>
                   {ifElse(
                     imageExtractionPending,
-                    <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
                       <cf-loader size="sm" show-elapsed></cf-loader>
                       Extracting text from image...
                     </span>,
-                    "📷 Upload an image to extract text"
+                    "📷 Upload an image to extract text",
                   )}
                 </span>
                 <cf-button
-                  onClick={applyImageText({ notes, uploadedImage, imageTextResult })}
+                  onClick={applyImageText({
+                    notes,
+                    uploadedImage,
+                    imageTextResult,
+                  })}
                   disabled={imageExtractionPending}
                   style={{ fontSize: "12px", padding: "4px 8px" }}
                 >
@@ -1259,7 +1360,11 @@ Return suggestions for ALL groups with their IDs preserved.`,
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <strong style={{ fontSize: "14px" }}>Scale Recipe:</strong>
               <cf-button
-                onClick={scaleRecipe({ servings, ingredients, scaleFactor: 0.5 })}
+                onClick={scaleRecipe({
+                  servings,
+                  ingredients,
+                  scaleFactor: 0.5,
+                })}
                 variant="secondary"
               >
                 ÷ 2 (Half)
@@ -1271,7 +1376,11 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 × 2 (Double)
               </cf-button>
               <cf-button
-                onClick={scaleRecipe({ servings, ingredients, scaleFactor: 1.5 })}
+                onClick={scaleRecipe({
+                  servings,
+                  ingredients,
+                  scaleFactor: 1.5,
+                })}
                 variant="secondary"
               >
                 × 1.5
@@ -1282,11 +1391,26 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Basic Info Section */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Basic Info</h3>
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>
+                Basic Info
+              </h3>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "1rem",
+                }}
+              >
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Recipe Name
                   </label>
                   <cf-input
@@ -1296,7 +1420,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Cuisine
                   </label>
                   <cf-input
@@ -1306,7 +1437,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Servings
                   </label>
                   <cf-input
@@ -1317,7 +1455,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Yield
                   </label>
                   <cf-input
@@ -1327,7 +1472,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Difficulty
                   </label>
                   <cf-select
@@ -1341,7 +1493,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Prep Time (min)
                   </label>
                   <cf-input
@@ -1352,7 +1511,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Cook Time (min)
                   </label>
                   <cf-input
@@ -1363,7 +1529,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Rest Time (min)
                   </label>
                   <cf-input
@@ -1375,7 +1548,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Hold Time (min)
                   </label>
                   <cf-input
@@ -1387,7 +1567,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Category
                   </label>
                   <cf-select
@@ -1411,8 +1598,16 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Ingredients Section */}
           <cf-card>
             <cf-vstack gap={1}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "14px" }}>Ingredients ({ingredientCount})</h3>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <h3 style={{ margin: "0", fontSize: "14px" }}>
+                  Ingredients ({ingredientCount})
+                </h3>
                 <cf-button onClick={addIngredient({ ingredients })}>
                   + Add Ingredient
                 </cf-button>
@@ -1464,33 +1659,68 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   const pending = analyzer.analysisPending;
                   const dc = analyzer.dietaryCompatibility;
                   if (pending) {
-                    return <div style={{ fontStyle: "italic", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <cf-loader size="sm"></cf-loader>
-                      Analyzing dietary compatibility...
-                    </div>;
+                    return (
+                      <div
+                        style={{
+                          fontStyle: "italic",
+                          color: "#666",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <cf-loader size="sm"></cf-loader>
+                        Analyzing dietary compatibility...
+                      </div>
+                    );
                   }
 
-                  if (!dc || (dc.compatible.length === 0 && dc.incompatible.length === 0)) {
-                    return <div style={{ fontStyle: "italic", color: "#666" }}>
-                      Add ingredients to see dietary analysis
-                    </div>;
+                  if (
+                    !dc ||
+                    (dc.compatible.length === 0 && dc.incompatible.length === 0)
+                  ) {
+                    return (
+                      <div style={{ fontStyle: "italic", color: "#666" }}>
+                        Add ingredients to see dietary analysis
+                      </div>
+                    );
                   }
 
                   return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                      }}
+                    >
                       {dc.compatible.length > 0 && (
                         <div>
-                          <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              color: "#059669",
+                              marginBottom: "4px",
+                            }}
+                          >
                             ✓ Compatible:
                           </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "4px",
+                            }}
+                          >
                             {dc.compatible.map((tag: string) => (
-                              <span style={{
-                                padding: "2px 8px",
-                                background: "#d1fae5",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                              }}>
+                              <span
+                                style={{
+                                  padding: "2px 8px",
+                                  background: "#d1fae5",
+                                  borderRadius: "12px",
+                                  fontSize: "12px",
+                                }}
+                              >
                                 {tag}
                               </span>
                             ))}
@@ -1500,10 +1730,22 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
                       {dc.warnings.length > 0 && (
                         <div>
-                          <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              color: "#dc2626",
+                              marginBottom: "4px",
+                            }}
+                          >
                             ⚠️ Warnings:
                           </div>
-                          <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+                          <ul
+                            style={{
+                              margin: "0",
+                              paddingLeft: "20px",
+                              fontSize: "13px",
+                            }}
+                          >
                             {dc.warnings.map((warning: string) => (
                               <li>{warning}</li>
                             ))}
@@ -1513,7 +1755,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
                       {dc.primaryIngredients.length > 0 && (
                         <div>
-                          <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                          <div
+                            style={{ fontWeight: "600", marginBottom: "4px" }}
+                          >
                             Main Ingredients:
                           </div>
                           <div style={{ fontSize: "13px", color: "#666" }}>
@@ -1523,7 +1767,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       )}
                     </div>
                   );
-                }
+                },
               )}
             </div>
           </cf-card>
@@ -1531,35 +1775,64 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Step Groups Section */}
           <cf-card>
             <cf-vstack gap={1}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                <h3 style={{ margin: "0", fontSize: "14px" }}>Step Groups ({stepGroupCount})</h3>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <h3 style={{ margin: "0", fontSize: "14px" }}>
+                  Step Groups ({stepGroupCount})
+                </h3>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <cf-button
-                    onClick={triggerTimingSuggestion({ stepGroups, timingSuggestionTrigger })}
-                    disabled={computed(() => stepGroups.length === 0) || timingSuggestionPending}
+                    onClick={triggerTimingSuggestion({
+                      stepGroups,
+                      timingSuggestionTrigger,
+                    })}
+                    disabled={computed(() => stepGroups.length === 0) ||
+                      timingSuggestionPending}
                     variant="secondary"
                   >
                     {ifElse(
                       timingSuggestionPending,
-                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
                         <cf-loader size="sm" show-elapsed></cf-loader>
                         Analyzing...
                       </span>,
-                      "Organize by Timing"
+                      "Organize by Timing",
                     )}
                   </cf-button>
                   <cf-button
-                    onClick={triggerWaitTimeSuggestion({ stepGroups, waitTimeSuggestionTrigger })}
-                    disabled={computed(() => stepGroups.length === 0) || waitTimeSuggestionPending}
+                    onClick={triggerWaitTimeSuggestion({
+                      stepGroups,
+                      waitTimeSuggestionTrigger,
+                    })}
+                    disabled={computed(() => stepGroups.length === 0) ||
+                      waitTimeSuggestionPending}
                     variant="secondary"
                   >
                     {ifElse(
                       waitTimeSuggestionPending,
-                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
                         <cf-loader size="sm" show-elapsed></cf-loader>
                         Analyzing...
                       </span>,
-                      "Suggest Wait Times"
+                      "Suggest Wait Times",
                     )}
                   </cf-button>
                   <cf-button onClick={addStepGroup({ stepGroups })}>
@@ -1572,19 +1845,42 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 {stepGroups.map((stepGroup, groupIndex) => (
                   <cf-card style={{ background: "#f9fafb" }}>
                     <cf-vstack gap={1}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "2px",
+                          }}
+                        >
                           <cf-button
                             onClick={moveGroupUp({ stepGroups, stepGroup })}
                             disabled={groupIndex === 0}
-                            style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                            style={{
+                              padding: "2px 6px",
+                              fontSize: "14px",
+                              lineHeight: "1",
+                            }}
                           >
                             ↑
                           </cf-button>
                           <cf-button
                             onClick={moveGroupDown({ stepGroups, stepGroup })}
-                            disabled={computed(() => groupIndex >= stepGroups.length - 1)}
-                            style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                            disabled={computed(() =>
+                              groupIndex >= stepGroups.length - 1
+                            )}
+                            style={{
+                              padding: "2px 6px",
+                              fontSize: "14px",
+                              lineHeight: "1",
+                            }}
                           >
                             ↓
                           </cf-button>
@@ -1603,20 +1899,36 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       </div>
 
                       {/* Timing Metadata */}
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "8px",
-                        padding: "8px",
-                        background: "#fff",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "4px",
-                      }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "8px",
+                          padding: "8px",
+                          background: "#fff",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "4px",
+                        }}
+                      >
                         <div>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Timing
                           </label>
-                          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "4px",
+                              alignItems: "center",
+                            }}
+                          >
                             <cf-input
                               type="number"
                               $value={str`${stepGroup.nightsBeforeServing}`}
@@ -1624,7 +1936,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               placeholder="Nights"
                               style="flex: 1; fontSize: 13px;"
                             />
-                            <span style={{ fontSize: "11px", color: "#999" }}>nights OR</span>
+                            <span style={{ fontSize: "11px", color: "#999" }}>
+                              nights OR
+                            </span>
                             <cf-input
                               type="number"
                               $value={str`${stepGroup.minutesBeforeServing}`}
@@ -1632,12 +1946,22 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               placeholder="Minutes"
                               style="flex: 1; fontSize: 13px;"
                             />
-                            <span style={{ fontSize: "11px", color: "#999" }}>min before</span>
+                            <span style={{ fontSize: "11px", color: "#999" }}>
+                              min before
+                            </span>
                           </div>
                         </div>
 
                         <div>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Duration (min)
                           </label>
                           <cf-input
@@ -1650,7 +1974,15 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         </div>
 
                         <div style={{ gridColumn: "1 / -1" }}>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Max Wait Time (min)
                           </label>
                           <cf-input
@@ -1664,26 +1996,48 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       </div>
 
                       {/* Oven Requirements */}
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                        gap: "8px",
-                        padding: "8px",
-                        background: "#fff3cd",
-                        border: "1px solid #ffc107",
-                        borderRadius: "4px",
-                      }}>
-                        <div style={{ gridColumn: "1 / -1", fontSize: "12px", fontWeight: "600", color: "#856404", marginBottom: "4px" }}>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                          gap: "8px",
+                          padding: "8px",
+                          background: "#fff3cd",
+                          border: "1px solid #ffc107",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            gridColumn: "1 / -1",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            color: "#856404",
+                            marginBottom: "4px",
+                          }}
+                        >
                           🔥 Oven Requirements (optional)
                         </div>
 
                         <div>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Temp (°F)
                           </label>
                           <cf-input
                             type="number"
-                            $value={str`${computed(() => stepGroup.requiresOven?.temperature ?? "")}`}
+                            $value={str`${
+                              computed(() =>
+                                stepGroup.requiresOven?.temperature ?? ""
+                              )
+                            }`}
                             oncf-change={updateOvenTemp({ stepGroup })}
                             min="0"
                             placeholder="350"
@@ -1692,12 +2046,24 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         </div>
 
                         <div>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Duration (min)
                           </label>
                           <cf-input
                             type="number"
-                            $value={str`${computed(() => stepGroup.requiresOven?.duration ?? "")}`}
+                            $value={str`${
+                              computed(() =>
+                                stepGroup.requiresOven?.duration ?? ""
+                              )
+                            }`}
                             oncf-change={updateOvenDuration({ stepGroup })}
                             min="0"
                             placeholder="30"
@@ -1706,12 +2072,25 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         </div>
 
                         <div>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Height Slots
                           </label>
                           <cf-input
                             type="number"
-                            $value={str`${computed(() => stepGroup.requiresOven?.racksNeeded?.heightSlots ?? "")}`}
+                            $value={str`${
+                              computed(() =>
+                                stepGroup.requiresOven?.racksNeeded
+                                  ?.heightSlots ?? ""
+                              )
+                            }`}
                             oncf-change={updateOvenHeightSlots({ stepGroup })}
                             min="1"
                             placeholder="1-5"
@@ -1720,11 +2099,21 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         </div>
 
                         <div>
-                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "4px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#666",
+                            }}
+                          >
                             Rack Width
                           </label>
                           <cf-select
-                            $value={computed(() => stepGroup.requiresOven?.racksNeeded?.width ?? "")}
+                            $value={computed(() =>
+                              stepGroup.requiresOven?.racksNeeded?.width ?? ""
+                            )}
                             oncf-change={updateOvenRackWidth({ stepGroup })}
                             items={[
                               { label: "---", value: "" },
@@ -1738,22 +2127,56 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
                       <cf-vstack gap={1}>
                         {stepGroup.steps.map((step, index) => (
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <span style={{ fontWeight: "bold", color: "#666", minWidth: "20px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "8px",
+                              alignItems: "center",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontWeight: "bold",
+                                color: "#666",
+                                minWidth: "20px",
+                              }}
+                            >
                               {index + 1}.
                             </span>
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "2px",
+                              }}
+                            >
                               <cf-button
-                                onClick={moveStepUp({ stepGroup, stepIndex: index })}
+                                onClick={moveStepUp({
+                                  stepGroup,
+                                  stepIndex: index,
+                                })}
                                 disabled={index === 0}
-                                style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                                style={{
+                                  padding: "2px 6px",
+                                  fontSize: "14px",
+                                  lineHeight: "1",
+                                }}
                               >
                                 ↑
                               </cf-button>
                               <cf-button
-                                onClick={moveStepDown({ stepGroup, stepIndex: index })}
-                                disabled={computed(() => index >= stepGroup.steps.length - 1)}
-                                style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                                onClick={moveStepDown({
+                                  stepGroup,
+                                  stepIndex: index,
+                                })}
+                                disabled={computed(() =>
+                                  index >= stepGroup.steps.length - 1
+                                )}
+                                style={{
+                                  padding: "2px 6px",
+                                  fontSize: "14px",
+                                  lineHeight: "1",
+                                }}
                               >
                                 ↓
                               </cf-button>
@@ -1764,7 +2187,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               style="flex: 1;"
                             />
                             <cf-button
-                              onClick={removeStepFromGroup({ stepGroup, stepIndex: index })}
+                              onClick={removeStepFromGroup({
+                                stepGroup,
+                                stepIndex: index,
+                              })}
                               style={{ padding: "4px 8px", fontSize: "18px" }}
                             >
                               ×
@@ -1792,34 +2218,41 @@ Return suggestions for ALL groups with their IDs preserved.`,
             <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Tags</h3>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
-                  {tags.map((tag) => (
-                    <div
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  marginBottom: "8px",
+                }}
+              >
+                {tags.map((tag) => (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "4px 8px",
+                      background: "#e3f2fd",
+                      borderRadius: "16px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    <span>{tag}</span>
+                    <cf-button
+                      onClick={removeTag({ tags, tag })}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "4px 8px",
-                        background: "#e3f2fd",
-                        borderRadius: "16px",
-                        fontSize: "14px",
+                        padding: "0 4px",
+                        fontSize: "16px",
+                        background: "transparent",
+                        border: "none",
                       }}
                     >
-                      <span>{tag}</span>
-                      <cf-button
-                        onClick={removeTag({ tags, tag })}
-                        style={{
-                          padding: "0 4px",
-                          fontSize: "16px",
-                          background: "transparent",
-                          border: "none",
-                        }}
-                      >
-                        ×
-                      </cf-button>
-                    </div>
-                  ))}
-                </div>
+                      ×
+                    </cf-button>
+                  </div>
+                ))}
+              </div>
 
               <cf-message-input
                 placeholder="Add tag (e.g., vegetarian, quick, dessert)..."
@@ -1843,32 +2276,45 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Extraction Results Modal */}
           {ifElse(
             hasExtractionResult,
-            <cf-card style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "600px",
-              maxWidth: "90vw",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              zIndex: "1000",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
-            }}>
+            <cf-card
+              style={{
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "600px",
+                maxWidth: "90vw",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                zIndex: "1000",
+                boxShadow:
+                  "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+              }}
+            >
               <cf-vstack gap={1} style="padding: 12px;">
-                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Extracted Changes</h3>
-                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>
+                  Review Extracted Changes
+                </h3>
+                <p
+                  style={{
+                    margin: "0 0 6px 0",
+                    fontSize: "13px",
+                    color: "#666",
+                  }}
+                >
                   The following changes will be applied to your recipe:
                 </p>
 
                 <cf-vstack gap={2}>
                   {changesPreview.map((change) => (
-                    <div style={{
-                      padding: "6px 10px",
-                      background: "#f9fafb",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "4px",
-                    }}>
+                    <div
+                      style={{
+                        padding: "6px 10px",
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "4px",
+                      }}
+                    >
                       <cf-vstack gap={0}>
                         <strong style={{ fontSize: "12px" }}>
                           {change.field}
@@ -1878,10 +2324,12 @@ Return suggestions for ALL groups with their IDs preserved.`,
                             ? (
                               change.to === "(empty)"
                                 ? (
-                                  <div style={{
-                                    color: "#dc2626",
-                                    fontStyle: "italic",
-                                  }}>
+                                  <div
+                                    style={{
+                                      color: "#dc2626",
+                                      fontStyle: "italic",
+                                    }}
+                                  >
                                     Notes will be cleared
                                   </div>
                                 )
@@ -1898,20 +2346,24 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                   notesDiffChunks.map((part: DiffChunk) =>
                                     part.type === "removed"
                                       ? (
-                                        <span style={{
-                                          color: "#dc2626",
-                                          textDecoration: "line-through",
-                                          backgroundColor: "#fee",
-                                        }}>
+                                        <span
+                                          style={{
+                                            color: "#dc2626",
+                                            textDecoration: "line-through",
+                                            backgroundColor: "#fee",
+                                          }}
+                                        >
                                           {part.word}
                                         </span>
                                       )
                                       : part.type === "added"
                                       ? (
-                                        <span style={{
-                                          color: "#16a34a",
-                                          backgroundColor: "#efe",
-                                        }}>
+                                        <span
+                                          style={{
+                                            color: "#16a34a",
+                                            backgroundColor: "#efe",
+                                          }}
+                                        >
                                           {part.word}
                                         </span>
                                       )
@@ -1919,21 +2371,25 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                   )
                                 )
                                 : (
-                                  <div style={{
-                                    color: "#666",
-                                    fontStyle: "italic",
-                                  }}>
+                                  <div
+                                    style={{
+                                      color: "#666",
+                                      fontStyle: "italic",
+                                    }}
+                                  >
                                     (no diff available)
                                   </div>
                                 )
                             )
                             : (
                               <div>
-                                <span style={{
-                                  color: "#dc2626",
-                                  textDecoration: "line-through",
-                                  marginRight: "6px",
-                                }}>
+                                <span
+                                  style={{
+                                    color: "#dc2626",
+                                    textDecoration: "line-through",
+                                    marginRight: "6px",
+                                  }}
+                                >
                                   {change.from}
                                 </span>
                                 <span style={{ color: "#16a34a" }}>
@@ -1954,45 +2410,86 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     return (
                       <cf-vstack gap={2}>
                         {/* Ingredients */}
-                        {result?.ingredients && result.ingredients.length > 0 && (
-                          <div style={{
-                            padding: "6px 10px",
-                            background: "#eff6ff",
-                            border: "1px solid #bfdbfe",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "#1e40af",
-                          }}>
-                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                              ✓ {result.ingredients.length} ingredient(s) will be added
+                        {result?.ingredients && result.ingredients.length > 0 &&
+                          (
+                            <div
+                              style={{
+                                padding: "6px 10px",
+                                background: "#eff6ff",
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                                color: "#1e40af",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: "600",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                ✓ {result.ingredients.length}{" "}
+                                ingredient(s) will be added
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
                         {/* Step Groups - Show Full Details */}
                         {result?.stepGroups && result.stepGroups.length > 0 && (
-                          <div style={{
-                            padding: "6px 10px",
-                            background: "#f0fdf4",
-                            border: "1px solid #86efac",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                          }}>
-                            <div style={{ fontWeight: "600", color: "#166534", marginBottom: "6px" }}>
-                              ✓ {result.stepGroups.length} step group(s) will be added:
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              background: "#f0fdf4",
+                              border: "1px solid #86efac",
+                              borderRadius: "4px",
+                              fontSize: "12px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontWeight: "600",
+                                color: "#166534",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              ✓ {result.stepGroups.length}{" "}
+                              step group(s) will be added:
                             </div>
-                            {result.stepGroups.map((group: any, index: number) => (
-                              <div style={{
-                                marginBottom: index < result.stepGroups.length - 1 ? "8px" : "0",
-                                paddingLeft: "8px",
-                                borderLeft: "2px solid #86efac",
-                              }}>
-                                <div style={{ fontWeight: "600", color: "#166534", marginBottom: "2px" }}>
+                            {result.stepGroups.map((
+                              group: any,
+                              index: number,
+                            ) => (
+                              <div
+                                style={{
+                                  marginBottom:
+                                    index < result.stepGroups.length - 1
+                                      ? "8px"
+                                      : "0",
+                                  paddingLeft: "8px",
+                                  borderLeft: "2px solid #86efac",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: "600",
+                                    color: "#166534",
+                                    marginBottom: "2px",
+                                  }}
+                                >
                                   {group.name || `Group ${index + 1}`}
                                 </div>
                                 {group.steps && group.steps.length > 0 && (
-                                  <ul style={{ margin: "4px 0 0 0", paddingLeft: "20px", color: "#166534" }}>
-                                    {group.steps.map((step: any, stepIndex: number) => (
+                                  <ul
+                                    style={{
+                                      margin: "4px 0 0 0",
+                                      paddingLeft: "20px",
+                                      color: "#166534",
+                                    }}
+                                  >
+                                    {group.steps.map((
+                                      step: any,
+                                      stepIndex: number,
+                                    ) => (
                                       <li style={{ marginBottom: "2px" }}>
                                         {step.description}
                                       </li>
@@ -2006,15 +2503,19 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
                         {/* Tags */}
                         {result?.tags && result.tags.length > 0 && (
-                          <div style={{
-                            padding: "6px 10px",
-                            background: "#eff6ff",
-                            border: "1px solid #bfdbfe",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "#1e40af",
-                          }}>
-                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "4px",
+                              fontSize: "12px",
+                              color: "#1e40af",
+                            }}
+                          >
+                            <div
+                              style={{ fontWeight: "600", marginBottom: "4px" }}
+                            >
                               ✓ {result.tags.length} tag(s) will be added
                             </div>
                           </div>
@@ -2024,14 +2525,18 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   })}
                 </cf-vstack>
 
-                <div style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                  marginTop: "1rem",
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    justifyContent: "flex-end",
+                    marginTop: "1rem",
+                  }}
+                >
                   <cf-button
-                    onClick={cancelExtraction({ extractedData: extractionResult })}
+                    onClick={cancelExtraction({
+                      extractedData: extractionResult,
+                    })}
                   >
                     Cancel
                   </cf-button>
@@ -2060,28 +2565,42 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
               </cf-vstack>
             </cf-card>,
-            <div />
+            <div />,
           )}
 
           {/* Timing Suggestions Modal */}
           {ifElse(
-            computed(() => timingSuggestions && Array.isArray(timingSuggestions.stepGroups)),
-            <cf-card style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "600px",
-              maxWidth: "90vw",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              zIndex: "1000",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
-            }}>
+            computed(() =>
+              timingSuggestions && Array.isArray(timingSuggestions.stepGroups)
+            ),
+            <cf-card
+              style={{
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "600px",
+                maxWidth: "90vw",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                zIndex: "1000",
+                boxShadow:
+                  "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+              }}
+            >
               <cf-vstack gap={1} style="padding: 12px;">
-                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Timing Suggestions</h3>
-                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following timing changes will be applied to your step groups:
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>
+                  Review Timing Suggestions
+                </h3>
+                <p
+                  style={{
+                    margin: "0 0 6px 0",
+                    fontSize: "13px",
+                    color: "#666",
+                  }}
+                >
+                  The following timing changes will be applied to your step
+                  groups:
                 </p>
 
                 <cf-vstack gap={2}>
@@ -2092,59 +2611,80 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         return groupData.id === suggestion.id;
                       });
                       const currentData: StepGroup | null = currentGroupCell
-                        ? ((currentGroupCell as any).get ? (currentGroupCell as any).get() : currentGroupCell) as StepGroup
+                        ? ((currentGroupCell as any).get
+                          ? (currentGroupCell as any).get()
+                          : currentGroupCell) as StepGroup
                         : null;
 
                       return (
-                        <div style={{
-                          padding: "8px 10px",
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "4px",
-                        }}>
+                        <div
+                          style={{
+                            padding: "8px 10px",
+                            background: "#f9fafb",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "4px",
+                          }}
+                        >
                           <cf-vstack gap={1}>
                             <strong style={{ fontSize: "13px" }}>
                               {currentData?.name || suggestion.id}
                             </strong>
-                            <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
+                            <div
+                              style={{ fontSize: "12px", lineHeight: "1.5" }}
+                            >
                               {suggestion.nightsBeforeServing !== undefined && (
                                 <div>
-                                  <span style={{ color: "#666" }}>Nights before:</span>{" "}
-                                  <span style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}>
-                                    {currentData?.nightsBeforeServing ?? "(none)"}
+                                  <span style={{ color: "#666" }}>
+                                    Nights before:
+                                  </span>{" "}
+                                  <span
+                                    style={{
+                                      color: "#dc2626",
+                                      textDecoration: "line-through",
+                                      marginRight: "6px",
+                                    }}
+                                  >
+                                    {currentData?.nightsBeforeServing ??
+                                      "(none)"}
                                   </span>
                                   <span style={{ color: "#16a34a" }}>
                                     {suggestion.nightsBeforeServing}
                                   </span>
                                 </div>
                               )}
-                              {suggestion.minutesBeforeServing !== undefined && (
-                                <div>
-                                  <span style={{ color: "#666" }}>Minutes before:</span>{" "}
-                                  <span style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}>
-                                    {currentData?.minutesBeforeServing ?? "(none)"}
-                                  </span>
-                                  <span style={{ color: "#16a34a" }}>
-                                    {suggestion.minutesBeforeServing}
-                                  </span>
-                                </div>
-                              )}
+                              {suggestion.minutesBeforeServing !== undefined &&
+                                (
+                                  <div>
+                                    <span style={{ color: "#666" }}>
+                                      Minutes before:
+                                    </span>{" "}
+                                    <span
+                                      style={{
+                                        color: "#dc2626",
+                                        textDecoration: "line-through",
+                                        marginRight: "6px",
+                                      }}
+                                    >
+                                      {currentData?.minutesBeforeServing ??
+                                        "(none)"}
+                                    </span>
+                                    <span style={{ color: "#16a34a" }}>
+                                      {suggestion.minutesBeforeServing}
+                                    </span>
+                                  </div>
+                                )}
                               {suggestion.duration !== undefined && (
                                 <div>
-                                  <span style={{ color: "#666" }}>Duration:</span>{" "}
-                                  <span style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}>
+                                  <span style={{ color: "#666" }}>
+                                    Duration:
+                                  </span>{" "}
+                                  <span
+                                    style={{
+                                      color: "#dc2626",
+                                      textDecoration: "line-through",
+                                      marginRight: "6px",
+                                    }}
+                                  >
                                     {currentData?.duration ?? "(none)"}
                                   </span>
                                   <span style={{ color: "#16a34a" }}>
@@ -2160,19 +2700,24 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   )}
                 </cf-vstack>
 
-                <div style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                  marginTop: "1rem",
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    justifyContent: "flex-end",
+                    marginTop: "1rem",
+                  }}
+                >
                   <cf-button
                     onClick={clearTimingSuggestions({ timingSuggestions })}
                   >
                     Cancel
                   </cf-button>
                   <cf-button
-                    onClick={applyTimingSuggestions({ timingSuggestions, stepGroups })}
+                    onClick={applyTimingSuggestions({
+                      timingSuggestions,
+                      stepGroups,
+                    })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
                     Apply
@@ -2180,28 +2725,43 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
               </cf-vstack>
             </cf-card>,
-            <div />
+            <div />,
           )}
 
           {/* Wait Time Suggestions Modal */}
           {ifElse(
-            computed(() => waitTimeSuggestions && Array.isArray(waitTimeSuggestions.stepGroups)),
-            <cf-card style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "600px",
-              maxWidth: "90vw",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              zIndex: "1000",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
-            }}>
+            computed(() =>
+              waitTimeSuggestions &&
+              Array.isArray(waitTimeSuggestions.stepGroups)
+            ),
+            <cf-card
+              style={{
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "600px",
+                maxWidth: "90vw",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                zIndex: "1000",
+                boxShadow:
+                  "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+              }}
+            >
               <cf-vstack gap={1} style="padding: 12px;">
-                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Wait Time Suggestions</h3>
-                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following wait time changes will be applied to your step groups:
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>
+                  Review Wait Time Suggestions
+                </h3>
+                <p
+                  style={{
+                    margin: "0 0 6px 0",
+                    fontSize: "13px",
+                    color: "#666",
+                  }}
+                >
+                  The following wait time changes will be applied to your step
+                  groups:
                 </p>
 
                 <cf-vstack gap={2}>
@@ -2212,27 +2772,37 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         return groupData.id === suggestion.id;
                       });
                       const currentData: StepGroup | null = currentGroupCell
-                        ? ((currentGroupCell as any).get ? (currentGroupCell as any).get() : currentGroupCell) as StepGroup
+                        ? ((currentGroupCell as any).get
+                          ? (currentGroupCell as any).get()
+                          : currentGroupCell) as StepGroup
                         : null;
 
                       return (
-                        <div style={{
-                          padding: "8px 10px",
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "4px",
-                        }}>
+                        <div
+                          style={{
+                            padding: "8px 10px",
+                            background: "#f9fafb",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "4px",
+                          }}
+                        >
                           <cf-vstack gap={1}>
                             <strong style={{ fontSize: "13px" }}>
                               {currentData?.name || suggestion.id}
                             </strong>
-                            <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
-                              <span style={{ color: "#666" }}>Max wait time:</span>{" "}
-                              <span style={{
-                                color: "#dc2626",
-                                textDecoration: "line-through",
-                                marginRight: "6px",
-                              }}>
+                            <div
+                              style={{ fontSize: "12px", lineHeight: "1.5" }}
+                            >
+                              <span style={{ color: "#666" }}>
+                                Max wait time:
+                              </span>{" "}
+                              <span
+                                style={{
+                                  color: "#dc2626",
+                                  textDecoration: "line-through",
+                                  marginRight: "6px",
+                                }}
+                              >
                                 {currentData?.maxWaitMinutes ?? "(none)"}
                               </span>
                               <span style={{ color: "#16a34a" }}>
@@ -2246,19 +2816,24 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   )}
                 </cf-vstack>
 
-                <div style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                  marginTop: "1rem",
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    justifyContent: "flex-end",
+                    marginTop: "1rem",
+                  }}
+                >
                   <cf-button
                     onClick={clearWaitTimeSuggestions({ waitTimeSuggestions })}
                   >
                     Cancel
                   </cf-button>
                   <cf-button
-                    onClick={applyWaitTimeSuggestions({ waitTimeSuggestions, stepGroups })}
+                    onClick={applyWaitTimeSuggestions({
+                      waitTimeSuggestions,
+                      stepGroups,
+                    })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
                     Apply
@@ -2266,7 +2841,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </div>
               </cf-vstack>
             </cf-card>,
-            <div />
+            <div />,
           )}
         </cf-vstack>
       ),

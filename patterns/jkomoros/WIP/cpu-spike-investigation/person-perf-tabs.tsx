@@ -14,15 +14,15 @@
  * - If ~4 seconds: Need to add more complexity
  */
 import {
-  Writable,
   computed,
   generateObject,
   handler,
   ifElse,
   NAME,
   pattern,
-  UI,
   safeDateNow,
+  UI,
+  Writable,
 } from "commonfabric";
 
 // Inline the diff utilities to avoid import path issues
@@ -54,7 +54,10 @@ function computeWordDiff(from: string, to: string): DiffChunk[] {
       const fromLookAhead = toWords.slice(j).indexOf(fromWords[i]);
       const toLookAhead = fromWords.slice(i).indexOf(toWords[j]);
 
-      if (fromLookAhead !== -1 && (toLookAhead === -1 || fromLookAhead <= toLookAhead)) {
+      if (
+        fromLookAhead !== -1 &&
+        (toLookAhead === -1 || fromLookAhead <= toLookAhead)
+      ) {
         for (let k = 0; k < fromLookAhead; k++) {
           result.push({ type: "added", word: toWords[j] });
           j++;
@@ -108,7 +111,9 @@ const triggerExtraction = handler<
     console.log("[PERF-TABS] Starting extraction...");
     console.log("[PERF-TABS] Start time:", safeDateNow());
     startTimeMs.set(safeDateNow());
-    trigger.set(`Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${safeDateNow()}---`);
+    trigger.set(
+      `Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -187,30 +192,32 @@ export default pattern(() => {
   });
 
   // The extraction call - same schema as person.tsx
-  const { result: extractionResult, pending: extractionPending } = generateObject({
-    system: `You are a profile data extraction assistant. Extract structured information from unstructured notes.`,
-    prompt: guardedPrompt,
-    model: "anthropic:claude-sonnet-4-5",
-    schema: {
-      type: "object",
-      properties: {
-        displayName: { type: "string" },
-        givenName: { type: "string" },
-        familyName: { type: "string" },
-        nickname: { type: "string" },
-        pronouns: { type: "string" },
-        email: { type: "string" },
-        phone: { type: "string" },
-        birthday: { type: "string" },
-        twitter: { type: "string" },
-        linkedin: { type: "string" },
-        github: { type: "string" },
-        instagram: { type: "string" },
-        mastodon: { type: "string" },
-        remainingNotes: { type: "string" },
+  const { result: extractionResult, pending: extractionPending } =
+    generateObject({
+      system:
+        `You are a profile data extraction assistant. Extract structured information from unstructured notes.`,
+      prompt: guardedPrompt,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object",
+        properties: {
+          displayName: { type: "string" },
+          givenName: { type: "string" },
+          familyName: { type: "string" },
+          nickname: { type: "string" },
+          pronouns: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+          birthday: { type: "string" },
+          twitter: { type: "string" },
+          linkedin: { type: "string" },
+          github: { type: "string" },
+          instagram: { type: "string" },
+          mastodon: { type: "string" },
+          remainingNotes: { type: "string" },
+        },
       },
-    },
-  });
+    });
 
   // changesPreview computed - copied from person.tsx
   const changesPreview = computed(() => {
@@ -232,13 +239,19 @@ export default pattern(() => {
       mastodon: { current: mastodonHandle.get(), label: "Mastodon" },
       remainingNotes: { current: notes.get(), label: "Notes" },
     });
-    console.log(`[PERF-TABS] changesPreview computed: ${safeDateNow() - t0}ms, ${changes.length} changes`);
+    console.log(
+      `[PERF-TABS] changesPreview computed: ${
+        safeDateNow() - t0
+      }ms, ${changes.length} changes`,
+    );
     return changes;
   });
 
   // Derive a boolean for whether we have results
   const hasExtractionResults = computed(() => {
-    const preview = changesPreview as Array<{field: string; from: string; to: string}>;
+    const preview = changesPreview as Array<
+      { field: string; from: string; to: string }
+    >;
     const has = preview.length > 0;
     console.log(`[PERF-TABS] hasExtractionResults: ${has}`);
     return has;
@@ -247,15 +260,23 @@ export default pattern(() => {
   // Pre-compute word diff for Notes field
   const notesDiffChunks = computed(() => {
     const t0 = safeDateNow();
-    const preview = changesPreview as Array<{field: string; from: string; to: string}>;
+    const preview = changesPreview as Array<
+      { field: string; from: string; to: string }
+    >;
     const notesChange = preview.find((c) => c.field === "Notes");
-    if (!notesChange || !notesChange.from || !notesChange.to ||
-        notesChange.from === "(empty)" || notesChange.to === "(empty)") {
+    if (
+      !notesChange || !notesChange.from || !notesChange.to ||
+      notesChange.from === "(empty)" || notesChange.to === "(empty)"
+    ) {
       console.log(`[PERF-TABS] notesDiffChunks: skipped (no diff needed)`);
       return [] as DiffChunk[];
     }
     const result = computeWordDiff(notesChange.from, notesChange.to);
-    console.log(`[PERF-TABS] notesDiffChunks: ${safeDateNow() - t0}ms, ${result.length} chunks`);
+    console.log(
+      `[PERF-TABS] notesDiffChunks: ${
+        safeDateNow() - t0
+      }ms, ${result.length} chunks`,
+    );
     return result;
   });
 
@@ -299,7 +320,8 @@ export default pattern(() => {
                 marginBottom: "1rem",
               }}
             >
-              <strong>HYPOTHESIS:</strong> Tabbed interface (ct-autolayout with tabNames) causes ~60s spike
+              <strong>HYPOTHESIS:</strong>{" "}
+              Tabbed interface (ct-autolayout with tabNames) causes ~60s spike
             </div>
 
             <cf-button
@@ -323,12 +345,26 @@ export default pattern(() => {
                     borderRadius: "8px",
                   }}
                 >
-                  <h3 style={{ margin: "0 0 8px 0" }}>Review Extracted Changes</h3>
-                  <p style={{ margin: "0 0 12px 0", color: "#666", fontSize: "13px" }}>
+                  <h3 style={{ margin: "0 0 8px 0" }}>
+                    Review Extracted Changes
+                  </h3>
+                  <p
+                    style={{
+                      margin: "0 0 12px 0",
+                      color: "#666",
+                      fontSize: "13px",
+                    }}
+                  >
                     The following changes will be applied:
                   </p>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                    }}
+                  >
                     {changesPreview.map((change) => (
                       <div
                         style={{
@@ -338,13 +374,21 @@ export default pattern(() => {
                           borderRadius: "4px",
                         }}
                       >
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "2px",
+                          }}
+                        >
                           <strong style={{ fontSize: "12px" }}>
                             {change.field}
                           </strong>
                           {change.field === "Notes"
                             ? (
-                              <div style={{ fontSize: "11px", lineHeight: "1.4" }}>
+                              <div
+                                style={{ fontSize: "11px", lineHeight: "1.4" }}
+                              >
                                 {notesDiffChunks.map((part) => {
                                   if (part.type === "removed") {
                                     return (
@@ -376,7 +420,9 @@ export default pattern(() => {
                               </div>
                             )
                             : (
-                              <div style={{ fontSize: "11px", lineHeight: "1.4" }}>
+                              <div
+                                style={{ fontSize: "11px", lineHeight: "1.4" }}
+                              >
                                 <span
                                   style={{
                                     color: "#dc2626",
@@ -405,12 +451,16 @@ export default pattern(() => {
                     }}
                   >
                     <cf-button
-                      onClick={cancelExtraction({ extractedData: extractionResult })}
+                      onClick={cancelExtraction({
+                        extractedData: extractionResult,
+                      })}
                     >
                       Cancel
                     </cf-button>
                     <cf-button
-                      onClick={applyExtractedData({ extractedData: extractionResult })}
+                      onClick={applyExtractedData({
+                        extractedData: extractionResult,
+                      })}
                     >
                       Accept Changes
                     </cf-button>
@@ -426,24 +476,35 @@ export default pattern(() => {
               (
                 // Not showing results yet
                 <div>
-                  {!hasStarted ? (
-                    <p>Click the button to start extraction</p>
-                  ) : extractionPending ? (
-                    <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem" }}>
-                      Extracting... (check console for timing)
-                    </div>
-                  ) : (
-                    <p>Ready</p>
-                  )}
+                  {!hasStarted
+                    ? <p>Click the button to start extraction</p>
+                    : extractionPending
+                    ? (
+                      <div
+                        style={{
+                          backgroundColor: "#fef3c7",
+                          padding: "0.5rem",
+                        }}
+                      >
+                        Extracting... (check console for timing)
+                      </div>
+                    )
+                    : <p>Ready</p>}
                 </div>
               ),
             )}
 
             <h2>What This Tests</h2>
             <ul>
-              <li><code>ct-autolayout tabNames</code> (THE KEY TEST - 3 tabs)</li>
-              <li><code>ct-vscroll</code> scrollable content</li>
-              <li><code>ct-vstack</code> vertical layout</li>
+              <li>
+                <code>ct-autolayout tabNames</code> (THE KEY TEST - 3 tabs)
+              </li>
+              <li>
+                <code>ct-vscroll</code> scrollable content
+              </li>
+              <li>
+                <code>ct-vstack</code> vertical layout
+              </li>
               <li>Everything from autolayout test (4.6s)</li>
             </ul>
           </cf-vstack>

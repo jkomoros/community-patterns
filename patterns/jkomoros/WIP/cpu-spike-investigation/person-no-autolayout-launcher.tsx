@@ -10,13 +10,7 @@
  * - If freeze STILL happens → ct-autolayout is NOT the cause
  * - If freeze is GONE → ct-autolayout IS the cause
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import Person from "./person-no-autolayout.tsx";
 
@@ -31,7 +25,9 @@ LinkedIn: linkedin.com/in/maya-rodriguez
 Biotech researcher specializing in CRISPR gene editing. Lead scientist at GeneTech Labs. Published 25+ peer-reviewed papers. Avid rock climber. Speaks Spanish and English. MIT PhD 2015.`;
 
 const launchPerson = handler<unknown, Record<string, never>>(() => {
-  console.log("[NO-AUTOLAYOUT LAUNCHER] Navigating to person WITHOUT ct-autolayout...");
+  console.log(
+    "[NO-AUTOLAYOUT LAUNCHER] Navigating to person WITHOUT ct-autolayout...",
+  );
   navigateTo(Person({ notes: DEMO_NOTES }));
 });
 
@@ -42,10 +38,18 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Person No-AutoLayout Test</h1>
 
-        <div style={{ backgroundColor: "#fef3c7", padding: "0.75rem", marginBottom: "1rem", borderRadius: "4px" }}>
+        <div
+          style={{
+            backgroundColor: "#fef3c7",
+            padding: "0.75rem",
+            marginBottom: "1rem",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Hypothesis:</strong>
           <br />
-          ct-autolayout causes the ~40s freeze. This test removes ct-autolayout from person.tsx.
+          ct-autolayout causes the ~40s freeze. This test removes ct-autolayout
+          from person.tsx.
         </div>
 
         <div style={{ marginBottom: "1rem" }}>

@@ -1,9 +1,7 @@
 # Prompt Injection Tracker - Improvement Summary
 
-**Date**: November 14, 2025
-**Session**: Claude Code Improvement Sprint
-**Branch**: alex-1114
-**Status**: V2 Pattern Ready for Testing
+**Date**: November 14, 2025 **Session**: Claude Code Improvement Sprint
+**Branch**: alex-1114 **Status**: V2 Pattern Ready for Testing
 
 ---
 
@@ -12,18 +10,23 @@
 ### 1. Comprehensive Research & Analysis ✅
 
 **Framework Updates Identified**:
-- **Commit 8e55ed865**: "don't treat inputs to patterns/recipes as OpaqueRef anymore"
+
+- **Commit 8e55ed865**: "don't treat inputs to patterns/recipes as OpaqueRef
+  anymore"
   - This potentially removes the need for the `lift` workaround
   - Tested and documented in v2
-- **Commit fcef38199**: New `pattern()` function available as alternative to `recipe()`
+- **Commit fcef38199**: New `pattern()` function available as alternative to
+  `recipe()`
 - **Commit c1ce57735**: Fixed transformers for map over OpaqueRef inside derive
 
 **Critical Bugs Documented**:
+
 1. Gmail Importer CPU pegging (non-deterministic, user-reported)
 2. Article count shows 0 when articles exist
 3. Confusing multi-step button flow
 
 **UX Patterns Studied**:
+
 - Analyzed `substack-summarizer.tsx` as reference for cleaner auth flow
 - Key insight: **Results first**, settings collapsed in `<details>`
 
@@ -32,6 +35,7 @@
 **Location**: `recipes/alex/WIP/SPEC-prompt-injection-tracker-v2.md`
 
 **Includes**:
+
 - Complete architecture changes
 - 5-phase implementation plan (4-6 hours)
 - UX mockups and component specs
@@ -43,6 +47,7 @@
 **Location**: `recipes/alex/WIP/prompt-injection-tracker-v2.tsx`
 
 **Key Improvements**:
+
 - Simplified email parsing (testing framework updates)
 - Consolidated handlers (3 → 1 async flow)
 - Progressive disclosure UI (settings collapsed)
@@ -115,7 +120,7 @@
 6. **Reports Display**:
    - When empty: "No reports yet. Click Process..."
    - Not encouraging, feels broken
-   - No indication of *why* empty (no emails? all processed? error?)
+   - No indication of _why_ empty (no emails? all processed? error?)
 
 ### V1 Workflow (Current)
 
@@ -181,6 +186,7 @@ Success Rate: Low (bugs block usage)
 ### V2 Status States
 
 **State 1: New Alerts Available**
+
 ```
 ╔═══════════════════════════════════════════════╗
 ║ 🆕 NEW ALERTS                                 ║
@@ -192,6 +198,7 @@ Success Rate: Low (bugs block usage)
 ```
 
 **State 2: Processing**
+
 ```
 ╔═══════════════════════════════════════════════╗
 ║ ⏳ PROCESSING...                              ║
@@ -204,6 +211,7 @@ Success Rate: Low (bugs block usage)
 ```
 
 **State 3: Up to Date**
+
 ```
 ╔═══════════════════════════════════════════════╗
 ║ ✅ UP TO DATE                                 ║
@@ -217,6 +225,7 @@ Success Rate: Low (bugs block usage)
 ### V2 Settings (Progressive Disclosure)
 
 **Collapsed** (default):
+
 ```
 ┌───────────────────────────────────────────┐
 │ ⚙️ Settings ▶                             │
@@ -224,6 +233,7 @@ Success Rate: Low (bugs block usage)
 ```
 
 **Expanded** (when clicked):
+
 ```
 ┌───────────────────────────────────────────┐
 │ ⚙️ Settings ▼                             │
@@ -237,6 +247,7 @@ Success Rate: Low (bugs block usage)
 ### V2 Reports Display
 
 **With Unread Highlighting**:
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │ 🔥 NEW  [HIGH]  GPT-4 Vision Metadata Injection    │ <- Blue border
@@ -284,6 +295,7 @@ Success Rate: High (single obvious action)
 ### 1. Simplified Email Parsing
 
 **V1** (lines 229-286):
+
 ```typescript
 const parsedArticles = derive(
   [emails, processedArticles] as const,
@@ -299,11 +311,12 @@ const parsedArticles = derive(
 ```
 
 **V2** (testing framework updates):
+
 ```typescript
 const parsedArticles = derive(
   [emails, processedArticles] as const,
   ([emailList, processedList]: [any[], ProcessedArticle[]]) => {
-    const processedURLs = new Set(processedList.map(a => a.articleURL));
+    const processedURLs = new Set(processedList.map((a) => a.articleURL));
     const results = [];
     for (const email of emailList) {
       try {
@@ -313,11 +326,12 @@ const parsedArticles = derive(
       }
     }
     return results;
-  }
+  },
 );
 ```
 
 **Benefits**:
+
 - Tests if framework updates removed closure errors
 - Cleaner error handling
 - More maintainable
@@ -325,11 +339,13 @@ const parsedArticles = derive(
 ### 2. Consolidated Handlers
 
 **V1**: 3 separate handlers
+
 - `startProcessing` → fetches articles, triggers LLM 1
 - `processLinkExtractionResults` → dedupes, fetches reports, triggers LLM 2
 - `saveReports` → saves to array
 
 **V2**: 1 consolidated async handler
+
 ```typescript
 const processAllAlerts = handler(async (_, state) => {
   try {
@@ -341,7 +357,6 @@ const processAllAlerts = handler(async (_, state) => {
     state.processingProgress.set(30);
 
     // Phase 3-5: Continue...
-
   } catch (error) {
     // Unified error handling
     state.processingStatus.set(`Error: ${error.message}`);
@@ -350,6 +365,7 @@ const processAllAlerts = handler(async (_, state) => {
 ```
 
 **Benefits**:
+
 - Single click to run entire pipeline
 - Unified error handling
 - Progress tracking throughout
@@ -358,6 +374,7 @@ const processAllAlerts = handler(async (_, state) => {
 ### 3. Template String Fixes
 
 **Issues Found**:
+
 ```typescript
 // ❌ BROKEN - Nested str templates
 [NAME]: str`⚡ Tracker${unreadCount > 0 ? str` (${unreadCount} unread)` : ""}`
@@ -367,6 +384,7 @@ width: str`${processingProgress}%`
 ```
 
 **Fixed**:
+
 ```typescript
 // ✅ FIXED - Use derive
 [NAME]: derive(unreadCount, (count) =>
@@ -380,12 +398,14 @@ width: derive(processingProgress, (p) => `${p}%`)
 ### 4. Progressive Disclosure
 
 **V2 Features**:
+
 - `showSettings` cell controls visibility
 - Gmail auth/importer hidden by default
 - Click "⚙️ Settings" to expand
 - Debug info hidden unless needed
 
 **Pattern** (from substack-summarizer):
+
 ```typescript
 const showSettings = cell<boolean>(false);
 
@@ -394,7 +414,7 @@ const showSettings = cell<boolean>(false);
     ⚙️ Settings {showSettings ? "▼" : "▶"}
   </summary>
   {showSettings ? <div>...Gmail components...</div> : null}
-</details>
+</details>;
 ```
 
 ---
@@ -403,18 +423,21 @@ const showSettings = cell<boolean>(false);
 
 ### 1. Gmail Importer CPU Pegging
 
-**Status**: Not fixed (framework issue)
-**User Report**: "Every so often, deno process hits 100% CPU and gets stuck"
+**Status**: Not fixed (framework issue) **User Report**: "Every so often, deno
+process hits 100% CPU and gets stuck"
 
 **V2 Mitigations Added**:
+
 - Timeout detection (if no progress for 5min)
 - "🔄 Restart Connection" button
 - Console logging for minimal repro
 - Batch size limits (100 → 50 emails per fetch)
 
 **For Minimal Repro**:
+
 ```markdown
 If you encounter CPU pegging:
+
 1. Note: space name, charm ID, email count
 2. Copy console logs before freeze
 3. Document: which operation was running
@@ -429,6 +452,7 @@ If you encounter CPU pegging:
 **Root Cause**: Derive dependency tracking issue
 
 **V2 Fix**:
+
 ```typescript
 // Simplified derive chain
 const newArticleCount = derive(parsedArticles, (list) => list.length);
@@ -480,19 +504,20 @@ deno task ct charm new --space claude-alex1114-pit-v2 \
 
 **Test both V1 and V2** to compare:
 
-| Metric | V1 | V2 (Target) |
-|--------|-----|-------------|
-| Time to first result | ~10min + debug | ~2min |
-| Button clicks | 3+ manual | 1 automatic |
-| Clarity of next action | Unclear | Very clear |
-| Error recovery | Gets stuck | Graceful |
-| Visual feedback | Minimal | Progress bar + status |
+| Metric                 | V1             | V2 (Target)           |
+| ---------------------- | -------------- | --------------------- |
+| Time to first result   | ~10min + debug | ~2min                 |
+| Button clicks          | 3+ manual      | 1 automatic           |
+| Clarity of next action | Unclear        | Very clear            |
+| Error recovery         | Gets stuck     | Graceful              |
+| Visual feedback        | Minimal        | Progress bar + status |
 
 ---
 
 ## Files Created/Modified
 
 ### New Files
+
 1. **`SPEC-prompt-injection-tracker-v2.md`** (50 pages)
    - Complete improvement specification
    - Architecture changes
@@ -510,6 +535,7 @@ deno task ct charm new --space claude-alex1114-pit-v2 \
    - Deployment instructions
 
 ### Modified Files
+
 None (all improvements in new v2 file)
 
 ---
@@ -518,7 +544,8 @@ None (all improvements in new v2 file)
 
 Before final deployment and iteration:
 
-1. **Auto-process preference**: Should "Process Alerts" happen automatically on load, or keep as manual button?
+1. **Auto-process preference**: Should "Process Alerts" happen automatically on
+   load, or keep as manual button?
    - **Recommendation**: Manual button (user control)
    - **Rationale**: Processing takes 30-60s, might be disruptive
 
@@ -544,15 +571,11 @@ Before final deployment and iteration:
 
 ## Success Criteria
 
-**V2 is ready when**:
-✅ Compiles without errors (done)
-✅ Deploys to test space (ready to test)
-☐ Parses emails correctly (need to verify)
-☐ Shows correct article count (need to verify)
-☐ One-click processing works (need to verify)
-☐ Progress feedback visible (need to verify)
-☐ Reports display with highlighting (need to verify)
-☐ Read/unread toggle works (need to verify)
+**V2 is ready when**: ✅ Compiles without errors (done) ✅ Deploys to test space
+(ready to test) ☐ Parses emails correctly (need to verify) ☐ Shows correct
+article count (need to verify) ☐ One-click processing works (need to verify) ☐
+Progress feedback visible (need to verify) ☐ Reports display with highlighting
+(need to verify) ☐ Read/unread toggle works (need to verify)
 
 **Estimated time to complete**: 1-2 hours of testing + iteration
 
@@ -561,18 +584,21 @@ Before final deployment and iteration:
 ## Recommendations
 
 ### Short-term (This Session)
+
 1. Deploy v2 to test space
 2. Verify basic flow works
 3. Fix any issues discovered
 4. Document any remaining bugs
 
 ### Medium-term (Next Session)
+
 1. Add filtering (search, unread only, LLM-specific only)
 2. Improve error messages
 3. Add "Retry Failed" for resilience
 4. Test with larger email batches (50+)
 
 ### Long-term (Future)
+
 1. Automated scheduling (run every 15min)
 2. Desktop notifications for new reports
 3. Export to GitHub issues / markdown
@@ -584,18 +610,22 @@ Before final deployment and iteration:
 ## Key Learnings
 
 ### Framework Patterns
-1. **Template strings**: Use `derive` for dynamic interpolation, not `str` templates
+
+1. **Template strings**: Use `derive` for dynamic interpolation, not `str`
+   templates
 2. **Progressive disclosure**: Use `<details>` or cell-controlled visibility
 3. **Status indication**: Always show what's happening + what's next
 4. **Error handling**: Try/catch in handlers, graceful degradation
 
 ### UX Principles
+
 1. **Results first**: Show data before settings
 2. **One obvious action**: Clear next step at every state
 3. **Status visibility**: Progress bar + elapsed time + current step
 4. **Forgiving**: Easy to retry, undo, skip
 
 ### Common Pitfalls
+
 1. ❌ Nested `str` templates → ✅ Use derive
 2. ❌ Multiple manual buttons → ✅ Single consolidated handler
 3. ❌ Complex visible UI → ✅ Progressive disclosure
@@ -606,6 +636,7 @@ Before final deployment and iteration:
 ## Conclusion
 
 V2 is ready for testing! The pattern compiles successfully and includes:
+
 - Streamlined UX with progressive disclosure
 - Consolidated one-click processing
 - Progress indicators and clear status
@@ -613,15 +644,16 @@ V2 is ready for testing! The pattern compiles successfully and includes:
 - Template string fixes
 - Testing of framework updates (closure error workarounds)
 
-**Next**: Deploy and test the improved workflow, then iterate based on real usage.
+**Next**: Deploy and test the improved workflow, then iterate based on real
+usage.
 
 **Files to review**:
+
 - `/recipes/alex/WIP/SPEC-prompt-injection-tracker-v2.md` (full spec)
 - `/recipes/alex/WIP/prompt-injection-tracker-v2.tsx` (implementation)
 - `/recipes/alex/WIP/SUMMARY-prompt-injection-improvements.md` (this file)
 
 ---
 
-**Session Complete** ✅
-**Ready for Deployment** ✅
-**Estimated Test Time**: 1-2 hours
+**Session Complete** ✅ **Ready for Deployment** ✅ **Estimated Test Time**: 1-2
+hours

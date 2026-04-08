@@ -3,6 +3,7 @@
 ## Current State
 
 cf-autocomplete is implemented and working with:
+
 - Search filtering (label, value, group, searchAliases)
 - Keyboard navigation with scroll-into-view
 - Fixed positioning dropdown (escapes overflow:hidden)
@@ -11,7 +12,8 @@ cf-autocomplete is implemented and working with:
 
 ## The Question
 
-Should cf-autocomplete have `$value` binding like cf-select, making it hold state internally rather than just firing events?
+Should cf-autocomplete have `$value` binding like cf-select, making it hold
+state internally rather than just firing events?
 
 ## cf-select Analysis
 
@@ -37,6 +39,7 @@ private _cellController = createCellController<unknown | unknown[]>(this, {
 ```
 
 cf-select with `multiple={true}`:
+
 - `value` is an array of selected items
 - User can select/deselect from dropdown
 - `$value` binds bidirectionally to a Cell
@@ -59,10 +62,10 @@ static override properties = {
 
 ### Behavior Matrix
 
-| `multiple` | `value` type | Behavior |
-|------------|--------------|----------|
-| false | `T \| undefined` | Single select - selecting replaces value |
-| true | `T[]` | Multi select - selecting adds to array |
+| `multiple` | `value` type     | Behavior                                 |
+| ---------- | ---------------- | ---------------------------------------- |
+| false      | `T \| undefined` | Single select - selecting replaces value |
+| true       | `T[]`            | Multi select - selecting adds to array   |
 
 ### Single Select Mode (`multiple={false}`, default)
 
@@ -73,7 +76,7 @@ const selected = cell<string | undefined>(undefined);
   items={relationshipTypes}
   $value={selected}
   placeholder="Search..."
-/>
+/>;
 
 // selected.get() => "colleague" (or undefined)
 ```
@@ -93,7 +96,7 @@ const selected = cell<string[]>([]);
   $value={selected}
   multiple={true}
   placeholder="Search to add..."
-/>
+/>;
 
 // selected.get() => ["colleague", "friend", "custom-value"]
 ```
@@ -106,8 +109,8 @@ const selected = cell<string[]>([]);
 
 ### Visual Difference
 
-**Single select:** Input shows selected label, dropdown shows all items
-**Multi select:** Input always empty/search, dropdown filters out selected
+**Single select:** Input shows selected label, dropdown shows all items **Multi
+select:** Input always empty/search, dropdown filters out selected
 
 ### Implementation Changes Needed
 
@@ -166,21 +169,23 @@ const selected = cell<string[]>([]);
 ### API Comparison
 
 **Before (event-only):**
+
 ```tsx
-const tags = cell<{value: string}[]>([]);
+const tags = cell<{ value: string }[]>([]);
 
 <cf-autocomplete
   items={items}
   oncf-select={(e) => {
     const current = tags.get();
-    if (!current.some(t => t.value === e.detail.value)) {
+    if (!current.some((t) => t.value === e.detail.value)) {
       tags.push({ value: e.detail.value });
     }
   }}
-/>
+/>;
 ```
 
 **After (with $value):**
+
 ```tsx
 const selected = cell<string[]>([]);
 
@@ -188,7 +193,7 @@ const selected = cell<string[]>([]);
   items={items}
   $value={selected}
   multiple={true}
-/>
+/>;
 ```
 
 Much cleaner! The tag-selector-demo would become simpler.
@@ -196,7 +201,8 @@ Much cleaner! The tag-selector-demo would become simpler.
 ### Events (Still Supported)
 
 - `cf-change` - `{ value, oldValue }` - fired on any value change
-- `cf-select` - `{ value, label, group?, isCustom }` - fired on each selection (useful for side effects)
+- `cf-select` - `{ value, label, group?, isCustom }` - fired on each selection
+  (useful for side effects)
 - `cf-open` / `cf-close` - dropdown state
 
 ### Questions to Resolve

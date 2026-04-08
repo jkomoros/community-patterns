@@ -2,7 +2,8 @@
 
 ## Overview
 
-A pattern that imports Google Docs and converts them to markdown notes, including comment threads.
+A pattern that imports Google Docs and converts them to markdown notes,
+including comment threads.
 
 ## Architecture Decision: Reuse vs Custom
 
@@ -11,13 +12,15 @@ A pattern that imports Google Docs and converts them to markdown notes, includin
 We already have significant Google Docs infrastructure in this workspace:
 
 - **`util/google-auth-manager.tsx`** - Handles OAuth with drive/docs scopes
-- **`google-docs-comment-orchestrator.tsx`** - Has `GoogleDocsClient` class that:
+- **`google-docs-comment-orchestrator.tsx`** - Has `GoogleDocsClient` class
+  that:
   - Fetches document content via Docs API
   - Fetches comments via Drive API
   - Handles authentication, rate limiting, retries
   - Has `extractDocText()` for basic text extraction
 
-**Recommendation**: Extract and extend the existing client, add markdown conversion logic.
+**Recommendation**: Extract and extend the existing client, add markdown
+conversion logic.
 
 ### Option B: Build from scratch
 
@@ -30,6 +33,7 @@ Not recommended - would duplicate ~300 lines of auth/API code.
 ### Phase 1: Create Google Docs Markdown Client
 
 Create `util/google-docs-markdown-client.ts` that:
+
 1. Extends/imports the existing Google Docs API infrastructure
 2. Adds proper markdown conversion from Google Docs JSON structure
 3. Handles:
@@ -43,6 +47,7 @@ Create `util/google-docs-markdown-client.ts` that:
 ### Phase 2: Comment Integration
 
 Port comment extraction logic from the Apps Script:
+
 1. Fetch comments via Drive API v3 (already implemented)
 2. Map comments to positions in document (by quotedFileContent)
 3. Interleave comment threads with content in markdown output
@@ -50,6 +55,7 @@ Port comment extraction logic from the Apps Script:
 ### Phase 3: Main Pattern
 
 Create `WIP/google-docs-importer.tsx` with:
+
 - URL input for Google Doc
 - Auth UI (via createGoogleAuth)
 - Import button
@@ -63,6 +69,7 @@ Create `WIP/google-docs-importer.tsx` with:
 ### Google Docs API JSON Structure
 
 The Google Docs API returns a document object with this structure:
+
 ```typescript
 interface GoogleDocsDocument {
   body: {
@@ -189,7 +196,8 @@ Same scopes as `google-docs-comment-orchestrator.tsx`.
 
 ## Open Questions
 
-1. Should we create a new Note charm with the imported content, or just show/copy the markdown?
+1. Should we create a new Note charm with the imported content, or just
+   show/copy the markdown?
    - **Decision**: Both - show preview + copy button + "Save as Note" button
 
 2. Handle document images?

@@ -8,7 +8,6 @@
  * Discoverable via wish("#family") when favorited.
  */
 import {
-  Writable,
   computed,
   Default,
   handler,
@@ -17,6 +16,7 @@ import {
   pattern,
   str,
   UI,
+  Writable,
 } from "commonfabric";
 import {
   Address,
@@ -305,7 +305,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                         </button>
                       </div>
                     ))}
-                  </cf-vstack>
+                  </cf-vstack>,
                 )}
 
                 <cf-message-input
@@ -333,7 +333,9 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                       <div
                         style={{
                           padding: "10px 12px",
-                          backgroundColor: addr.isPrimary ? "#ecfdf5" : "#f9fafb",
+                          backgroundColor: addr.isPrimary
+                            ? "#ecfdf5"
+                            : "#f9fafb",
                           borderRadius: "6px",
                           border: addr.isPrimary
                             ? "1px solid #22c55e"
@@ -386,7 +388,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                               }}
                             >
                               Set Primary
-                            </button>
+                            </button>,
                           )}
                           <button
                             onClick={removeAddress({
@@ -407,7 +409,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                         </cf-hstack>
                       </div>
                     ))}
-                  </cf-vstack>
+                  </cf-vstack>,
                 )}
 
                 <cf-message-input
@@ -486,16 +488,21 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                   fontSize: "13px",
                 }}
               >
-                <strong>Summary:</strong>{" "}
-                {computed(() => {
+                <strong>Summary:</strong> {computed(() => {
                   const parts: string[] = [];
                   parts.push(displayName);
                   if (members.length > 0) {
                     parts.push(
-                      `${members.length} member${members.length === 1 ? "" : "s"}`
+                      `${members.length} member${
+                        members.length === 1 ? "" : "s"
+                      }`,
                     );
                     if (childCount > 0) {
-                      parts.push(`(${childCount} ${childCount === 1 ? "child" : "children"})`);
+                      parts.push(
+                        `(${childCount} ${
+                          childCount === 1 ? "child" : "children"
+                        })`,
+                      );
                     }
                   }
                   if (primaryAddress) {
@@ -518,7 +525,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
       connectionOrigin,
       primaryAddress,
     };
-  }
+  },
 );
 
 export default Family;

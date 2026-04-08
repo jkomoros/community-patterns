@@ -1,19 +1,23 @@
 # PRD: cf-search-select Built-in Component
 
-**Status:** TODO - Waiting for implementation
-**Priority:** Medium
+**Status:** TODO - Waiting for implementation **Priority:** Medium
 **Prototype:** `patterns/jkomoros/components/search-select-prototype.tsx`
 
 ## Problem Statement
 
-When patterns need to select from large predefined lists (40+ options like relationship types), displaying all options as buttons is overwhelming. Users need:
+When patterns need to select from large predefined lists (40+ options like
+relationship types), displaying all options as buttons is overwhelming. Users
+need:
+
 1. A compact default view showing current selections
 2. Quick search/filter to find options
 3. Easy add/remove with multi-select support
 4. Full keyboard navigation (arrow keys + Enter)
 
 A user-land pattern prototype was built but hit framework limitations:
-- Visual highlight doesn't update reactively inside `.map()` (see `ISSUE-Map-Style-Reactivity.md`)
+
+- Visual highlight doesn't update reactively inside `.map()` (see
+  `ISSUE-Map-Style-Reactivity.md`)
 - Cannot use `getBoundingClientRect()` for dynamic dropdown positioning
 - Cannot programmatically focus elements
 
@@ -31,38 +35,39 @@ A built-in `cf-search-select` component with full DOM access.
     { value: "friend", label: "Friend", group: "Personal" },
     // ...
   ]}
-
   // Currently selected values (bidirectional binding)
   $selected={selectedValuesCell}
-
   // Optional configuration
   placeholder="Search..."
-  maxVisible={8}              // Max items to show in dropdown
-  groupBy="group"             // Group items by this property
-/>
+  maxVisible={8} // Max items to show in dropdown
+  groupBy="group" // Group items by this property
+/>;
 ```
 
 ### Item Format
 
 ```typescript
 interface SearchSelectItem {
-  value: string;              // Stored in selected array
-  label?: string;             // Display text (defaults to value)
-  group?: string;             // Category for grouping/disambiguation
-  searchAliases?: string[];   // Additional search terms (see below)
+  value: string; // Stored in selected array
+  label?: string; // Display text (defaults to value)
+  group?: string; // Category for grouping/disambiguation
+  searchAliases?: string[]; // Additional search terms (see below)
 }
 ```
 
 ### Search Aliases (Alternate Match Strings)
 
-The `searchAliases` property enables matching items by related terms that aren't in the display label. This is useful for:
+The `searchAliases` property enables matching items by related terms that aren't
+in the display label. This is useful for:
 
 1. **Synonyms**: "sibling" matches when user types "sister" or "brother"
 2. **Abbreviations**: "manager" matches when user types "mgr" or "boss"
-3. **Common misspellings**: "colleague" matches when user types "coworker" or "co-worker"
+3. **Common misspellings**: "colleague" matches when user types "coworker" or
+   "co-worker"
 4. **Related concepts**: "mentor" matches when user types "advisor" or "guide"
 
 **Example:**
+
 ```typescript
 const items = [
   {
@@ -81,12 +86,21 @@ const items = [
     value: "significant-other",
     label: "Significant Other",
     group: "Personal",
-    searchAliases: ["partner", "spouse", "husband", "wife", "boyfriend", "girlfriend", "SO"],
+    searchAliases: [
+      "partner",
+      "spouse",
+      "husband",
+      "wife",
+      "boyfriend",
+      "girlfriend",
+      "SO",
+    ],
   },
 ];
 ```
 
 **Search behavior:**
+
 - User types "sister" → "Sibling" appears in results (alias match)
 - User types "sib" → "Sibling" appears in results (label match)
 - Alias matches should appear after exact label/value matches in sort order
@@ -127,18 +141,19 @@ const items = [
 
 ## Keyboard Navigation
 
-| Key | Action |
-|-----|--------|
-| `↓` / `↑` | Move highlight through options |
-| `Enter` | Select highlighted option |
-| `Escape` | Close dropdown |
-| `Backspace` (empty input) | Remove last selected item |
+| Key                       | Action                         |
+| ------------------------- | ------------------------------ |
+| `↓` / `↑`                 | Move highlight through options |
+| `Enter`                   | Select highlighted option      |
+| `Escape`                  | Close dropdown                 |
+| `Backspace` (empty input) | Remove last selected item      |
 
 ## Implementation Notes
 
 ### Why Built-in Component?
 
 A built-in component has access to:
+
 1. **DOM APIs** - `getBoundingClientRect()` for smart dropdown positioning
 2. **Focus management** - Programmatic focus on search input
 3. **Direct style updates** - No reactivity issues with highlight state
@@ -197,9 +212,9 @@ A built-in component has access to:
 4. Should we support custom item rendering (slots)?
 5. Should there be a `max` limit on selections?
 6. Should we emit events (`onchange`, `onopen`, `onclose`)?
-7. Should alias matches show which alias matched? (e.g., "Sibling" with small "matched: sister")
+7. Should alias matches show which alias matched? (e.g., "Sibling" with small
+   "matched: sister")
 
 ---
 
-**Created:** 2025-12-05
-**Author:** jkomoros (via Claude)
+**Created:** 2025-12-05 **Author:** jkomoros (via Claude)

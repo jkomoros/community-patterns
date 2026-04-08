@@ -1,10 +1,12 @@
 # Manual Charm Linking
 
-When `wish()` isn't working (e.g., favorites disabled), you can manually link charms via CLI.
+When `wish()` isn't working (e.g., favorites disabled), you can manually link
+charms via CLI.
 
 ## Use Case
 
-The gmail-importer pattern needs auth from google-auth pattern. Normally this happens via `wish()`, but when that's unavailable, use manual linking.
+The gmail-importer pattern needs auth from google-auth pattern. Normally this
+happens via `wish()`, but when that's unavailable, use manual linking.
 
 ## Steps
 
@@ -35,8 +37,10 @@ deno task ct charm link \
 ```
 
 **Critical paths:**
+
 - Source: `GOOGLE_AUTH_CHARM_ID/auth` - the auth result from google-auth
-- Target: `GMAIL_IMPORTER_CHARM_ID/linkedAuth` - the linkedAuth input of gmail-importer
+- Target: `GMAIL_IMPORTER_CHARM_ID/linkedAuth` - the linkedAuth input of
+  gmail-importer
 
 ### 4. Verify the link
 
@@ -64,7 +68,8 @@ deno task ct charm map \
 
 1. **Path format**: Use forward slashes, e.g., `charmId/auth` not `charmId.auth`
 
-2. **Link direction**: Source -> Target. The target charm "reads from" the source.
+2. **Link direction**: Source -> Target. The target charm "reads from" the
+   source.
 
 3. **The pattern must support linkedAuth**: The gmail-importer has:
    ```typescript
@@ -78,19 +83,23 @@ deno task ct charm map \
      - sourceCharmId (Google Auth (email@example.com))
    ```
 
-5. **NEVER use `charm setsrc`**: It doesn't work reliably. Always deploy fresh with `charm new`.
+5. **NEVER use `charm setsrc`**: It doesn't work reliably. Always deploy fresh
+   with `charm new`.
 
 ## Troubleshooting
 
 ### Link exists but auth not working in UI
 
-- The pattern might be showing both the "Connect Google Account" UI AND using linkedAuth
+- The pattern might be showing both the "Connect Google Account" UI AND using
+  linkedAuth
 - Check that the pattern's logic correctly uses linkedAuth when available
-- The charm name should show the email if linkedAuth is working (e.g., "GMail Importer email@example.com")
+- The charm name should show the email if linkedAuth is working (e.g., "GMail
+  Importer email@example.com")
 
 ### Settings not being read in handler
 
-If pattern defaults aren't reaching the handler, ensure the handler's type definition includes all fields:
+If pattern defaults aren't reaching the handler, ensure the handler's type
+definition includes all fields:
 
 ```typescript
 const myHandler = handler<unknown, {
@@ -103,4 +112,5 @@ const myHandler = handler<unknown, {
 }>(...);
 ```
 
-Missing fields in the handler's type definition can cause them to be unavailable when calling `.get()`.
+Missing fields in the handler's type definition can cause them to be unavailable
+when calling `.get()`.

@@ -2,15 +2,21 @@
 
 ## Summary
 
-When a pattern maps over many items (30+) with `fetchData` calls, all requests fire simultaneously, overwhelming the `/api/agent-tools/web-read` endpoint and causing widespread failures. Patterns cannot implement throttling themselves because userland timing is (correctly) disallowed for security reasons.
+When a pattern maps over many items (30+) with `fetchData` calls, all requests
+fire simultaneously, overwhelming the `/api/agent-tools/web-read` endpoint and
+causing widespread failures. Patterns cannot implement throttling themselves
+because userland timing is (correctly) disallowed for security reasons.
 
 ## Observed Behavior
 
-**Context:** Testing `prompt-injection-tracker` with real Gmail data (33 emails → 66 extracted URLs)
+**Context:** Testing `prompt-injection-tracker` with real Gmail data (33 emails
+→ 66 extracted URLs)
 
 **What happened:**
+
 1. L1 extraction completed successfully (33/33)
-2. L2 web fetching triggered ~60+ concurrent `fetchData` calls to `/api/agent-tools/web-read`
+2. L2 web fetching triggered ~60+ concurrent `fetchData` calls to
+   `/api/agent-tools/web-read`
 3. Server became overwhelmed - socket errors, connection refused
 4. Most requests failed with 422 errors or timeouts
 5. L2 showed 0/31 success, ⚠️30 errors
@@ -18,13 +24,15 @@ When a pattern maps over many items (30+) with `fetchData` calls, all requests f
 7. After restart, requests slowly recovered as the system retried
 
 **Console evidence:**
+
 - Hundreds of storage transaction failures (concurrent write contention)
 - Server crash requiring `restart-local-dev.sh --force`
 - Gradual recovery as requests completed one by one
 
 ## Why Patterns Can't Fix This
 
-Reactive patterns correctly cannot access timing primitives (`setTimeout`, `setInterval`) for security reasons. This means patterns cannot:
+Reactive patterns correctly cannot access timing primitives (`setTimeout`,
+`setInterval`) for security reasons. This means patterns cannot:
 
 - Implement their own rate limiting
 - Add delays between requests
@@ -52,8 +60,8 @@ const webContent = fetchData({
 });
 ```
 
-**Pros:** Pattern authors can tune for their use case
-**Cons:** Requires pattern changes, easy to forget
+**Pros:** Pattern authors can tune for their use case **Cons:** Requires pattern
+changes, easy to forget
 
 ### Option 2: Server-Side Rate Limiting on web-read Endpoint
 
@@ -64,8 +72,8 @@ The `/api/agent-tools/web-read` endpoint implements a request queue:
 - Queue the rest, process as slots free up
 - Return results as they complete
 
-**Pros:** Zero pattern changes, transparent to reactive system
-**Cons:** Endpoint-specific, doesn't help other fetchData targets
+**Pros:** Zero pattern changes, transparent to reactive system **Cons:**
+Endpoint-specific, doesn't help other fetchData targets
 
 ### Option 3: Global fetchData Queue in Framework
 
@@ -75,8 +83,8 @@ Framework maintains a global queue for all `fetchData` calls:
 - FIFO or priority-based processing
 - Automatic retry with backoff on 429/5xx errors
 
-**Pros:** Works for all fetchData targets, no pattern changes
-**Cons:** May need per-endpoint tuning
+**Pros:** Works for all fetchData targets, no pattern changes **Cons:** May need
+per-endpoint tuning
 
 ### Option 4: New `batchMap` Primitive
 
@@ -84,32 +92,37 @@ Introduce a primitive specifically for bulk operations:
 
 ```typescript
 // Instead of: items.map(item => fetchData(...))
-const results = batchMap(items, (item) => fetchData({
-  url: "/api/agent-tools/web-read",
-  body: { url: item.url },
-}), {
-  batchSize: 5,      // Process 5 at a time
-  retryOnError: true // Auto-retry failures
+const results = batchMap(items, (item) =>
+  fetchData({
+    url: "/api/agent-tools/web-read",
+    body: { url: item.url },
+  }), {
+  batchSize: 5, // Process 5 at a time
+  retryOnError: true, // Auto-retry failures
 });
 ```
 
-**Pros:** Explicit intent, pattern author controls batch size
-**Cons:** New primitive to learn, migration needed
+**Pros:** Explicit intent, pattern author controls batch size **Cons:** New
+primitive to learn, migration needed
 
 ## Recommendation
 
 **Option 2 + Option 3 combined:**
 
-1. **Server-side:** `/api/agent-tools/web-read` should have built-in rate limiting since it's making external HTTP requests that can fail/timeout
-2. **Framework-side:** Global `fetchData` concurrency limit as a safety net for any endpoint
+1. **Server-side:** `/api/agent-tools/web-read` should have built-in rate
+   limiting since it's making external HTTP requests that can fail/timeout
+2. **Framework-side:** Global `fetchData` concurrency limit as a safety net for
+   any endpoint
 
 This gives defense in depth without requiring pattern changes.
 
 ## Additional Observations
 
-- The framework's retry mechanism does eventually recover - requests succeeded after the initial flood subsided
+- The framework's retry mechanism does eventually recover - requests succeeded
+  after the initial flood subsided
 - Storage transaction failures are handled gracefully (framework retries)
-- The pattern architecture (map over items → fetchData) is correct; it's the execution that needs throttling
+- The pattern architecture (map over items → fetchData) is correct; it's the
+  execution that needs throttling
 
 ## Related
 

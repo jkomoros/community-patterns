@@ -2,13 +2,15 @@
 
 ## Summary
 
-Add optional voice input support to the `chatbot.tsx` pattern in labs, enabling voice-to-text for omnibot and any pattern using Chatbot.
+Add optional voice input support to the `chatbot.tsx` pattern in labs, enabling
+voice-to-text for omnibot and any pattern using Chatbot.
 
 ## Current State
 
 - `ct-voice-input` component exists and works well
   - Location: `/packages/ui/src/v2/components/ct-voice-input/ct-voice-input.ts`
-  - Features: hold or toggle recording, auto-transcription via Whisper, returns text + timestamps
+  - Features: hold or toggle recording, auto-transcription via Whisper, returns
+    text + timestamps
 - `chatbot.tsx` and `omnibox-fab.tsx` have **no voice input**
 - Users must type all interactions with omnibot
 
@@ -16,7 +18,8 @@ Add optional voice input support to the `chatbot.tsx` pattern in labs, enabling 
 
 ### Option C: Add `showVoice` prop to Chatbot pattern (Recommended)
 
-Add an opt-in `showVoice?: boolean` prop that includes `ct-voice-input` alongside `ct-prompt-input`.
+Add an opt-in `showVoice?: boolean` prop that includes `ct-voice-input`
+alongside `ct-prompt-input`.
 
 ### Implementation
 
@@ -28,7 +31,7 @@ type ChatInput = {
   tools?: any;
   theme?: any;
   system?: string;
-  showVoice?: boolean;  // NEW: Enable voice input
+  showVoice?: boolean; // NEW: Enable voice input
 };
 ```
 
@@ -60,17 +63,31 @@ const handleVoiceTranscription = handler<
 **3. Modify promptInput rendering (~line 208):**
 
 ```tsx
-const promptInput = showVoice ? (
-  <ct-hstack align="center" gap="tight" style="width: 100%;">
-    <ct-voice-input
-      recordingMode="toggle"
-      showWaveform={false}
-      autoTranscribe
-      onct-transcription-complete={handleVoiceTranscription({ addMessage })}
-      style="flex-shrink: 0;"
-    />
+const promptInput = showVoice
+  ? (
+    <ct-hstack align="center" gap="tight" style="width: 100%;">
+      <ct-voice-input
+        recordingMode="toggle"
+        showWaveform={false}
+        autoTranscribe
+        onct-transcription-complete={handleVoiceTranscription({ addMessage })}
+        style="flex-shrink: 0;"
+      />
+      <ct-prompt-input
+        style="flex: 1;"
+        slot="footer"
+        placeholder="Ask the LLM a question..."
+        pending={pending}
+        $mentionable={mentionable}
+        modelItems={items}
+        $model={model}
+        onct-send={sendMessage({ addMessage })}
+        onct-stop={cancelGeneration}
+      />
+    </ct-hstack>
+  )
+  : (
     <ct-prompt-input
-      style="flex: 1;"
       slot="footer"
       placeholder="Ask the LLM a question..."
       pending={pending}
@@ -80,19 +97,7 @@ const promptInput = showVoice ? (
       onct-send={sendMessage({ addMessage })}
       onct-stop={cancelGeneration}
     />
-  </ct-hstack>
-) : (
-  <ct-prompt-input
-    slot="footer"
-    placeholder="Ask the LLM a question..."
-    pending={pending}
-    $mentionable={mentionable}
-    modelItems={items}
-    $model={model}
-    onct-send={sendMessage({ addMessage })}
-    onct-stop={cancelGeneration}
-  />
-);
+  );
 ```
 
 **4. Enable voice in omnibox-fab.tsx:**
@@ -109,11 +114,15 @@ const omnibot = Chatbot({
 
 ### Voice Button Placement
 
-The microphone button should appear to the left of the text input, similar to how many chat apps handle it. This keeps the "send" action on the right (expected location) and adds voice as an alternative input method on the left.
+The microphone button should appear to the left of the text input, similar to
+how many chat apps handle it. This keeps the "send" action on the right
+(expected location) and adds voice as an alternative input method on the left.
 
 ### Recording Mode
 
-`toggle` mode (click to start, click to stop) is recommended over `hold` mode for chat:
+`toggle` mode (click to start, click to stop) is recommended over `hold` mode
+for chat:
+
 - Works better on desktop (no need to hold mouse button)
 - Clearer state indication (button shows recording status)
 - Users can take their time speaking
@@ -128,32 +137,37 @@ The microphone button should appear to the left of the text input, similar to ho
 6. Transcription is automatically sent as a user message
 7. LLM processes and responds
 
-No intermediate "review" step - voice goes directly to chat. This matches the existing text input behavior (Enter sends immediately).
+No intermediate "review" step - voice goes directly to chat. This matches the
+existing text input behavior (Enter sends immediately).
 
 ## Alternative Approaches Considered
 
 ### Option A: Always show voice in all chatbots
 
-**Rejected:** Too aggressive. Many chatbot uses are desktop-only where voice isn't needed.
+**Rejected:** Too aggressive. Many chatbot uses are desktop-only where voice
+isn't needed.
 
 ### Option B: Modify only omnibox-fab.tsx
 
-**Rejected:** Voice-to-chat pattern isn't reusable. Other patterns using Chatbot would need to duplicate the implementation.
+**Rejected:** Voice-to-chat pattern isn't reusable. Other patterns using Chatbot
+would need to duplicate the implementation.
 
 ### Option D: New composite component
 
-**Rejected:** Unnecessary complexity. The existing components can be composed without a new wrapper.
+**Rejected:** Unnecessary complexity. The existing components can be composed
+without a new wrapper.
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `packages/patterns/chatbot.tsx` | Add `showVoice` prop, voice handler, conditional rendering (~20 lines) |
-| `packages/patterns/omnibox-fab.tsx` | Add `showVoice: true` to Chatbot call (1 line) |
+| File                                | Changes                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| `packages/patterns/chatbot.tsx`     | Add `showVoice` prop, voice handler, conditional rendering (~20 lines) |
+| `packages/patterns/omnibox-fab.tsx` | Add `showVoice: true` to Chatbot call (1 line)                         |
 
 ## Related Components
 
-- `/packages/ui/src/v2/components/ct-voice-input/ct-voice-input.ts` - Already exists, production-ready
+- `/packages/ui/src/v2/components/ct-voice-input/ct-voice-input.ts` - Already
+  exists, production-ready
 - `/packages/patterns/voice-note.tsx` - Example pattern using ct-voice-input
 - `/packages/toolshed/routes/ai/voice/` - Transcription API (FAL AI Whisper)
 
@@ -161,5 +175,6 @@ No intermediate "review" step - voice goes directly to chat. This matches the ex
 
 1. **Voice indicator in chat log**: Show which messages came from voice vs typed
 2. **Streaming transcription**: Show transcription as it's being processed
-3. **Voice response**: TTS for assistant responses (full voice assistant experience)
+3. **Voice response**: TTS for assistant responses (full voice assistant
+   experience)
 4. **Wake word**: "Hey Omnibot" to start voice recording hands-free

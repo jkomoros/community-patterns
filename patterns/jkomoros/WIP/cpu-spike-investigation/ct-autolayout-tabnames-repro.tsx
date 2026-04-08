@@ -3,14 +3,7 @@
  * @title CTAutoLayout TabNames Bug Repro
  * @description Minimal test for ct-autolayout tabNames undefined issue
  */
-import {
-  handler,
-  ifElse,
-  NAME,
-  pattern,
-  UI,
-  Writable,
-} from "commonfabric";
+import { handler, ifElse, NAME, pattern, UI, Writable } from "commonfabric";
 
 type Props = {
   notes?: string;
@@ -21,14 +14,14 @@ const showModalHandler = handler<void, { showModal: Writable<boolean> }>(
   (_, { showModal }) => {
     console.log("[TEST] Showing modal...");
     showModal.set(true);
-  }
+  },
 );
 
 const hideModalHandler = handler<void, { showModal: Writable<boolean> }>(
   (_, { showModal }) => {
     console.log("[TEST] Hiding modal...");
     showModal.set(false);
-  }
+  },
 );
 
 export default pattern<Props>(({ notes }) => {
@@ -58,15 +51,22 @@ export default pattern<Props>(({ notes }) => {
           // Form view
           <cf-autolayout tabNames={["Form"]}>
             <cf-vstack style={{ padding: "16px", gap: "12px" }}>
-              <div style={{ backgroundColor: "#fee2e2", padding: "12px", borderRadius: "4px" }}>
-                <strong>Bug Test:</strong> Click button to show modal with ct-autolayout.
+              <div
+                style={{
+                  backgroundColor: "#fee2e2",
+                  padding: "12px",
+                  borderRadius: "4px",
+                }}
+              >
+                <strong>Bug Test:</strong>{" "}
+                Click button to show modal with ct-autolayout.
               </div>
               <p>Notes: {notes}</p>
               <cf-button onClick={showModalHandler({ showModal })}>
                 Show Modal (test tabNames)
               </cf-button>
             </cf-vstack>
-          </cf-autolayout>
+          </cf-autolayout>,
         )}
       </cf-screen>
     ),

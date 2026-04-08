@@ -3,11 +3,15 @@
 ## Investor Demo Script
 
 ### The Pitch
-"Let me show you how CommonTools makes shopping lists actually useful. Watch how AI automatically organizes your list by store aisle - and how anyone can create their own store layouts."
+
+"Let me show you how CommonTools makes shopping lists actually useful. Watch how
+AI automatically organizes your list by store aisle - and how anyone can create
+their own store layouts."
 
 ### Demo Flow (5 minutes)
 
 #### Part 1: Bootstrap the Demo (30 seconds)
+
 ```
 Action: Create space "alex-shopping-demo-1"
 Action: Deploy demo-setup pattern
@@ -15,10 +19,12 @@ Result: Space initialized with charm-creator configured
 ```
 
 **What the investor sees:**
+
 - Clean new space
 - Charm creator ready with "Shopping List" as an option
 
 #### Part 2: Create Shopping List (1 minute)
+
 ```
 Action: Click "Create Shopping List" in charm-creator
 Result: New shopping list charm appears
@@ -34,11 +40,13 @@ Result: Items appear immediately
 ```
 
 **What the investor sees:**
+
 - Fast, simple list creation
 - Omnibot integration works seamlessly
 - "This looks like any shopping list... so far"
 
 #### Part 3: The Magic - Aisle Sorting (2 minutes)
+
 ```
 Action: Switch to mobile view (browser tools or resize)
 Result: List adapts to mobile layout
@@ -46,6 +54,7 @@ Result: Button appears: "📍 Sort by Aisle (Kroger Main St)"
 ```
 
 **What the investor sees:**
+
 - Mobile-first design
 - Context-aware button (GPS would enable this in real app)
 
@@ -80,18 +89,21 @@ Result: Apples also checked there (shared data!)
 ```
 
 **What the investor sees:**
+
 - Instant AI categorization
 - Real grocery store layout
 - Edits sync across views
 - "This would save me 10 minutes every shopping trip"
 
 #### Part 4: The Kicker - Store Setup (1.5 minutes)
+
 ```
 Action: Click "Set up a new store" button
 Result: Store-setup-wizard appears
 ```
 
 **UI shows:**
+
 - Store name input: "Target on Broadway"
 - Instructions: "Take photos of aisle signs as you walk through the store"
 - Simulated camera button (for demo)
@@ -111,12 +123,15 @@ Result: Shown on map where others nearby can find it
 ```
 
 **What the investor sees:**
+
 - User-generated store layouts
 - Photo → structured data (aspirational but believable)
 - Network effects: "Everyone who shops at this store benefits"
-- "Wait, you're building a crowd-sourced database of every store layout in the world?"
+- "Wait, you're building a crowd-sourced database of every store layout in the
+  world?"
 
 #### Part 5: Close (30 seconds)
+
 ```
 Action: Show both shopping list views side-by-side
 Action: Add one more item via omnibot: "Add paper towels"
@@ -125,6 +140,7 @@ Result: After 1 second, auto-categorized to "Aisle 11 - Paper & Cleaning"
 ```
 
 **What the investor sees:**
+
 - Real-time updates
 - AI working in the background
 - Polished, production-ready feel
@@ -140,7 +156,9 @@ Result: After 1 second, auto-categorized to "Aisle 11 - Paper & Cleaning"
 ## Product Requirements
 
 ### User Story
-As a shopper, I want my shopping list to automatically organize items by store aisle, so I can shop more efficiently without manually sorting items.
+
+As a shopper, I want my shopping list to automatically organize items by store
+aisle, so I can shop more efficiently without manually sorting items.
 
 ### Core Features
 
@@ -247,9 +265,12 @@ interface StoreOutline {
 }
 ```
 
-**No [ID] needed** - Items don't need stable IDs since we're not doing complex reordering or front-insertion.
+**No [ID] needed** - Items don't need stable IDs since we're not doing complex
+reordering or front-insertion.
 
-**No sidecar storage needed** - The LLM framework automatically caches results! When an item's title doesn't change, llm() won't re-call. This is perfect for our use case.
+**No sidecar storage needed** - The LLM framework automatically caches results!
+When an item's title doesn't change, llm() won't re-call. This is perfect for
+our use case.
 
 ### LLM Integration Pattern
 
@@ -258,17 +279,19 @@ interface StoreOutline {
 
 const aisleAssignments = items.map((item) => {
   const assignment = llm({
-    system: "You are a grocery store assistant. Given a store layout and an item, determine which aisle the item is in.",
+    system:
+      "You are a grocery store assistant. Given a store layout and an item, determine which aisle the item is in.",
     messages: [{
       role: "user",
-      content: str`Store layout:\n${storeOutline}\n\nItem: ${item.title}\n\nWhich aisle is this item in? Respond with just the aisle name.`
-    }]
+      content:
+        str`Store layout:\n${storeOutline}\n\nItem: ${item.title}\n\nWhich aisle is this item in? Respond with just the aisle name.`,
+    }],
   });
 
   return {
     item,
     aisle: assignment.result,
-    pending: assignment.pending
+    pending: assignment.pending,
   };
 });
 
@@ -285,7 +308,8 @@ const grouped = derive(aisleAssignments, (assignments) => {
 });
 ```
 
-**Automatic caching**: When `item.title` and `storeOutline` don't change, llm() returns cached result. No manual tracking needed!
+**Automatic caching**: When `item.title` and `storeOutline` don't change, llm()
+returns cached result. No manual tracking needed!
 
 ### Shared Data Pattern
 
@@ -293,7 +317,7 @@ Both patterns receive the **same Cell reference** to items:
 
 ```typescript
 // In launcher:
-const items = cell([]);  // Or from input
+const items = cell([]); // Or from input
 
 // Both get same Cell ref:
 const basicView = ShoppingList({ items });
@@ -308,6 +332,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 ## Implementation Plan
 
 ### Phase 1: Base Shopping List
+
 - [ ] Simple add/remove/check with handlers
 - [ ] Bidirectional binding for checkboxes ($checked)
 - [ ] Message input for adding items
@@ -316,6 +341,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 - [ ] Polish: empty state, item count, clear completed
 
 ### Phase 2: Aisle-Sorted View
+
 - [ ] Accept items Cell + storeOutline + storeName
 - [ ] Map items → llm() calls with store context
 - [ ] Group by aisle (derive from llm results)
@@ -327,6 +353,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 - [ ] "Back to basic view" button
 
 ### Phase 3: Responsive Launcher
+
 - [ ] Pre-bake Kroger storeOutline + storeName
 - [ ] Instantiate both patterns (basicView, sortedView)
 - [ ] Desktop: Side-by-side layout (2 columns)
@@ -337,6 +364,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 - [ ] Test on actual mobile device
 
 ### Phase 4: Store Setup Wizard
+
 - [ ] Three-phase wizard UI
 - [ ] Phase 1: Store name input + "Simulate Aisle Photos"
 - [ ] Mockup aisle sign images (5-6 photos)
@@ -348,6 +376,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 - [ ] (Note: Real camera integration deferred)
 
 ### Phase 5: Demo Setup Bootstrap
+
 - [ ] Auto-configure space on deploy
 - [ ] Set up charm-creator with "Shopping List" option
 - [ ] Deploy Kroger launcher pre-configured
@@ -356,6 +385,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 - [ ] Test full bootstrap flow
 
 ### Phase 6: Integration & Polish
+
 - [ ] Deploy all patterns to localhost:8000
 - [ ] Test full demo flow start-to-finish
 - [ ] Verify omnibot: "Add X to shopping list"
@@ -366,6 +396,7 @@ This is **Pattern Composition** (Level 4 from PATTERNS.md).
 - [ ] Run through demo script 3x for timing
 
 ### Phase 7: Rehearsal
+
 - [ ] Run full demo script with timer
 - [ ] Practice transitions between phases
 - [ ] Have fallback plan if LLM is slow
@@ -378,73 +409,102 @@ For the demo, we'll use this Kroger store layout:
 
 ```markdown
 # Aisle 1 - Produce
+
 Fresh fruits, vegetables, salads, herbs
 
 # Aisle 2 - Bakery
+
 Bread, bagels, donuts, cakes, tortillas
 
 # Aisle 3 - Dairy & Eggs
+
 Milk, yogurt, cheese, butter, eggs, cream
 
 # Aisle 4 - Meat & Seafood
+
 Beef, chicken, pork, fish, deli meats
 
 # Aisle 5 - Frozen Foods
+
 Ice cream, frozen vegetables, frozen meals, pizza
 
 # Aisle 6 - Beverages
+
 Soda, juice, water, coffee, tea
 
 # Aisle 7 - Snacks & Chips
+
 Chips, crackers, cookies, candy, nuts
 
 # Aisle 8 - Canned Goods & Pantry
+
 Canned vegetables, soup, pasta, rice, beans, sauces
 
 # Aisle 9 - Breakfast & Cereal
+
 Cereal, oatmeal, pancake mix, syrup
 
 # Aisle 10 - Condiments & Spices
+
 Ketchup, mustard, mayo, salad dressing, spices, oil
 
 # Aisle 11 - Paper & Cleaning
+
 Paper towels, toilet paper, cleaning supplies, detergent
 
 # Aisle 12 - Health & Beauty
+
 Shampoo, soap, toothpaste, vitamins, first aid
 ```
 
 ## Deferred Features (Post-Demo)
 
-These features would make the system production-ready but are skipped for the demo:
+These features would make the system production-ready but are skipped for the
+demo:
 
-1. **GPS-based store detection** - Automatically select the right store layout based on location
+1. **GPS-based store detection** - Automatically select the right store layout
+   based on location
 2. **Camera capture** - Take photos of aisle signs to generate store layout
-3. **Crowd-sourced layouts** - Users publish curried patterns for stores in their area
-4. **Assignment persistence** - Store aisle assignments to avoid LLM re-calls (though caching already handles this)
+3. **Crowd-sourced layouts** - Users publish curried patterns for stores in
+   their area
+4. **Assignment persistence** - Store aisle assignments to avoid LLM re-calls
+   (though caching already handles this)
 5. **Confidence scoring** - Show LLM confidence and allow manual override
-6. **Learning from corrections** - If user moves item to different aisle, remember that
+6. **Learning from corrections** - If user moves item to different aisle,
+   remember that
 
 ## Questions & Decisions
 
 ### Q: Should aisle-sorted pattern store assignments separately?
-**A: No** - LLM framework auto-caches, so repeated calls with same item.title return instantly. No need for manual sidecar storage.
+
+**A: No** - LLM framework auto-caches, so repeated calls with same item.title
+return instantly. No need for manual sidecar storage.
 
 ### Q: Do items need [ID] for stable identity?
-**A: No** - We're not doing front-insertion or complex reordering. item.equals() is sufficient for removal.
+
+**A: No** - We're not doing front-insertion or complex reordering. item.equals()
+is sufficient for removal.
 
 ### Q: How to handle items that don't match any aisle?
-**A: "Other" group** - Items that LLM can't categorize go to an "Other" section at the end.
+
+**A: "Other" group** - Items that LLM can't categorize go to an "Other" section
+at the end.
 
 ### Q: Mobile UX - Toggle or side-by-side?
-**A: Start with side-by-side** for demo simplicity. Can add toggle later if needed.
+
+**A: Start with side-by-side** for demo simplicity. Can add toggle later if
+needed.
 
 ### Q: How to make it "as real as possible" without GPS/camera?
-**A: Pre-deploy the curried launcher** - Users would find "Kroger Main St Shopping List" in their charms. The experience is the same as if GPS selected it automatically.
+
+**A: Pre-deploy the curried launcher** - Users would find "Kroger Main St
+Shopping List" in their charms. The experience is the same as if GPS selected it
+automatically.
 
 ## Success Criteria
 
 ### Must Have (Demo Blockers)
+
 - [ ] Full demo flow completes in under 5 minutes
 - [ ] Omnibot adds items correctly ("Add X to shopping list")
 - [ ] "Sort by Aisle" button appears in mobile view
@@ -454,6 +514,7 @@ These features would make the system production-ready but are skipped for the de
 - [ ] All buttons work on first click
 
 ### Should Have (Demo Polish)
+
 - [ ] Loading states feel smooth (not janky)
 - [ ] LLM categorizes 90%+ of test items correctly
 - [ ] Mobile layout looks native (not desktop-squeezed)
@@ -462,6 +523,7 @@ These features would make the system production-ready but are skipped for the de
 - [ ] Store name badge looks professional
 
 ### Nice to Have (Investor Wow Factor)
+
 - [ ] Subtle animations on item check-off
 - [ ] Aisle photos in wizard look realistic
 - [ ] "Processing..." modals have personality
@@ -469,6 +531,7 @@ These features would make the system production-ready but are skipped for the de
 - [ ] Item count badges on aisle headers
 
 ### Demo-Killer Bugs (Test Thoroughly)
+
 - [ ] ❌ Omnibot doesn't recognize shopping list
 - [ ] ❌ Button doesn't appear in mobile view
 - [ ] ❌ LLM calls hang or timeout
@@ -510,6 +573,7 @@ export CT_IDENTITY="/Users/alex/Code/labs/claude.key"
 ## Demo Day Checklist
 
 ### 30 Minutes Before
+
 - [ ] Start localhost:8000 server
 - [ ] Clear browser cache
 - [ ] Open browser DevTools (for mobile view toggle)
@@ -518,6 +582,7 @@ export CT_IDENTITY="/Users/alex/Code/labs/claude.key"
 - [ ] Backup screenshots ready (if LLM fails)
 
 ### 10 Minutes Before
+
 - [ ] Create fresh space: alex-shopping-demo-{N}
 - [ ] Deploy demo-setup pattern
 - [ ] Verify charm-creator shows "Shopping List"
@@ -525,6 +590,7 @@ export CT_IDENTITY="/Users/alex/Code/labs/claude.key"
 - [ ] Close all other browser tabs
 
 ### During Demo
+
 - [ ] Speak slowly and clearly
 - [ ] Let animations complete before next action
 - [ ] Point out "real" vs "aspirational" features
@@ -532,6 +598,7 @@ export CT_IDENTITY="/Users/alex/Code/labs/claude.key"
 - [ ] End with the big question: "What if every store layout was crowd-sourced?"
 
 ### Fallback Plans
+
 - **LLM timeout**: Have pre-sorted list screenshot ready
 - **Omnibot fails**: Manually add items, explain omnibot later
 - **Mobile button missing**: Use desktop side-by-side view

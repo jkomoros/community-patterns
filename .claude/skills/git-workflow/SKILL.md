@@ -28,7 +28,8 @@ git push origin main
 
 ## Sharing Work Upstream (Creating Pull Requests)
 
-**IMPORTANT: Wait for user to tell you to create a PR.** Don't push or create PRs automatically.
+**IMPORTANT: Wait for user to tell you to create a PR.** Don't push or create
+PRs automatically.
 
 **Before creating any PR, you MUST update from main and rebase your branch:**
 
@@ -68,12 +69,14 @@ fi
 ```
 
 **If rebase has conflicts:**
+
 1. Show conflict files: `git status`
 2. Help resolve conflicts
 3. Continue: `git rebase --continue`
 4. Then push
 
 **Why this matters:**
+
 - Ensures your PR is based on the latest main
 - Avoids merge conflicts during PR review
 - Makes PR review easier
@@ -85,6 +88,7 @@ fi
 When user wants to contribute patterns from their fork to upstream:
 
 **Step 1: Ensure changes are committed and pushed to their fork**
+
 ```bash
 cd ~/Code/community-patterns
 git status  # Verify all changes are committed
@@ -94,6 +98,7 @@ git push origin main
 **Step 2: Update and rebase (see Step 0 above)**
 
 **Step 3: Create pull request to upstream**
+
 ```bash
 gh pr create \
   --repo jkomoros/community-patterns \
@@ -116,15 +121,18 @@ EOF
 
 ### If Working Directly on jkomoros/community-patterns
 
-**CRITICAL: When working directly on the upstream repository, you MUST use branches and PRs. Direct pushes to main are NOT allowed.**
+**CRITICAL: When working directly on the upstream repository, you MUST use
+branches and PRs. Direct pushes to main are NOT allowed.**
 
 **Step 1: Create feature branch**
+
 ```bash
 cd ~/Code/community-patterns
 git checkout -b username/feature-name
 ```
 
 **Step 2: Commit and push branch**
+
 ```bash
 git add patterns/$GITHUB_USER/
 git commit -m "Add: pattern name"
@@ -134,6 +142,7 @@ git push origin username/feature-name
 **Step 3: Update and rebase (see Step 0 above)**
 
 **Step 4: Create pull request**
+
 ```bash
 gh pr create \
   --title "Add: pattern name" \
@@ -150,6 +159,7 @@ EOF
 ```
 
 **Step 5: Merge with rebase (when approved)**
+
 ```bash
 gh pr merge PR_NUMBER --rebase --delete-branch
 ```

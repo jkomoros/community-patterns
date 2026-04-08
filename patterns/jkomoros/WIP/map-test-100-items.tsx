@@ -11,7 +11,6 @@
  * Simplified: no add button, just test the core map + generateObject.
  */
 import {
-  Writable,
   computed,
   Default,
   generateObject,
@@ -20,6 +19,7 @@ import {
   pattern,
   str,
   UI,
+  Writable,
 } from "commonfabric";
 
 interface Item {
@@ -37,14 +37,16 @@ interface MapTestOutput {
 }
 
 // Handler to add a single item
-const addItem = handler<unknown, { items: Writable<Item[]> }>((_event, { items }) => {
-  const currentItems = items.get();
-  const nextId = currentItems.length;
-  items.push({
-    id: `item-${nextId}`,
-    content: `This is item number ${nextId} with exactly ten words here.`,
-  });
-});
+const addItem = handler<unknown, { items: Writable<Item[]> }>(
+  (_event, { items }) => {
+    const currentItems = items.get();
+    const nextId = currentItems.length;
+    items.push({
+      id: `item-${nextId}`,
+      content: `This is item number ${nextId} with exactly ten words here.`,
+    });
+  },
+);
 
 export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
   // Count for display
@@ -80,7 +82,8 @@ export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
       <div style={{ padding: "16px", fontFamily: "system-ui" }}>
         <h2>Map Test - 100 Items</h2>
         <p style={{ fontSize: "12px", color: "#666" }}>
-          Testing: map over items with generateObject. Reload to test cache hits.
+          Testing: map over items with generateObject. Reload to test cache
+          hits.
         </p>
         <p style={{ fontSize: "12px", color: "#666" }}>
           <strong>Pending:</strong> {pendingCount} / {itemCount}
@@ -105,14 +108,18 @@ export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
 
         <div style={{ maxHeight: "400px", overflow: "auto" }}>
           {extractions.map((e) => (
-            <div style={{
-              padding: "4px 8px",
-              margin: "2px 0",
-              background: e.extraction.pending ? "#fef3c7" : "#d1fae5",
-              borderRadius: "4px",
-              fontSize: "11px",
-            }}>
-              {e.itemId}: {e.extraction.pending ? "⏳" : `✅ ${e.extraction.result?.wordCount} words`}
+            <div
+              style={{
+                padding: "4px 8px",
+                margin: "2px 0",
+                background: e.extraction.pending ? "#fef3c7" : "#d1fae5",
+                borderRadius: "4px",
+                fontSize: "11px",
+              }}
+            >
+              {e.itemId}: {e.extraction.pending
+                ? "⏳"
+                : `✅ ${e.extraction.result?.wordCount} words`}
             </div>
           ))}
         </div>

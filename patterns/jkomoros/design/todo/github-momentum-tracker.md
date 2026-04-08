@@ -2,12 +2,16 @@
 
 ## Overview
 
-A pattern to track the "momentum" of GitHub repositories by visualizing star growth over time and commit activity. Designed to help identify projects with accelerating growth (positive second derivative) vs plateauing or declining ones.
+A pattern to track the "momentum" of GitHub repositories by visualizing star
+growth over time and commit activity. Designed to help identify projects with
+accelerating growth (positive second derivative) vs plateauing or declining
+ones.
 
 ## Key Features
 
 1. **Star Sparklines**: Compact visualization of star growth over time
-2. **Momentum Detection**: Flag repos with positive second derivative (accelerating growth)
+2. **Momentum Detection**: Flag repos with positive second derivative
+   (accelerating growth)
 3. **Commit Activity Heatmap**: Simple bar chart showing recent commit frequency
 4. **Multi-repo Dashboard**: Track 20+ repos at a glance
 5. **Flexible Input**: Add repos via textbox accepting various URL formats
@@ -17,13 +21,16 @@ A pattern to track the "momentum" of GitHub repositories by visualizing star gro
 ### Authentication Strategy
 
 #### The Problem
+
 GitHub API rate limits:
+
 - **Unauthenticated**: 60 requests/hour (useless for 20+ repos)
 - **Authenticated**: 5,000 requests/hour (plenty for our use case)
 
 #### Solution: Separate `github-auth.tsx` Pattern
 
 Create a dedicated auth pattern (like `google-auth.tsx`) that:
+
 1. Walks user through creating a GitHub Personal Access Token (PAT)
 2. Stores the token
 3. Is discoverable via `wish("#githubAuth")`
@@ -33,7 +40,8 @@ Create a dedicated auth pattern (like `google-auth.tsx`) that:
 
 **Surprisingly easy!** Using classic tokens (simplest approach):
 
-1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → **Tokens (classic)**
+1. Go to github.com → Settings → Developer Settings → Personal Access Tokens →
+   **Tokens (classic)**
 2. Click "Generate new token (classic)"
 3. Name: "Common Fabric GitHub Access"
 4. Expiration: Set if desired (or "No expiration" for convenience)
@@ -41,17 +49,21 @@ Create a dedicated auth pattern (like `google-auth.tsx`) that:
 6. Click "Generate token"
 7. Copy token (shown only once), paste into auth pattern
 
-**One token works forever** (or until expiry). Same token works across all patterns.
+**One token works forever** (or until expiry). Same token works across all
+patterns.
 
 #### Security Note
 
-**Classic token with no scopes = read-only access to public data only. Cannot write anything.**
+**Classic token with no scopes = read-only access to public data only. Cannot
+write anything.**
 
 The auth pattern UI should remind users:
+
 - ⚠️ "Make sure you didn't check any scope boxes"
 - ✅ "No scopes = read-only = safe"
 
-(Fine-grained tokens exist as an alternative with mandatory expiration, but require more setup steps.)
+(Fine-grained tokens exist as an alternative with mandatory expiration, but
+require more setup steps.)
 
 #### Auth Pattern Design (`github-auth.tsx`)
 
@@ -60,7 +72,7 @@ The auth pattern UI should remind users:
 interface Output {
   token: string;
   isValid: boolean;
-  username: string;      // Fetched via /user endpoint to validate
+  username: string; // Fetched via /user endpoint to validate
   rateLimit: {
     remaining: number;
     limit: number;
@@ -70,6 +82,7 @@ interface Output {
 ```
 
 **UI Flow**:
+
 1. Check if token already exists → Show status (username, rate limit remaining)
 2. If no token or invalid:
    - Show clear instructions with link to GitHub token page
@@ -80,11 +93,12 @@ interface Output {
 4. Export `token` for other patterns to use
 
 **Token Validation**:
+
 ```typescript
 // Test token by fetching user info
 const validation = fetchData({
   url: "https://api.github.com/user",
-  headers: { Authorization: `Bearer ${token}` }
+  headers: { Authorization: `Bearer ${token}` },
 });
 // If 200 → valid, extract username
 // If 401 → invalid token
@@ -140,35 +154,45 @@ export default pattern<Input, Output>(({ authCharm, ... }) => {
 
 ### Data Fetching Approach
 
-**Challenge**: Getting full star history requires paginated API calls. A repo with 50k stars = 500 API calls.
+**Challenge**: Getting full star history requires paginated API calls. A repo
+with 50k stars = 500 API calls.
 
 **Solution**: Use sampling/approximation strategy:
+
 1. Fetch repo metadata first (total star count, created_at)
 2. Sample stargazers at strategic page offsets to estimate growth curve
 3. For recent data (last 30 days), fetch more granular data
 4. Use adaptive time resolution: weekly for older data, daily for recent
 
 **API Endpoints**:
+
 - `GET /repos/{owner}/{repo}` - Basic repo info (star count, created_at)
-- `GET /repos/{owner}/{repo}/stargazers` with `Accept: application/vnd.github.star+json` header - Starred timestamps
-- `GET /repos/{owner}/{repo}/stats/commit_activity` - Weekly commit counts (last 52 weeks)
+- `GET /repos/{owner}/{repo}/stargazers` with
+  `Accept: application/vnd.github.star+json` header - Starred timestamps
+- `GET /repos/{owner}/{repo}/stats/commit_activity` - Weekly commit counts (last
+  52 weeks)
 
 ### Visualization
 
 **Star Sparklines**:
+
 - SVG path element with smoothed line
 - Width ~200px, height ~40px
 - X-axis: time (adaptive resolution)
 - Y-axis: cumulative stars
-- Color-code by momentum: green (accelerating), yellow (steady), red (decelerating)
+- Color-code by momentum: green (accelerating), yellow (steady), red
+  (decelerating)
 
 **Momentum Indicator**:
+
 - Calculate 7-day moving average to smooth noise
 - First derivative = rate of new stars per week
 - Second derivative = change in rate (acceleration)
-- If second derivative consistently positive over last 4 weeks, flag as "accelerating"
+- If second derivative consistently positive over last 4 weeks, flag as
+  "accelerating"
 
 **Commit Activity Bar Chart**:
+
 - Simple horizontal bars showing commits per week
 - Last 12 weeks of data
 - Color intensity based on relative activity
@@ -176,6 +200,7 @@ export default pattern<Input, Output>(({ authCharm, ... }) => {
 ### Input URL Management
 
 **Parsing Strategy** (Best-effort):
+
 - Accept: `https://github.com/owner/repo`, `github.com/owner/repo`, `owner/repo`
 - Accept markdown links: `[name](https://github.com/owner/repo)`
 - Accept newline or comma delimited
@@ -184,6 +209,7 @@ export default pattern<Input, Output>(({ authCharm, ... }) => {
 - Deduplicate by normalized key
 
 **UI**:
+
 - If no `githubURLs` input provided, show input mode:
   - Textarea for bulk paste
   - "Add" button to parse and add repos
@@ -212,7 +238,7 @@ interface StarDataPoint {
 }
 
 interface MomentumAnalysis {
-  firstDerivative: number;  // stars/week (rate)
+  firstDerivative: number; // stars/week (rate)
   secondDerivative: number; // change in rate (acceleration)
   trend: "accelerating" | "steady" | "decelerating";
   confidence: "high" | "medium" | "low"; // based on data quality
@@ -252,6 +278,7 @@ interface TrackerOutput {
 ## Implementation Plan
 
 ### Phase 0: GitHub Auth Pattern (`github-auth.tsx`)
+
 - [ ] Create `github-auth.tsx` with basic structure
 - [ ] Add instructions UI with link to GitHub token creation page
 - [ ] Add token input textarea with "Validate" button
@@ -263,6 +290,7 @@ interface TrackerOutput {
 - [ ] Deploy and verify `wish("#githubAuth")` works
 
 ### Phase 1: Core Infrastructure (Momentum Tracker)
+
 - [ ] Create `github-momentum-tracker.tsx` with Input/Output types
 - [ ] Implement `wish("#githubAuth")` for auth discovery
 - [ ] Compose `GitHubAuth` inline as fallback if no wish result
@@ -270,6 +298,7 @@ interface TrackerOutput {
 - [ ] Create repo list management UI (add/remove)
 
 ### Phase 2: GitHub API Integration
+
 - [ ] Create fetchData wrapper for GitHub API with auth header
 - [ ] Implement repo metadata fetch (`/repos/{owner}/{repo}`)
 - [ ] Implement stargazers sampling strategy
@@ -277,18 +306,21 @@ interface TrackerOutput {
 - [ ] Handle rate limiting (show warning, queue requests)
 
 ### Phase 3: Data Processing
+
 - [ ] Implement star history aggregation (adaptive time resolution)
 - [ ] Implement moving average smoothing
 - [ ] Implement first/second derivative calculation
 - [ ] Implement momentum classification (accelerating/steady/decelerating)
 
 ### Phase 4: Visualization
+
 - [ ] Create SVG sparkline component
 - [ ] Create commit activity bar chart component
 - [ ] Add color-coding based on momentum
 - [ ] Create momentum badge/indicator
 
 ### Phase 5: Dashboard UI
+
 - [ ] Create repo card component with all visualizations
 - [ ] Create sortable/filterable repo list
 - [ ] Add "accelerating" filter to highlight hot repos
@@ -296,6 +328,7 @@ interface TrackerOutput {
 - [ ] Add "last updated" timestamp display
 
 ### Phase 6: Polish
+
 - [ ] Handle edge cases (0 stars, new repos, private repos)
 - [ ] Add loading states for each repo
 - [ ] Add error handling with retry option
@@ -305,38 +338,45 @@ interface TrackerOutput {
 ## Technical Challenges & Mitigations
 
 ### Challenge 1: API Rate Limiting
+
 **Risk**: 20+ repos with full history = potentially thousands of API calls
 **Mitigation**:
+
 - Sampling strategy (don't fetch all pages)
 - Caching via fetchData (framework handles)
 - Auth token for 5000 req/hr limit
 - Stagger requests, show progress
 
 ### Challenge 2: Star History Volume
-**Risk**: Large repos have millions of stars, can't fetch all
-**Mitigation**:
+
+**Risk**: Large repos have millions of stars, can't fetch all **Mitigation**:
+
 - Sample at logarithmic intervals (page 1, 10, 100, 1000, etc.)
 - Interpolate between samples
 - Focus precision on recent data (last 30-90 days)
 
 ### Challenge 3: Visualization Performance
-**Risk**: SVG with many data points may be slow
-**Mitigation**:
+
+**Risk**: SVG with many data points may be slow **Mitigation**:
+
 - Downsample to ~50-100 points for display
 - Use simple path (not individual circles)
 - Consider canvas for very large datasets
 
 ### Challenge 4: Framework Reactivity
-**Risk**: Many derived cells could cause perf issues
-**Mitigation**:
+
+**Risk**: Many derived cells could cause perf issues **Mitigation**:
+
 - Use "dumb map approach" per community-docs
 - Each repo processed independently (isolated caching)
 - Avoid derive-inside-map antipattern
 
 ## Similar Work / Reference
 
-- [star-history](https://github.com/star-history/star-history) - Web tool that inspired this
-- `google-auth.tsx` - **Auth pattern to model** - shows wish discovery, OAuth flow, favorite reminder
+- [star-history](https://github.com/star-history/star-history) - Web tool that
+  inspired this
+- `google-auth.tsx` - **Auth pattern to model** - shows wish discovery, OAuth
+  flow, favorite reminder
 - `cheeseboard-schedule.tsx` - Pattern using fetchData for external APIs
 - `prompt-injection-tracker.tsx` - Pattern with multi-level caching pipeline
 - `shopping-list.tsx` - Pattern for list management UI
@@ -344,8 +384,8 @@ interface TrackerOutput {
 
 ## Future: Generalized OAuth Component in Framework
 
-Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` component
-(like `<ct-google-oauth>`) that works with arbitrary OAuth providers.
+Instead of per-provider auth patterns, the framework could have a `<ct-oauth>`
+component (like `<ct-google-oauth>`) that works with arbitrary OAuth providers.
 
 ### What Would It Take?
 
@@ -363,39 +403,42 @@ Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` c
     scopes: ["read:user", "repo"],
     // clientSecret handled server-side
   }}
-/>
+/>;
 ```
 
 **Server-Side Requirements:**
+
 1. **OAuth callback endpoint** - Receive auth code from provider redirect
-2. **Token exchange endpoint** - Exchange code for access token (needs client_secret)
+2. **Token exchange endpoint** - Exchange code for access token (needs
+   client_secret)
 3. **Token refresh endpoint** - Refresh expired tokens
 4. **Secure secret storage** - Client secrets can't be in browser
 
 **Why This Is Harder Than PATs:**
 
-| Aspect | Personal Access Token | OAuth Flow |
-|--------|----------------------|------------|
-| User effort | Create on GitHub, paste | Click button, approve |
-| Server needed | No | Yes (token exchange) |
-| Client secret | Not needed | Required (server-side) |
-| App registration | Not needed | Need GitHub OAuth App |
-| Token refresh | Manual (new token) | Automatic |
-| Security model | User manages token | App manages token |
+| Aspect           | Personal Access Token   | OAuth Flow             |
+| ---------------- | ----------------------- | ---------------------- |
+| User effort      | Create on GitHub, paste | Click button, approve  |
+| Server needed    | No                      | Yes (token exchange)   |
+| Client secret    | Not needed              | Required (server-side) |
+| App registration | Not needed              | Need GitHub OAuth App  |
+| Token refresh    | Manual (new token)      | Automatic              |
+| Security model   | User manages token      | App manages token      |
 
 **Implementation Estimate:**
 
-| Component | Effort | Notes |
-|-----------|--------|-------|
-| `<ct-oauth>` component | 2-3 weeks | UI, state management, redirect handling |
-| Server endpoints | 1-2 weeks | Callback, exchange, refresh |
-| Provider configs | 1 week | GitHub, Google, others |
-| Secret management | 1 week | Secure storage, rotation |
-| Testing | 2 weeks | Each provider has quirks |
-| Security review | 1 week | Required for auth systems |
-| **Total** | **8-11 weeks** | For a robust implementation |
+| Component              | Effort         | Notes                                   |
+| ---------------------- | -------------- | --------------------------------------- |
+| `<ct-oauth>` component | 2-3 weeks      | UI, state management, redirect handling |
+| Server endpoints       | 1-2 weeks      | Callback, exchange, refresh             |
+| Provider configs       | 1 week         | GitHub, Google, others                  |
+| Secret management      | 1 week         | Secure storage, rotation                |
+| Testing                | 2 weeks        | Each provider has quirks                |
+| Security review        | 1 week         | Required for auth systems               |
+| **Total**              | **8-11 weeks** | For a robust implementation             |
 
 **Provider-Specific Quirks to Handle:**
+
 - GitHub: Token in response body (not JSON by default!)
 - Google: Refresh tokens only on first auth
 - Microsoft: Different token formats
@@ -404,34 +447,43 @@ Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` c
 ### Recommendation
 
 **For this pattern:** Stick with PAT approach
+
 - Much simpler to implement (days vs months)
 - No server-side changes needed
 - Fine-grained tokens are secure enough
 - Users can manage their own tokens
 
 **For framework long-term:** Generalized OAuth would be valuable
+
 - Better UX (click to auth vs manual token creation)
 - Could support many providers with config
 - But significant investment
 
-**Middle ground:** If GitHub-specific OAuth is needed later, could add `<ct-github-oauth>` as a one-off (like `<ct-google-oauth>`), then generalize if pattern emerges.
+**Middle ground:** If GitHub-specific OAuth is needed later, could add
+`<ct-github-oauth>` as a one-off (like `<ct-google-oauth>`), then generalize if
+pattern emerges.
 
 ## Open Questions
 
-1. Should we persist historical data to avoid re-fetching? (Framework caches, but clears eventually)
+1. Should we persist historical data to avoid re-fetching? (Framework caches,
+   but clears eventually)
 2. Should there be a "portfolio score" aggregating all repos?
 3. Should we support GitHub orgs (fetch all repos from an org)?
 4. Export functionality (CSV, image)?
-5. **Should we lobby for `<ct-github-oauth>` component in framework?** (Better UX than PAT)
+5. **Should we lobby for `<ct-github-oauth>` component in framework?** (Better
+   UX than PAT)
 
 ## Status
 
 **Current Phase**: Refactoring - Multi-Repo Architecture Fix
 
 **Previous Progress**:
+
 - ✅ Phase 0: `github-auth.tsx` complete and working
-- ✅ Phase 1-2: Core infrastructure with URL parsing, repo management, GitHub API
-- ✅ Star history sampling implemented (star-history.com approach with 10 sample pages)
+- ✅ Phase 1-2: Core infrastructure with URL parsing, repo management, GitHub
+  API
+- ✅ Star history sampling implemented (star-history.com approach with 10 sample
+  pages)
 - ✅ Commit activity heatmap working
 - ✅ Single repo works correctly
 
@@ -443,23 +495,35 @@ Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` c
 
 ### The Problem
 
-**Observed behavior**: When multiple repos are added, only the first repo (`repos[0]`) gets its star history fetched. Subsequent repos show "No data" even though they're in the list.
+**Observed behavior**: When multiple repos are added, only the first repo
+(`repos[0]`) gets its star history fetched. Subsequent repos show "No data" even
+though they're in the list.
 
-**Root cause**: The current architecture uses `repos.map()` with `fetchData` calls inside the map. When the `repos` array changes (e.g., first repo removed, second repo becomes `repos[0]`), the fetchData calls don't re-trigger - they're somehow "locked" to the original data.
+**Root cause**: The current architecture uses `repos.map()` with `fetchData`
+calls inside the map. When the `repos` array changes (e.g., first repo removed,
+second repo becomes `repos[0]`), the fetchData calls don't re-trigger - they're
+somehow "locked" to the original data.
 
 **Evidence**:
-- Network requests show stargazer API calls only for `anthropics/claude-code` (original repos[0])
-- After removing claude-code and keeping only `facebook/react`, NO new API requests are made for react
-- Console errors: `TypeError: Cannot read properties of undefined (reading 'data')`
+
+- Network requests show stargazer API calls only for `anthropics/claude-code`
+  (original repos[0])
+- After removing claude-code and keeping only `facebook/react`, NO new API
+  requests are made for react
+- Console errors:
+  `TypeError: Cannot read properties of undefined (reading 'data')`
 
 ### Why `.map()` + `fetchData` Doesn't Work
 
-The framework's `.map()` creates derived cells for each item, but `fetchData` calls within the map don't properly re-initialize when:
+The framework's `.map()` creates derived cells for each item, but `fetchData`
+calls within the map don't properly re-initialize when:
+
 1. Array items are reordered (removing first item shifts all indices)
 2. New items are added to positions that previously existed
 3. The reactive graph for the "old" items may be cached incorrectly
 
-This is likely a framework limitation with how `.map()` interacts with side-effectful operations like `fetchData`.
+This is likely a framework limitation with how `.map()` interacts with
+side-effectful operations like `fetchData`.
 
 ### The Solution: Pattern Composition with `ct-render`
 
@@ -483,12 +547,18 @@ This is likely a framework limitation with how `.map()` interacts with side-effe
 ### Why `ct-render` Solves This
 
 From COMPONENTS.md:
-> The `ct-render` component displays pattern instances within another pattern. Use this for **pattern composition** - combining multiple patterns together in a single pattern.
+
+> The `ct-render` component displays pattern instances within another pattern.
+> Use this for **pattern composition** - combining multiple patterns together in
+> a single pattern.
 
 Key insight from docs:
-> Use **ct-render** when the pattern wasn't instantiated from within this pattern but was passed in or **was stored in a list**.
+
+> Use **ct-render** when the pattern wasn't instantiated from within this
+> pattern but was passed in or **was stored in a list**.
 
 Each `ct-render` instance:
+
 - Has its own complete reactive graph
 - Has its own independent `fetchData` calls
 - Properly initializes when created, cleans up when removed
@@ -524,6 +594,7 @@ Each `ct-render` instance:
 ### Code Sketch
 
 **github-repo-card.tsx:**
+
 ```typescript
 interface Input {
   repoName: string;
@@ -555,6 +626,7 @@ export default pattern<Input, Output>(({ repoName, token }) => {
 ```
 
 **github-momentum-tracker.tsx (refactored):**
+
 ```typescript
 import RepoCard from "./github-repo-card.tsx";
 
@@ -596,7 +668,9 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
 
 ### Alternative Considered: 10 Fixed Repo Slots
 
-Could have 10 sets of fetchData (100 total) for up to 10 repos. Rejected because:
+Could have 10 sets of fetchData (100 total) for up to 10 repos. Rejected
+because:
+
 - Arbitrary limit (why 10?)
 - Lots of boilerplate code
 - Same fundamental reactivity issue might persist

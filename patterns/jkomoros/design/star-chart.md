@@ -2,7 +2,9 @@
 
 ## Overview
 
-A reward calendar for children learning daily habits. Shows a rolling 30-day timeline with gold stars for successful days and empty circles for missed days. Includes streak tracking with milestone celebrations and streak protection.
+A reward calendar for children learning daily habits. Shows a rolling 30-day
+timeline with gold stars for successful days and empty circles for missed days.
+Includes streak tracking with milestone celebrations and streak protection.
 
 ## Target Use Cases
 
@@ -41,12 +43,14 @@ A reward calendar for children learning daily habits. Shows a rolling 30-day tim
 ### 4. Milestone Celebrations
 
 Trigger special animations at these milestones:
+
 - **3 days:** Small celebration (first achievement!)
 - **7 days:** Medium celebration (one week!)
 - **14 days:** Bigger celebration (two weeks!)
 - **30 days:** Epic celebration (one month!)
 
 Celebration ideas:
+
 - Multiple star bursts
 - Confetti animation
 - Larger sparkle effects
@@ -130,11 +134,9 @@ Celebration ideas:
 - Looks "used up" or faded
 - Still counts toward streak but doesn't celebrate
 
-Legend:
-  ⭐ = Gold star (magical, shimmery, slightly tilted)
-  ○  = Empty circle (neutral, not earned)
-  ☆  = Protected day (dimmed star, no magic)
-  [ ] = Today's award button
+Legend: ⭐ = Gold star (magical, shimmery, slightly tilted) ○ = Empty circle
+(neutral, not earned) ☆ = Protected day (dimmed star, no magic) [ ] = Today's
+award button
 
 ## Technical Notes
 
@@ -142,10 +144,10 @@ Legend:
 
 ```typescript
 interface DayRecord {
-  date: string;           // YYYY-MM-DD
-  earned: boolean;        // Did they earn a star?
-  protected: boolean;     // Is this a streak-protected day?
-  rotation: number;       // Random rotation for sticker effect (-15 to 15)
+  date: string; // YYYY-MM-DD
+  earned: boolean; // Did they earn a star?
+  protected: boolean; // Is this a streak-protected day?
+  rotation: number; // Random rotation for sticker effect (-15 to 15)
 }
 
 interface StarChartInput {
@@ -173,6 +175,7 @@ interface StarChartInput {
 ### Animation Strategy
 
 Adapt from reward-spinner:
+
 - Use CSS keyframe animations for sparkle bursts
 - Toggle animation class/key to restart animations
 - Multiple sparkle elements at different angles/speeds
@@ -180,7 +183,8 @@ Adapt from reward-spinner:
 
 ## Design Decisions (Resolved)
 
-1. **Past day editing:** Yes, via separate "Details/Corrections" view for parents
+1. **Past day editing:** Yes, via separate "Details/Corrections" view for
+   parents
    - Main view optimized for daily star awarding
    - Corrections hidden away so kids focus on today
 
@@ -213,6 +217,7 @@ Adapt from reward-spinner:
 ## Implementation Phases
 
 ### Phase 1: Core Structure ✅
+
 - [x] Vertical timeline displaying days with stars
 - [x] Basic day records with date display
 - [x] Empty circles for unearned days (via ifElse)
@@ -221,6 +226,7 @@ Adapt from reward-spinner:
 - [x] Award button that adds stars for today
 
 ### Phase 2: Award Flow ✅
+
 - [x] "Award Star" button for today
 - [x] ~~Two-step flow (parent enables → child places)~~ Simplified to single tap
 - [x] ~~awardEnabled state toggle~~ Removed, single tap adds star
@@ -228,6 +234,7 @@ Adapt from reward-spinner:
 - [x] Clear instructions for parent/child
 
 ### Phase 3: Magical Stars ✅
+
 - [x] Random rotation per star (-15° to +15°, stored in record)
 - [x] Golden shimmer CSS animation
 - [x] Subtle jiggle animation
@@ -235,12 +242,14 @@ Adapt from reward-spinner:
 - [x] Sparkle burst on placement (8 particles with animation)
 
 ### Phase 3.5: Horizontal Timeline ✅
+
 - [x] Horizontal scrollable timeline showing all 30 days
 - [x] Dates displayed above each day slot
 - [x] Stars for earned days, dashed circles for empty days
 - [x] Uses derive() to pre-compute timeline data
 
 ### Phase 4: Streak System ✅
+
 - [x] Current streak calculation
 - [x] Streak display prominently (🔥 X days!)
 - [x] Best streak tracking
@@ -248,16 +257,19 @@ Adapt from reward-spinner:
 - [x] Dimmed star visual for protected days (opacity + grayscale + tooltip)
 
 ### Phase 5: Celebrations
+
 - [ ] Milestone detection (3, 7, 14, 30 days)
 - [ ] Milestone celebration animations
 - [ ] Celebration messages
 
 ### Phase 6: Corrections View ✅
+
 - [x] Toggle to corrections/details view (viewMode state)
 - [x] Simple list with toggle buttons (last 30 days)
 - [x] Back navigation to main view
 
 ### Phase 7: Polish ✅
+
 - [x] Goal name editing (retitling) - tappable header with ✏️ icon
 - [x] Optional goal description - shows in italics below goal name
 - [x] Settings view with ct-input for both fields
@@ -276,17 +288,23 @@ Adapt from reward-spinner:
 ### 2025-11-30 - Debug Refactoring
 
 **Changed debug approach from embedded panel to linked charm:**
+
 - Removed embedded debug panel (toggle button, date picker, clear data button)
 - Added `debugDate` input that can be linked to external date picker charm
-- Added documentation in pattern comments explaining how to use linked charms for debugging
+- Added documentation in pattern comments explaining how to use linked charms
+  for debugging
 - This keeps the UI clean for end users while allowing debugging via CLI
 
 **Key insight about computed() vs Cells:**
+
 - Inside `computed()`, Cells use `.get()` to access values: `days.get()`
-- Inside `computed()`, other computed values are accessed directly (no `.get()`): `effectiveToday as unknown as string`
-- Cast to unknown then to target type for TypeScript when accessing computed values
+- Inside `computed()`, other computed values are accessed directly (no
+  `.get()`): `effectiveToday as unknown as string`
+- Cast to unknown then to target type for TypeScript when accessing computed
+  values
 
 **Phases 1-3 complete:**
+
 - Core structure with vertical timeline
 - Two-step award flow (parent enables, child places)
 - Magical star effects (shimmer, jiggle, glow via CSS animations)
@@ -295,43 +313,56 @@ Adapt from reward-spinner:
 ### 2025-12-01 - Horizontal Timeline & Simplification
 
 **Simplified award flow:**
+
 - Removed two-step parent/child flow
 - Single tap on star button adds star immediately
 - More intuitive for daily use
 
 **Added sparkle burst animation:**
+
 - 8 sparkle particles (✦) burst outward on star placement
 - Star pops with scale/rotate animation
 - Uses sparkleKey state to trigger animation replay
 
 **Horizontal scrolling timeline:**
-- Changed from vertical list of only starred days to horizontal scroll of ALL days
+
+- Changed from vertical list of only starred days to horizontal scroll of ALL
+  days
 - Shows last 30 days with date labels above each slot
 - Stars appear for earned days, dashed circles for empty days
-- Uses derive() to pre-compute timeline data (avoid infinite loops from computed in map)
+- Uses derive() to pre-compute timeline data (avoid infinite loops from computed
+  in map)
 
 **Key insight about derive():**
+
 - Inside derive callback, Cell parameters may still need .get() for arrays
 - String cells may be unwrapped or not - use defensive check:
   `typeof val === "string" ? val : val?.get?.() ?? ""`
 
-**Current charm ID:** baedreiekx6msjmb7jbk2zhl5cqo6cflsbpb5tj7s3ifartnnehx6ipkvsm
+**Current charm ID:**
+baedreiekx6msjmb7jbk2zhl5cqo6cflsbpb5tj7s3ifartnnehx6ipkvsm
 
 ### 2025-12-01 - Corrections View Implementation
 
 **Implemented Phase 6:**
+
 - Added `viewMode` state to switch between main and corrections views
 - Created `enterCorrections` and `exitCorrections` handlers for view switching
 - Created `toggleDayStar` handler for toggling stars on past days
 - Added `correctionsList` derive to generate last 30 days with toggle states
 
 **Key insight about handler context vs event:**
+
 - CommonTools handlers don't reliably pass DOM event attributes (like `data-*`)
-- Solution: Pass dynamic data (like the date) as part of the handler context instead
-- Instead of `onClick={handler(context)} data-date={val}` then reading `event.target.dataset.date`
-- Use `onClick={handler({ ...context, dateToToggle: val })}` and read from context
+- Solution: Pass dynamic data (like the date) as part of the handler context
+  instead
+- Instead of `onClick={handler(context)} data-date={val}` then reading
+  `event.target.dataset.date`
+- Use `onClick={handler({ ...context, dateToToggle: val })}` and read from
+  context
 
 **Corrections view UI:**
+
 - "← Back" button to return to main view
 - "Edit Past Days" header with instruction
 - Scrollable list of last 30 days
@@ -341,6 +372,7 @@ Adapt from reward-spinner:
 ### 2025-12-01 - Phase 7: Goal Editing
 
 **Added settings view for goal editing:**
+
 - New `goalDescription` input field (optional)
 - New `viewMode: "settings"` for editing goal name/description
 - Tappable header in main view (with ✏️ icon) enters settings
@@ -355,12 +387,18 @@ Adapt from reward-spinner:
 ### 2025-12-01 - Timezone Bug Fix
 
 **Fixed date displaying wrong timezone:**
+
 - `toISOString()` returns UTC time, not local time
-- When local time is past midnight but UTC is still previous day, dates were wrong
-- Example: At 1am PST on Dec 1, `toISOString()` returns "2024-12-01T09:00:00.000Z" (UTC), but split gives the date as Dec 1 in UTC which might differ from local
+- When local time is past midnight but UTC is still previous day, dates were
+  wrong
+- Example: At 1am PST on Dec 1, `toISOString()` returns
+  "2024-12-01T09:00:00.000Z" (UTC), but split gives the date as Dec 1 in UTC
+  which might differ from local
 
 **Solution:**
-- Added `formatDateLocal(date)` helper using `getFullYear()`, `getMonth()`, `getDate()`
+
+- Added `formatDateLocal(date)` helper using `getFullYear()`, `getMonth()`,
+  `getDate()`
 - These methods return local timezone values
 - Updated all 4 locations using `toISOString().split("T")[0]`:
   - `getTodayString()`
@@ -369,6 +407,7 @@ Adapt from reward-spinner:
   - `correctionsList` derive
 
 **Testing with linked debug charm:**
+
 - Star chart: `baedreieoufj2ak6ya6abkb27viwpwiect4wo266x53s2bzq5jalb27oqsq`
 - Date picker: `baedreic6l42hkohuffvp6yehclrvf64amcgtywjqnk2k5ouk7gfmul2f5e`
 - Verified dates display correctly and linking works

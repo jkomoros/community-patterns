@@ -1,6 +1,7 @@
 # Pattern Integration Learnings
 
 ## Date: November 8, 2025
+
 ## Patterns Studied: gmail-charm-creator, gmail-importer, gmail-auth, test-recipe-with-extraction, meta-analyzer
 
 ---
@@ -10,26 +11,28 @@
 ### 1. Gmail Integration Architecture
 
 **How it works:**
+
 - `gmail-auth.tsx` provides Google OAuth authentication
 - `gmail-importer.tsx` consumes auth and fetches/stores emails
 - `gmail-charm-creator.tsx` orchestrates creating instances of both
 
-**For our use case:**
-We have TWO options:
+**For our use case:** We have TWO options:
 
 #### Option A: Embed GmailImporter directly (SIMPLER)
+
 ```typescript
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
 export default recipe("Prompt Injection Tracker", () => {
   // Create auth instance
-  const auth = GmailAuth({ auth: { /* defaults */ } });
+  const auth = GmailAuth({ auth: {/* defaults */} });
 
   // Create importer with hardcoded query
   const importer = GmailImporter({
     settings: {
-      gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
+      gmailFilterQuery:
+        'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
       limit: 100,
       historyId: "",
     },
@@ -44,13 +47,14 @@ export default recipe("Prompt Injection Tracker", () => {
 ```
 
 #### Option B: Link to external GmailImporter charm (MORE FLEXIBLE)
+
 ```typescript
 export default recipe<{ gmailImporter: any }>(
   "Prompt Injection Tracker",
   ({ gmailImporter }) => {
     const emails = gmailImporter.emails; // Cell<Email[]>
     // Use emails...
-  }
+  },
 );
 ```
 
@@ -64,21 +68,22 @@ From `gmail-importer.tsx`, the Email type has:
 
 ```typescript
 type Email = {
-  id: string;                    // ✅ Unique message ID (use for deduplication!)
-  threadId: string;              // Thread ID (will be same for all alerts)
-  labelIds: string[];            // Gmail labels
-  snippet: string;               // Brief preview
-  subject: string;               // Email subject
-  from: string;                  // Sender email
-  date: string;                  // Send date
-  to: string;                    // Recipient
-  plainText: string;             // Plain text (often empty)
-  htmlContent: string;           // ✅ HTML content (has the JSON + HTML we saw)
-  markdownContent: string;       // ✅ Markdown version (best for LLM processing)
+  id: string; // ✅ Unique message ID (use for deduplication!)
+  threadId: string; // Thread ID (will be same for all alerts)
+  labelIds: string[]; // Gmail labels
+  snippet: string; // Brief preview
+  subject: string; // Email subject
+  from: string; // Sender email
+  date: string; // Send date
+  to: string; // Recipient
+  plainText: string; // Plain text (often empty)
+  htmlContent: string; // ✅ HTML content (has the JSON + HTML we saw)
+  markdownContent: string; // ✅ Markdown version (best for LLM processing)
 };
 ```
 
 **Perfect for us:**
+
 - `email.id` = unique message ID (use this for deduplication, not threadId!)
 - `email.markdownContent` = the content we examined (JSON + markdown links)
 - `email.date` = when email was received
@@ -88,17 +93,20 @@ type Email = {
 ### 3. LLM Extraction Pattern (from test-recipe-with-extraction.tsx)
 
 **Key pattern:**
+
 ```typescript
 // 1. Create trigger cell
 const extractTrigger = cell<string>("");
 
 // 2. Call generateObject with trigger as prompt
-const { result: extractionResult, pending: extractionPending } = generateObject({
-  system: "Your system prompt...",
-  prompt: extractTrigger,  // ✅ Reactive cell
-  model: "anthropic:claude-sonnet-4-5",
-  schema: { /* JSON schema */ },
-});
+const { result: extractionResult, pending: extractionPending } = generateObject(
+  {
+    system: "Your system prompt...",
+    prompt: extractTrigger, // ✅ Reactive cell
+    model: "anthropic:claude-sonnet-4-5",
+    schema: {/* JSON schema */},
+  },
+);
 
 // 3. Handler updates trigger cell with timestamp to force re-trigger
 const triggerExtraction = handler<
@@ -111,9 +119,12 @@ const triggerExtraction = handler<
 );
 
 // 4. Use pending state in UI
-<ct-button onClick={triggerExtraction({ notes, extractTrigger })} disabled={extractionPending}>
+<ct-button
+  onClick={triggerExtraction({ notes, extractTrigger })}
+  disabled={extractionPending}
+>
   {extractionPending ? "Extracting..." : "Extract Recipe"}
-</ct-button>
+</ct-button>;
 
 // 5. Check if result exists before showing
 const hasResult = derive(extractionResult, (result) => {
@@ -123,6 +134,7 @@ const hasResult = derive(extractionResult, (result) => {
 ```
 
 **Apply to our pattern:**
+
 - Each email needs its own extraction trigger
 - Use `generateObject` for structured output
 - Track pending state to show progress
@@ -133,17 +145,23 @@ const hasResult = derive(extractionResult, (result) => {
 ### 4. Multi-Item Processing (from meta-analyzer.tsx)
 
 **Key pattern:**
+
 ```typescript
 // 1. Get items to process
 const allCharms = wish("#allCharms", []);
-const personCharms = derive(allCharms, (charms) =>
-  charms.filter((charm: any) => charm && "profile" in charm)
+const personCharms = derive(
+  allCharms,
+  (charms) => charms.filter((charm: any) => charm && "profile" in charm),
 );
 
 // 2. Handler creates snapshot for analysis
 const triggerAnalysis = handler<
   Record<string, never>,
-  { analysisInput: Cell<string>; personCharms: Array<OpaqueRef<PersonCharm>>; hasAnalyzed: Cell<boolean> }
+  {
+    analysisInput: Cell<string>;
+    personCharms: Array<OpaqueRef<PersonCharm>>;
+    hasAnalyzed: Cell<boolean>;
+  }
 >(
   (_, { analysisInput, personCharms, hasAnalyzed }) => {
     const snapshot = personCharms.map((charm, idx) => ({
@@ -152,15 +170,19 @@ const triggerAnalysis = handler<
       notes: charm.notes || "",
     }));
 
-    analysisInput.set(`${JSON.stringify(snapshot)}\n---ANALYZE-${Date.now()}---`);
+    analysisInput.set(
+      `${JSON.stringify(snapshot)}\n---ANALYZE-${Date.now()}---`,
+    );
     hasAnalyzed.set(true);
   },
 );
 ```
 
 **Apply to our pattern:**
+
 - We need to process multiple emails (like processing multiple person charms)
-- **BUT** we need sequential processing (can't batch all emails into one LLM call)
+- **BUT** we need sequential processing (can't batch all emails into one LLM
+  call)
 - Need to track which emails are processed
 - Need progress indicator (X of Y emails)
 
@@ -179,7 +201,7 @@ const googleUpdater = handler<unknown, {
   auth: Cell<Auth>;
   settings: Cell<Settings>;
 }>(
-  async (_event, state) => {  // ✅ Handler can be async!
+  async (_event, state) => { // ✅ Handler can be async!
     console.log("googleUpdater!");
 
     const result = await process(auth, limit, query, { emails, settings });
@@ -195,6 +217,7 @@ const googleUpdater = handler<unknown, {
 **Key insight:** Handlers can be `async` and await promises!
 
 **Apply to our pattern:**
+
 - Handler can trigger email processing
 - Handler can await web fetches
 - Handler can await LLM responses (though generateObject is reactive)
@@ -205,6 +228,7 @@ const googleUpdater = handler<unknown, {
 ### 6. Processing Strategy for Sequential Email Analysis
 
 **Problem:** We need to:
+
 1. Fetch N unprocessed emails
 2. For EACH email (sequentially):
    - Parse JSON
@@ -274,7 +298,8 @@ const saveAndContinue = handler((_, { result, currentEmail, reports, processedEm
 
 **Alternative (BETTER): Batch process with WebFetch in handler**
 
-Actually, we CAN do web fetching in handlers! WebFetch is NOT reactive like generateObject.
+Actually, we CAN do web fetching in handlers! WebFetch is NOT reactive like
+generateObject.
 
 ```typescript
 const processEmails = handler<unknown, {
@@ -285,7 +310,7 @@ const processEmails = handler<unknown, {
   async (_, { emails, processedEmailIds, reports }) => {
     const allEmails = emails.get();
     const processed = new Set(processedEmailIds.get());
-    const unprocessed = allEmails.filter(email => !processed.has(email.id));
+    const unprocessed = allEmails.filter((email) => !processed.has(email.id));
 
     // Process each email
     for (const email of unprocessed) {
@@ -301,13 +326,14 @@ const processEmails = handler<unknown, {
       // Now we need LLM classification...
       // This is where it gets tricky - can't call generateObject from handler
     }
-  }
+  },
 );
 ```
 
 **Problem:** Can't call `generateObject` or `llm` from inside handlers!
 
 **Hybrid Solution:**
+
 - Use handler for web fetching (can await)
 - Use reactive cells + generateObject for LLM calls
 - Process emails in small batches
@@ -319,6 +345,7 @@ const processEmails = handler<unknown, {
 Based on learnings, here's the updated approach:
 
 **Architecture:**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Prompt Injection Tracker Pattern                            │
@@ -375,12 +402,15 @@ Based on learnings, here's the updated approach:
 ```
 
 **Challenges:**
+
 1. ❌ Can't call `generateObject` from handlers (only in recipe body)
-2. ❌ Can't loop with sequential LLM calls (reactive graph doesn't support imperative loops)
+2. ❌ Can't loop with sequential LLM calls (reactive graph doesn't support
+   imperative loops)
 3. ✅ CAN do web fetching in handlers (async/await works)
 4. ✅ CAN use handlers to update state after LLM completes
 
 **Revised Approach - Simpler v1:**
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │ SIMPLIFIED: Process ALL emails in ONE LLM call      │
@@ -415,18 +445,23 @@ Based on learnings, here's the updated approach:
 ```
 
 **Benefits:**
+
 - ✅ Simpler flow (2 LLM stages instead of per-email processing)
 - ✅ More cost-efficient (batch processing)
 - ✅ Faster (parallel analysis of multiple emails)
 - ✅ Works with reactive constraints
 
 **Drawbacks:**
+
 - ❌ Can't follow original URLs mid-stream (would need second batch)
 - ❌ Less granular progress ("analyzing..." vs "email 3 of 10")
 
 **Solution:** Two-phase processing
-1. **Phase 1 (batch):** Classify all article URLs, extract original URLs for reposts
-2. **Phase 2 (batch):** Fetch original URLs, deduplicate, extract details for novel reports
+
+1. **Phase 1 (batch):** Classify all article URLs, extract original URLs for
+   reposts
+2. **Phase 2 (batch):** Fetch original URLs, deduplicate, extract details for
+   novel reports
 
 ---
 
@@ -545,6 +580,7 @@ This is getting complex. Let me think about a simpler approach...
 ### 9. SIMPLEST Approach (Recommended for v1)
 
 **Key insight:** We don't NEED to fetch article content to classify!
+
 - The email already contains: title, description, source domain
 - That's enough for basic classification
 - We can skip the "fetch article" step initially
@@ -588,6 +624,7 @@ This is getting complex. Let me think about a simpler approach...
 ```
 
 **Why this is better:**
+
 - ✅ No unnecessary article fetches (only fetch novel reports)
 - ✅ Batch processing (fast)
 - ✅ Clear separation: parse → classify → dedupe → fetch → extract → save
@@ -598,20 +635,25 @@ This is getting complex. Let me think about a simpler approach...
 ## Code Patterns to Reuse
 
 ### From gmail-importer: Email Filtering
+
 ```typescript
 // Get unprocessed emails
 const allEmails = gmailImporter.emails; // Cell<Email[]>
 const processed = processedEmailIds; // Cell<string[]>
 
-const unprocessedEmails = derive({ allEmails, processed }, ({ allEmails, processed }) => {
-  const processedSet = new Set(processed);
-  return allEmails.filter(email => !processedSet.has(email.id));
-});
+const unprocessedEmails = derive(
+  { allEmails, processed },
+  ({ allEmails, processed }) => {
+    const processedSet = new Set(processed);
+    return allEmails.filter((email) => !processedSet.has(email.id));
+  },
+);
 
 const unprocessedCount = derive(unprocessedEmails, (list) => list.length);
 ```
 
 ### From test-recipe: LLM Trigger Pattern
+
 ```typescript
 const trigger = cell<string>("");
 
@@ -622,26 +664,29 @@ const startProcess = handler((_, { inputData, trigger }) => {
 
 const { result, pending } = generateObject({
   prompt: trigger,
-  schema: { /* ... */ },
+  schema: {/* ... */},
 });
 
 <ct-button onClick={startProcess({ inputData, trigger })} disabled={pending}>
   {pending ? "Processing..." : "Process"}
-</ct-button>
+</ct-button>;
 ```
 
 ### From meta-analyzer: Check Result Before Showing
+
 ```typescript
 const hasResults = derive(result, (r) => {
   if (!r || r === null) return false;
   return Array.isArray(r.items) && r.items.length > 0;
 });
 
-{ifElse(
-  hasResults,
-  <div>Show results...</div>,
-  <div>No results found</div>
-)}
+{
+  ifElse(
+    hasResults,
+    <div>Show results...</div>,
+    <div>No results found</div>,
+  );
+}
 ```
 
 ---
@@ -650,13 +695,17 @@ const hasResults = derive(result, (r) => {
 
 Based on learnings:
 
-1. **✅ Embed Gmail Integration:** Import and instantiate GmailAuth + GmailImporter directly
-2. **✅ Batch Processing:** Process all unprocessed emails in one go (not one-at-a-time)
-3. **✅ Minimal Article Fetching:** Only fetch article content for novel reports (not for classification)
+1. **✅ Embed Gmail Integration:** Import and instantiate GmailAuth +
+   GmailImporter directly
+2. **✅ Batch Processing:** Process all unprocessed emails in one go (not
+   one-at-a-time)
+3. **✅ Minimal Article Fetching:** Only fetch article content for novel reports
+   (not for classification)
 4. **✅ Two-Phase LLM:**
    - Phase 1: Classify batch of emails (input: title/desc/url from email JSON)
    - Phase 2: Extract details for novel reports (input: fetched article content)
-5. **✅ URL-based deduplication:** After classification, normalize URLs and check against existing
+5. **✅ URL-based deduplication:** After classification, normalize URLs and
+   check against existing
 6. **✅ Use Email.id:** Track processed emails by their unique message ID
 
 ---
@@ -669,4 +718,3 @@ Based on learnings:
 4. Implement Phase 1 LLM classification
 5. Implement URL deduplication
 6. Implement Phase 2 LLM extraction for novel reports
-

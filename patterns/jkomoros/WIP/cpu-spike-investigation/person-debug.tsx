@@ -8,16 +8,16 @@ import {
   NAME,
   navigateTo,
   type Opaque,
-  patternTool,
   pattern,
+  patternTool,
+  safeDateNow,
   str,
   UI,
   wish,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 import { type MentionablePiece } from "../../../../../labs/packages/patterns/system/backlinks-index.tsx";
-import { computeWordDiff, compareFields } from "../../utils/diff-utils.ts";
+import { compareFields, computeWordDiff } from "../../utils/diff-utils.ts";
 
 // Performance measurement - set to true to see timing in console
 const PERF_MEASURE = false;
@@ -103,7 +103,11 @@ type Origin =
   | "random";
 
 // Gift-giving tier
-type GiftTier = "gift-always" | "gift-occasions" | "gift-reciprocal" | "gift-none";
+type GiftTier =
+  | "gift-always"
+  | "gift-occasions"
+  | "gift-reciprocal"
+  | "gift-none";
 
 // Labels for display
 const RELATIONSHIP_TYPE_LABELS: Record<RelationshipType, string> = {
@@ -184,32 +188,64 @@ const GIFT_TIER_LABELS: Record<GiftTier, string> = {
 // Grouped relationship types for UI organization
 const RELATIONSHIP_TYPE_GROUPS = {
   "Professional": [
-    "colleague", "former-colleague", "manager", "direct-report",
-    "mentor", "mentee", "client", "vendor", "investor",
-    "founder", "advisor", "recruiter", "collaborator",
+    "colleague",
+    "former-colleague",
+    "manager",
+    "direct-report",
+    "mentor",
+    "mentee",
+    "client",
+    "vendor",
+    "investor",
+    "founder",
+    "advisor",
+    "recruiter",
+    "collaborator",
   ] as RelationshipType[],
   "Personal": [
-    "friend", "acquaintance", "neighbor", "classmate",
-    "roommate", "ex-partner", "online-friend",
+    "friend",
+    "acquaintance",
+    "neighbor",
+    "classmate",
+    "roommate",
+    "ex-partner",
+    "online-friend",
   ] as RelationshipType[],
   "Family": [
-    "spouse", "parent", "child", "grandparent", "grandchild",
-    "sibling", "aunt-uncle", "niece-nephew",
-    "cousin", "cousin-elder", "cousin-younger", "chosen-family",
+    "spouse",
+    "parent",
+    "child",
+    "grandparent",
+    "grandchild",
+    "sibling",
+    "aunt-uncle",
+    "niece-nephew",
+    "cousin",
+    "cousin-elder",
+    "cousin-younger",
+    "chosen-family",
   ] as RelationshipType[],
   "Family Modifiers": [
-    "in-law", "step", "half", "adopted",
+    "in-law",
+    "step",
+    "half",
+    "adopted",
   ] as RelationshipType[],
   "Service": [
-    "service-provider", "support-contact",
+    "service-provider",
+    "support-contact",
   ] as RelationshipType[],
 };
 
 // Items for ct-autocomplete relationship type picker
 const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
-  .flatMap(([group, types]) => types.map((type) => ({
-    value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
-  })));
+  .flatMap(([group, types]) =>
+    types.map((type) => ({
+      value: type,
+      label: RELATIONSHIP_TYPE_LABELS[type],
+      group,
+    }))
+  );
 
 type EmailEntry = {
   type: ContactType;
@@ -538,7 +574,9 @@ const applyExtractedData = handler<
       const updatedSocials = [...currentSocials];
 
       if (data.twitter) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "twitter");
+        const idx = updatedSocials.findIndex((l) =>
+          l && l.platform === "twitter"
+        );
         if (idx >= 0) {
           updatedSocials[idx] = { platform: "twitter", handle: data.twitter };
         } else {
@@ -547,7 +585,9 @@ const applyExtractedData = handler<
       }
 
       if (data.linkedin) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "linkedin");
+        const idx = updatedSocials.findIndex((l) =>
+          l && l.platform === "linkedin"
+        );
         if (idx >= 0) {
           updatedSocials[idx] = { platform: "linkedin", handle: data.linkedin };
         } else {
@@ -556,7 +596,9 @@ const applyExtractedData = handler<
       }
 
       if (data.github) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "github");
+        const idx = updatedSocials.findIndex((l) =>
+          l && l.platform === "github"
+        );
         if (idx >= 0) {
           updatedSocials[idx] = { platform: "github", handle: data.github };
         } else {
@@ -565,7 +607,9 @@ const applyExtractedData = handler<
       }
 
       if (data.instagram) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "instagram");
+        const idx = updatedSocials.findIndex((l) =>
+          l && l.platform === "instagram"
+        );
         if (idx >= 0) {
           updatedSocials[idx] = {
             platform: "instagram",
@@ -580,7 +624,9 @@ const applyExtractedData = handler<
       }
 
       if (data.mastodon) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "mastodon");
+        const idx = updatedSocials.findIndex((l) =>
+          l && l.platform === "mastodon"
+        );
         if (idx >= 0) {
           updatedSocials[idx] = { platform: "mastodon", handle: data.mastodon };
         } else {
@@ -652,19 +698,23 @@ const Person = pattern<Input, Output>(
 
     // Create derived values for each social platform
     const twitterHandle = computed(
-      () => socialLinks.find((l) => l && l.platform === "twitter")?.handle ?? "",
+      () =>
+        socialLinks.find((l) => l && l.platform === "twitter")?.handle ?? "",
     );
     const linkedinHandle = computed(
-      () => socialLinks.find((l) => l && l.platform === "linkedin")?.handle ?? "",
+      () =>
+        socialLinks.find((l) => l && l.platform === "linkedin")?.handle ?? "",
     );
     const githubHandle = computed(
       () => socialLinks.find((l) => l && l.platform === "github")?.handle ?? "",
     );
     const instagramHandle = computed(
-      () => socialLinks.find((l) => l && l.platform === "instagram")?.handle ?? "",
+      () =>
+        socialLinks.find((l) => l && l.platform === "instagram")?.handle ?? "",
     );
     const mastodonHandle = computed(
-      () => socialLinks.find((l) => l && l.platform === "mastodon")?.handle ?? "",
+      () =>
+        socialLinks.find((l) => l && l.platform === "mastodon")?.handle ?? "",
     );
 
     // Trigger for LLM extraction - cell that holds notes snapshot to extract
@@ -760,13 +810,23 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     const notesDiffChunks = computed(() => {
       const t0 = PERF_MEASURE ? safeDateNow() : 0;
       const notesChange = changesPreview.find((c) => c.field === "Notes");
-      if (!notesChange || !notesChange.from || !notesChange.to ||
-          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
-        if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: skipped (no diff needed)`);
+      if (
+        !notesChange || !notesChange.from || !notesChange.to ||
+        notesChange.from === "(empty)" || notesChange.to === "(empty)"
+      ) {
+        if (PERF_MEASURE) {
+          console.log(`[PERF] notesDiffChunks: skipped (no diff needed)`);
+        }
         return [];
       }
       const result = computeWordDiff(notesChange.from, notesChange.to);
-      if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: ${safeDateNow() - t0}ms, ${result.length} chunks`);
+      if (PERF_MEASURE) {
+        console.log(
+          `[PERF] notesDiffChunks: ${
+            safeDateNow() - t0
+          }ms, ${result.length} chunks`,
+        );
+      }
       return result;
     });
 
@@ -791,7 +851,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     margin: "0 auto",
                   }}
                 >
-                  <h3 style={{ margin: 0, fontSize: "16px" }}>Review Extracted Changes</h3>
+                  <h3 style={{ margin: 0, fontSize: "16px" }}>
+                    Review Extracted Changes
+                  </h3>
                   <p style={{ margin: 0, color: "#666", fontSize: "13px" }}>
                     The following changes will be applied to your profile:
                   </p>
@@ -950,7 +1012,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                   <cf-vstack style="padding: 16px; gap: 12px;">
                     {/* Basic Identity Section */}
                     <cf-vstack style="gap: 6px;">
-                      <h3 style="margin: 0 0 4px 0; font-size: 14px;">Basic Information</h3>
+                      <h3 style="margin: 0 0 4px 0; font-size: 14px;">
+                        Basic Information
+                      </h3>
 
                       <label>
                         Display Name
@@ -1005,7 +1069,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                     {/* Contact Section */}
                     <cf-vstack style="gap: 6px;">
-                      <h3 style="margin: 0 0 4px 0; font-size: 14px;">Contact Information</h3>
+                      <h3 style="margin: 0 0 4px 0; font-size: 14px;">
+                        Contact Information
+                      </h3>
 
                       <label>
                         Email
@@ -1028,7 +1094,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                     {/* Social Media Section */}
                     <cf-vstack style="gap: 6px;">
-                      <h3 style="margin: 0 0 4px 0; font-size: 14px;">Social Media</h3>
+                      <h3 style="margin: 0 0 4px 0; font-size: 14px;">
+                        Social Media
+                      </h3>
 
                       <label>
                         Twitter / X
@@ -1098,18 +1166,23 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                   <cf-vstack style="padding: 16px; gap: 16px;">
                     {/* Relationship Types Section */}
                     <cf-vstack style="gap: 8px;">
-                      <h3 style="margin: 0; font-size: 14px;">Relationship Type</h3>
+                      <h3 style="margin: 0; font-size: 14px;">
+                        Relationship Type
+                      </h3>
                       <p style="margin: 0; font-size: 12px; color: #666;">
-                        Select all that apply. Family modifiers (in-law, step, etc.) stack with base types.
+                        Select all that apply. Family modifiers (in-law, step,
+                        etc.) stack with base types.
                       </p>
 
                       {/* Selected relationship type tags */}
-                      <div style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "6px",
-                        minHeight: "32px",
-                      }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "6px",
+                          minHeight: "32px",
+                        }}
+                      >
                         {relationshipTypes.map((type: RelationshipType) => (
                           <span
                             style={{
@@ -1165,7 +1238,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         $value={closeness}
                         items={[
                           { label: "Not set", value: "" },
-                          ...Object.entries(CLOSENESS_LABELS).map(([value, label]) => ({
+                          ...Object.entries(CLOSENESS_LABELS).map((
+                            [value, label],
+                          ) => ({
                             label,
                             value,
                           })),
@@ -1177,11 +1252,17 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     <cf-vstack style="gap: 8px;">
                       <h3 style="margin: 0; font-size: 14px;">How You Met</h3>
                       <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                        {Object.entries(ORIGIN_LABELS).map(([origin, label]) => (
+                        {Object.entries(ORIGIN_LABELS).map((
+                          [origin, label],
+                        ) => (
                           <cf-button
                             size="sm"
                             variant={computed(() =>
-                              (origins as unknown as Origin[]).includes(origin as Origin) ? "primary" : "secondary"
+                              (origins as unknown as Origin[]).includes(
+                                  origin as Origin,
+                                )
+                                ? "primary"
+                                : "secondary"
                             )}
                             onClick={toggleOrigin({
                               origins,
@@ -1201,7 +1282,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         $value={giftTier}
                         items={[
                           { label: "Not set", value: "" },
-                          ...Object.entries(GIFT_TIER_LABELS).map(([value, label]) => ({
+                          ...Object.entries(GIFT_TIER_LABELS).map((
+                            [value, label],
+                          ) => ({
                             label,
                             value,
                           })),
@@ -1219,7 +1302,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                             checked={innerCircle}
                             onChange={toggleFlag({ flag: innerCircle })}
                           />
-                          <span style="font-size: 13px;">Inner Circle (would drop everything for them)</span>
+                          <span style="font-size: 13px;">
+                            Inner Circle (would drop everything for them)
+                          </span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                           <input
@@ -1227,15 +1312,21 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                             checked={emergencyContact}
                             onChange={toggleFlag({ flag: emergencyContact })}
                           />
-                          <span style="font-size: 13px;">Emergency Contact</span>
+                          <span style="font-size: 13px;">
+                            Emergency Contact
+                          </span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                           <input
                             type="checkbox"
                             checked={professionalReference}
-                            onChange={toggleFlag({ flag: professionalReference })}
+                            onChange={toggleFlag({
+                              flag: professionalReference,
+                            })}
                           />
-                          <span style="font-size: 13px;">Professional Reference</span>
+                          <span style="font-size: 13px;">
+                            Professional Reference
+                          </span>
                         </label>
                       </cf-vstack>
                     </cf-vstack>
@@ -1320,7 +1411,13 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       triggerExtraction: triggerExtraction({ notes, extractTrigger }),
       // Pattern tools for omnibot
       getContactInfo: patternTool(
-        ({ displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }) => {
+        (
+          { displayName, emails, phones }: {
+            displayName: string;
+            emails: EmailEntry[];
+            phones: PhoneEntry[];
+          },
+        ) => {
           return computed(() => {
             const parts = [`Name: ${displayName || "Not provided"}`];
             if (emails && emails.length > 0) {
@@ -1332,7 +1429,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
             return parts.join("\n");
           });
         },
-        { displayName: effectiveDisplayName, emails, phones }
+        { displayName: effectiveDisplayName, emails, phones },
       ),
       searchNotes: patternTool(
         ({ query, notes }: { query: string; notes: string }) => {
@@ -1343,16 +1440,19 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
             );
           });
         },
-        { notes }
+        { notes },
       ),
       getSocialLinks: patternTool(
         ({ socialLinks }: { socialLinks: SocialLink[] }) => {
           return computed(() => {
-            if (!socialLinks || socialLinks.length === 0) return "No social media links";
-            return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join("\n");
+            if (!socialLinks || socialLinks.length === 0) {
+              return "No social media links";
+            }
+            return socialLinks.map((link) => `${link.platform}: ${link.handle}`)
+              .join("\n");
           });
         },
-        { socialLinks }
+        { socialLinks },
       ),
     };
   },

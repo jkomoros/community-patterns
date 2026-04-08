@@ -13,7 +13,6 @@
  * See design/todo/spindle-prd.md for full specification.
  */
 import {
-  Writable,
   Default,
   derive,
   generateObject,
@@ -22,6 +21,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // =============================================================================
@@ -92,14 +92,16 @@ const DEFAULT_LEVELS: LevelConfig[] = [
   {
     index: 1,
     title: "Characters & Themes",
-    defaultPrompt: "Based on the synopsis, identify the main characters, key plot points, and central themes of this story.",
+    defaultPrompt:
+      "Based on the synopsis, identify the main characters, key plot points, and central themes of this story.",
     branchFactor: 1,
     isRoot: false,
   },
   {
     index: 2,
     title: "Chapters",
-    defaultPrompt: "Write detailed chapter summaries that develop the characters and themes identified above.",
+    defaultPrompt:
+      "Write detailed chapter summaries that develop the characters and themes identified above.",
     branchFactor: 1,
     isRoot: false,
   },
@@ -145,7 +147,7 @@ function simpleHash(str: string): string {
  */
 function remapParentIndices(
   spindles: readonly SpindleConfig[],
-  deletedIndices: Set<number>
+  deletedIndices: Set<number>,
 ): SpindleConfig[] {
   // Build old -> new index mapping
   const indexMap = new Map<number, number>();
@@ -161,8 +163,9 @@ function remapParentIndices(
     .filter((_, idx) => !deletedIndices.has(idx))
     .map((s) => ({
       ...s,
-      parentIndex:
-        s.parentIndex !== null ? (indexMap.get(s.parentIndex) ?? null) : null,
+      parentIndex: s.parentIndex !== null
+        ? (indexMap.get(s.parentIndex) ?? null)
+        : null,
     }));
 }
 
@@ -172,7 +175,7 @@ function remapParentIndices(
  */
 function findChildIndices(
   spindles: readonly SpindleConfig[],
-  parentIdx: number
+  parentIdx: number,
 ): number[] {
   const childIndices: number[] = [];
   spindles.forEach((s, idx) => {
@@ -254,7 +257,7 @@ function actuallyApplyBranchFactor(
   levelIndex: number,
   newFactor: number,
   currentLevels: LevelConfig[],
-  currentSpindles: SpindleConfig[]
+  currentSpindles: SpindleConfig[],
 ) {
   const level = currentLevels[levelIndex];
   const oldFactor = level.branchFactor;
@@ -277,14 +280,19 @@ function actuallyApplyBranchFactor(
       for (const parentIdx of pinnedParentIndices) {
         const parent = currentSpindles[parentIdx];
         // Find existing siblings (children of this parent at the target level)
-        const existingSiblingIndices = findChildIndices(currentSpindles, parentIdx);
+        const existingSiblingIndices = findChildIndices(
+          currentSpindles,
+          parentIdx,
+        );
 
         // Create additional siblings
         for (let i = oldFactor; i < newFactor; i++) {
           currentSpindles.push({
             parentIndex: parentIdx,
             levelIndex: levelIndex,
-            positionInLevel: currentSpindles.filter((s) => s.levelIndex === levelIndex).length,
+            positionInLevel: currentSpindles.filter((s) =>
+              s.levelIndex === levelIndex
+            ).length,
             siblingIndex: i,
             siblingCount: newFactor,
             composedInput: parent.pinnedOutput,
@@ -334,16 +342,23 @@ function actuallyApplyBranchFactor(
 }
 
 // Generate synopsis ideas
-const generateSynopsisIdeas = handler<unknown, { synopsisIdeasNonce: Writable<number> }>(
+const generateSynopsisIdeas = handler<
+  unknown,
+  { synopsisIdeasNonce: Writable<number> }
+>(
   (_, { synopsisIdeasNonce }) => {
     synopsisIdeasNonce.set((synopsisIdeasNonce.get() || 0) + 1);
-  }
+  },
 );
 
 // Select a synopsis idea - immediately applies it to synopsis text
 const selectSynopsisIdea = handler<
   unknown,
-  { synopsisText: Writable<string>; synopsisIdeasNonce: Writable<number>; synopsis: string }
+  {
+    synopsisText: Writable<string>;
+    synopsisIdeasNonce: Writable<number>;
+    synopsis: string;
+  }
 >((_, { synopsisText, synopsisIdeasNonce, synopsis }) => {
   // Immediately set the synopsis text
   synopsisText.set(synopsis);
@@ -354,7 +369,11 @@ const selectSynopsisIdea = handler<
 // Set synopsis text (root spindle)
 const setSynopsis = handler<
   unknown,
-  { spindles: Writable<SpindleConfig[]>; synopsisText: Writable<string>; levels: Writable<LevelConfig[]> }
+  {
+    spindles: Writable<SpindleConfig[]>;
+    synopsisText: Writable<string>;
+    levels: Writable<LevelConfig[]>;
+  }
 >((_, { spindles, synopsisText, levels }) => {
   const text = synopsisText.get() || "";
   const current = [...(spindles.get() || [])]; // Copy to make mutable
@@ -423,11 +442,20 @@ const openAddLevelModal = handler<
     newLevelBranch: Writable<number>;
     levels: Writable<LevelConfig[]>;
   }
->((_, { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch, levels }) => {
+>((
+  _,
+  { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch, levels },
+) => {
   // Set smart defaults based on current level count
   const currentLevels = levels.get() || [];
   const levelNum = currentLevels.length;
-  const defaultTitles = ["Story Outline", "Chapters", "Scenes", "Beats", "Details"];
+  const defaultTitles = [
+    "Story Outline",
+    "Chapters",
+    "Scenes",
+    "Beats",
+    "Details",
+  ];
   const defaultPrompts = [
     "Create a detailed story outline based on the synopsis.",
     "Write chapter summaries based on the outline above.",
@@ -436,7 +464,9 @@ const openAddLevelModal = handler<
     "Add rich details and descriptions.",
   ];
   newLevelTitle.set(defaultTitles[levelNum] || `Level ${levelNum}`);
-  newLevelPrompt.set(defaultPrompts[levelNum] || "Continue developing the story.");
+  newLevelPrompt.set(
+    defaultPrompts[levelNum] || "Continue developing the story.",
+  );
   newLevelBranch.set(1);
   showAddLevelModal.set(true);
 });
@@ -445,7 +475,7 @@ const openAddLevelModal = handler<
 const closeModal = handler<unknown, { showAddLevelModal: Writable<boolean> }>(
   (_, { showAddLevelModal }) => {
     showAddLevelModal.set(false);
-  }
+  },
 );
 
 // Add new level
@@ -528,7 +558,9 @@ const removeLevel = handler<
   const currentLevels = levels.get() || [];
   const currentSpindles = spindles.get() || [];
   // Support both Cell and plain number
-  const levelIndexVal = typeof levelIndex === "number" ? levelIndex : levelIndex.get();
+  const levelIndexVal = typeof levelIndex === "number"
+    ? levelIndex
+    : levelIndex.get();
 
   // Safety checks
   if (levelIndexVal === 0) {
@@ -553,7 +585,9 @@ const removeLevel = handler<
   const filteredSpindles = remapParentIndices(currentSpindles, deletedIndices);
 
   // Remove the level
-  const filteredLevels = currentLevels.filter((_, idx) => idx !== levelIndexVal);
+  const filteredLevels = currentLevels.filter((_, idx) =>
+    idx !== levelIndexVal
+  );
 
   // Update both
   spindles.set(filteredSpindles);
@@ -577,7 +611,10 @@ const pinOption = handler<
   const spindleIdx = spindleIndex.get();
   const optionContentVal = optionContent.get() || "";
 
-  if (spindleIdx < 0 || spindleIdx >= NO_SPINDLE_SELECTED || spindleIdx >= spindlesArray.length) return;
+  if (
+    spindleIdx < 0 || spindleIdx >= NO_SPINDLE_SELECTED ||
+    spindleIdx >= spindlesArray.length
+  ) return;
 
   const spindle = spindlesArray[spindleIdx];
   const currentPinned = spindle.pinnedOptionIndex;
@@ -622,7 +659,9 @@ const pinOption = handler<
   if (nextLevel && childIndices.length === 0) {
     // Need to do array push, so get fresh copy and use set()
     const currentSpindles = [...(spindles.get() || [])];
-    const existingAtLevel = currentSpindles.filter((s) => s.levelIndex === nextLevelIndex);
+    const existingAtLevel = currentSpindles.filter((s) =>
+      s.levelIndex === nextLevelIndex
+    );
     let positionInLevel = existingAtLevel.length;
 
     for (let i = 0; i < nextLevel.branchFactor; i++) {
@@ -646,7 +685,10 @@ const pinOption = handler<
 
 // Respin a spindle
 // Uses .key().set() for O(1) update instead of O(n) array replacement
-const respinSpindle = handler<unknown, { spindles: Writable<SpindleConfig[]>; spindleIndex: Writable<number> }>(
+const respinSpindle = handler<
+  unknown,
+  { spindles: Writable<SpindleConfig[]>; spindleIndex: Writable<number> }
+>(
   (_, { spindles, spindleIndex }) => {
     const idx = spindleIndex.get();
     const spindlesArray = spindles.get() || [];
@@ -662,7 +704,7 @@ const respinSpindle = handler<unknown, { spindles: Writable<SpindleConfig[]>; sp
         parentHashWhenPinned: "",
       });
     }
-  }
+  },
 );
 
 // Start generation for a deferred spindle
@@ -688,7 +730,11 @@ const startGeneration = handler<
 // Uses .key().set() for O(1) update instead of O(n) array replacement
 const setExtraPrompt = handler<
   unknown,
-  { spindles: Writable<SpindleConfig[]>; spindleIndex: Writable<number>; prompt: Writable<string> }
+  {
+    spindles: Writable<SpindleConfig[]>;
+    spindleIndex: Writable<number>;
+    prompt: Writable<string>;
+  }
 >((_, { spindles, spindleIndex, prompt }) => {
   const idx = spindleIndex.get();
   const promptVal = prompt.get() || "";
@@ -720,7 +766,14 @@ const openEditLevelModal = handler<
 >(
   (
     _,
-    { showEditLevelModal, editingLevelIndex, editLevelTitle, editLevelPrompt, levels, levelIndex }
+    {
+      showEditLevelModal,
+      editingLevelIndex,
+      editLevelTitle,
+      editLevelPrompt,
+      levels,
+      levelIndex,
+    },
   ) => {
     const idx = levelIndex.get();
     const currentLevels = levels.get() || [];
@@ -731,14 +784,17 @@ const openEditLevelModal = handler<
       editLevelPrompt.set(level.defaultPrompt);
       showEditLevelModal.set(true);
     }
-  }
+  },
 );
 
 // Close edit level modal
-const closeEditLevelModal = handler<unknown, { showEditLevelModal: Writable<boolean> }>(
+const closeEditLevelModal = handler<
+  unknown,
+  { showEditLevelModal: Writable<boolean> }
+>(
   (_, { showEditLevelModal }) => {
     showEditLevelModal.set(false);
-  }
+  },
 );
 
 // Save edited level
@@ -754,7 +810,13 @@ const saveEditLevel = handler<
 >(
   (
     _,
-    { levels, editingLevelIndex, editLevelTitle, editLevelPrompt, showEditLevelModal }
+    {
+      levels,
+      editingLevelIndex,
+      editLevelTitle,
+      editLevelPrompt,
+      showEditLevelModal,
+    },
   ) => {
     const idx = editingLevelIndex.get();
     const newTitle = editLevelTitle.get() || "";
@@ -771,7 +833,7 @@ const saveEditLevel = handler<
     }
 
     showEditLevelModal.set(false);
-  }
+  },
 );
 
 // Open view prompt modal
@@ -788,10 +850,13 @@ const openViewPromptModal = handler<
 });
 
 // Close view prompt modal
-const closeViewPromptModal = handler<unknown, { showViewPromptModal: Writable<boolean> }>(
+const closeViewPromptModal = handler<
+  unknown,
+  { showViewPromptModal: Writable<boolean> }
+>(
   (_, { showViewPromptModal }) => {
     showViewPromptModal.set(false);
-  }
+  },
 );
 
 // Open edit spindle prompt modal
@@ -813,7 +878,7 @@ const openEditSpindlePromptModal = handler<
       editSpindlePromptText,
       spindles,
       spindleIndex,
-    }
+    },
   ) => {
     const idx = spindleIndex.get();
     const currentSpindles = spindles.get() || [];
@@ -823,7 +888,7 @@ const openEditSpindlePromptModal = handler<
       editSpindlePromptText.set(spindle.extraPrompt || "");
       showEditSpindlePromptModal.set(true);
     }
-  }
+  },
 );
 
 // Close edit spindle prompt modal
@@ -846,7 +911,12 @@ const saveSpindlePrompt = handler<
 >(
   (
     _,
-    { spindles, editingSpindlePromptIndex, editSpindlePromptText, showEditSpindlePromptModal }
+    {
+      spindles,
+      editingSpindlePromptIndex,
+      editSpindlePromptText,
+      showEditSpindlePromptModal,
+    },
   ) => {
     const idx = editingSpindlePromptIndex.get();
     const newPrompt = editSpindlePromptText.get() || "";
@@ -864,7 +934,7 @@ const saveSpindlePrompt = handler<
       });
     }
     showEditSpindlePromptModal.set(false);
-  }
+  },
 );
 
 // Clear spindle prompt
@@ -904,7 +974,13 @@ const openEditBranchModal = handler<
 >(
   (
     _,
-    { showEditBranchModal, editingBranchLevelIndex, editBranchFactor, levels, levelIndex }
+    {
+      showEditBranchModal,
+      editingBranchLevelIndex,
+      editBranchFactor,
+      levels,
+      levelIndex,
+    },
   ) => {
     const currentLevels = levels.get() || [];
     const level = currentLevels[levelIndex];
@@ -913,13 +989,16 @@ const openEditBranchModal = handler<
       editBranchFactor.set(level.branchFactor);
       showEditBranchModal.set(true);
     }
-  }
+  },
 );
 
 // Close edit branch factor modal
 const closeEditBranchModal = handler<
   unknown,
-  { showEditBranchModal: Writable<boolean>; showBranchDeleteWarning: Writable<boolean> }
+  {
+    showEditBranchModal: Writable<boolean>;
+    showBranchDeleteWarning: Writable<boolean>;
+  }
 >((_, { showEditBranchModal, showBranchDeleteWarning }) => {
   showEditBranchModal.set(false);
   showBranchDeleteWarning.set(false);
@@ -948,7 +1027,7 @@ const applyBranchFactor = handler<
       showEditBranchModal,
       showBranchDeleteWarning,
       pendingBranchFactor,
-    }
+    },
   ) => {
     const levelIndex = editingBranchLevelIndex.get();
     const newFactor = editBranchFactor.get();
@@ -969,7 +1048,7 @@ const applyBranchFactor = handler<
     if (newFactor < oldFactor) {
       // Decreasing - count spindles that will be deleted
       const spindlesToDelete = currentSpindles.filter(
-        (s) => s.levelIndex === levelIndex && s.siblingIndex >= newFactor
+        (s) => s.levelIndex === levelIndex && s.siblingIndex >= newFactor,
       );
       if (spindlesToDelete.length > 0) {
         // Show warning
@@ -986,10 +1065,10 @@ const applyBranchFactor = handler<
       levelIndex,
       newFactor,
       currentLevels,
-      currentSpindles
+      currentSpindles,
     );
     showEditBranchModal.set(false);
-  }
+  },
 );
 
 // Confirm branch factor decrease (deletes spindles)
@@ -1013,7 +1092,7 @@ const confirmBranchDecrease = handler<
       pendingBranchFactor,
       showEditBranchModal,
       showBranchDeleteWarning,
-    }
+    },
   ) => {
     const levelIndex = editingBranchLevelIndex.get();
     const newFactor = pendingBranchFactor.get();
@@ -1026,11 +1105,11 @@ const confirmBranchDecrease = handler<
       levelIndex,
       newFactor,
       currentLevels,
-      currentSpindles
+      currentSpindles,
     );
     showBranchDeleteWarning.set(false);
     showEditBranchModal.set(false);
-  }
+  },
 );
 
 // Open option picker modal
@@ -1046,59 +1125,83 @@ const openOptionPicker = handler<
 >(
   (
     _,
-    { showOptionPicker, pickerSpindleIndex, pickerPreviewIndex, spindleIndex, currentPinnedIdx }
+    {
+      showOptionPicker,
+      pickerSpindleIndex,
+      pickerPreviewIndex,
+      spindleIndex,
+      currentPinnedIdx,
+    },
   ) => {
     const pinnedIdx = currentPinnedIdx.get();
     pickerSpindleIndex.set(spindleIndex.get());
     pickerPreviewIndex.set(pinnedIdx >= 0 ? pinnedIdx : 0);
     showOptionPicker.set(true);
-  }
+  },
 );
 
 // Close option picker modal (without pinning)
-const closeOptionPicker = handler<unknown, { showOptionPicker: Writable<boolean> }>(
+const closeOptionPicker = handler<
+  unknown,
+  { showOptionPicker: Writable<boolean> }
+>(
   (_, { showOptionPicker }) => {
     showOptionPicker.set(false);
-  }
+  },
 );
 
 // Decrement edit branch factor
-const decrementEditBranchFactor = handler<unknown, { editBranchFactor: Writable<number> }>(
+const decrementEditBranchFactor = handler<
+  unknown,
+  { editBranchFactor: Writable<number> }
+>(
   (_, { editBranchFactor }) => {
     const current = editBranchFactor.get();
     if (current > 1) editBranchFactor.set(current - 1);
-  }
+  },
 );
 
 // Increment edit branch factor
-const incrementEditBranchFactor = handler<unknown, { editBranchFactor: Writable<number> }>(
+const incrementEditBranchFactor = handler<
+  unknown,
+  { editBranchFactor: Writable<number> }
+>(
   (_, { editBranchFactor }) => {
     const current = editBranchFactor.get();
     if (current < 10) editBranchFactor.set(current + 1);
-  }
+  },
 );
 
 // Decrement picker preview index (wrapping)
-const decrementPickerPreviewIndex = handler<unknown, { pickerPreviewIndex: Writable<number>; count: number }>(
+const decrementPickerPreviewIndex = handler<
+  unknown,
+  { pickerPreviewIndex: Writable<number>; count: number }
+>(
   (_, { pickerPreviewIndex, count }) => {
     const current = pickerPreviewIndex.get();
     pickerPreviewIndex.set((current - 1 + count) % count);
-  }
+  },
 );
 
 // Set picker preview index
-const setPickerPreviewIndex = handler<unknown, { pickerPreviewIndex: Writable<number>; index: number }>(
+const setPickerPreviewIndex = handler<
+  unknown,
+  { pickerPreviewIndex: Writable<number>; index: number }
+>(
   (_, { pickerPreviewIndex, index }) => {
     pickerPreviewIndex.set(index);
-  }
+  },
 );
 
 // Increment picker preview index (wrapping)
-const incrementPickerPreviewIndex = handler<unknown, { pickerPreviewIndex: Writable<number>; count: number }>(
+const incrementPickerPreviewIndex = handler<
+  unknown,
+  { pickerPreviewIndex: Writable<number>; count: number }
+>(
   (_, { pickerPreviewIndex, count }) => {
     const current = pickerPreviewIndex.get();
     pickerPreviewIndex.set((current + 1) % count);
-  }
+  },
 );
 
 // Pin from picker (pins the previewed option and closes)
@@ -1116,7 +1219,14 @@ const pinFromPicker = handler<
 >(
   (
     _,
-    { spindles, levels, pickerSpindleIndex, pickerPreviewIndex, showOptionPicker, optionContent }
+    {
+      spindles,
+      levels,
+      pickerSpindleIndex,
+      pickerPreviewIndex,
+      showOptionPicker,
+      optionContent,
+    },
   ) => {
     const spindleIdx = pickerSpindleIndex.get();
     const optionIndex = pickerPreviewIndex.get();
@@ -1124,7 +1234,10 @@ const pinFromPicker = handler<
     const spindlesArray = spindles.get() || [];
     const currentLevels = levels.get() || [];
 
-    if (spindleIdx < 0 || spindleIdx >= NO_SPINDLE_SELECTED || spindleIdx >= spindlesArray.length) {
+    if (
+      spindleIdx < 0 || spindleIdx >= NO_SPINDLE_SELECTED ||
+      spindleIdx >= spindlesArray.length
+    ) {
       showOptionPicker.set(false);
       return;
     }
@@ -1158,7 +1271,9 @@ const pinFromPicker = handler<
     const nextLevel = currentLevels[nextLevelIndex];
     if (nextLevel && childIndices.length === 0) {
       const currentSpindles = [...(spindles.get() || [])];
-      const existingAtLevel = currentSpindles.filter((s) => s.levelIndex === nextLevelIndex);
+      const existingAtLevel = currentSpindles.filter((s) =>
+        s.levelIndex === nextLevelIndex
+      );
       let positionInLevel = existingAtLevel.length;
 
       for (let i = 0; i < nextLevel.branchFactor; i++) {
@@ -1180,7 +1295,7 @@ const pinFromPicker = handler<
     }
 
     showOptionPicker.set(false);
-  }
+  },
 );
 
 // =============================================================================
@@ -1235,11 +1350,14 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         (deps: { config: SpindleConfig; levels: LevelConfig[] }) => {
           if (!deps.config) return null;
           return deps.levels[deps.config.levelIndex] || null;
-        }
+        },
       );
 
       // Check if this is root level
-      const isRoot = derive(levelConfig, (lc: LevelConfig | null) => lc?.isRoot || false);
+      const isRoot = derive(
+        levelConfig,
+        (lc: LevelConfig | null) => lc?.isRoot || false,
+      );
 
       // Build full prompt
       const fullPrompt = derive(
@@ -1266,12 +1384,16 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
 
           // Position suffix - only include if multiple siblings (branch factor > 1)
           if (deps.config.siblingCount > 1) {
-            const siblingPos = `Peer ${deps.config.siblingIndex + 1} of ${deps.config.siblingCount}`;
+            const siblingPos = `Peer ${
+              deps.config.siblingIndex + 1
+            } of ${deps.config.siblingCount}`;
             parts.push(siblingPos);
           }
 
           // Generation instruction
-          parts.push(`\n\nGenerate exactly ${NUM_OPTIONS} distinct options for the above.`);
+          parts.push(
+            `\n\nGenerate exactly ${NUM_OPTIONS} distinct options for the above.`,
+          );
 
           // Cache-busting nonce (only added when respin is used)
           if (deps.config.respinNonce) {
@@ -1279,15 +1401,18 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           }
 
           return parts.join("\n\n");
-        }
+        },
       );
 
       // Should generate?
       // Don't generate if: root spindle, empty prompt, or deferGeneration flag is set
       const shouldGenerate = derive(
         { isRoot, fullPrompt, config },
-        (deps: { isRoot: boolean; fullPrompt: string; config: SpindleConfig }) =>
-          !deps.isRoot && deps.fullPrompt.trim() !== "" && !deps.config?.deferGeneration
+        (
+          deps: { isRoot: boolean; fullPrompt: string; config: SpindleConfig },
+        ) =>
+          !deps.isRoot && deps.fullPrompt.trim() !== "" &&
+          !deps.config?.deferGeneration,
       );
 
       // Generate options - conditional prompt prevents LLM call when shouldGenerate is false
@@ -1295,12 +1420,13 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
       const conditionalPrompt = derive(
         { shouldGenerate, fullPrompt },
         (deps: { shouldGenerate: boolean; fullPrompt: string }) =>
-          deps.shouldGenerate ? deps.fullPrompt : ""
+          deps.shouldGenerate ? deps.fullPrompt : "",
       );
 
       const generation = generateObject<GenerationResult>({
         model: "anthropic:claude-sonnet-4-5",
-        system: `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
+        system:
+          `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
         prompt: conditionalPrompt,
       });
 
@@ -1309,82 +1435,144 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+          generation: {
+            pending: boolean;
+            error?: unknown;
+            result?: GenerationResult;
+          };
         }) => {
           if (!deps.shouldGenerate) return "";
-          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
+          if (
+            deps.generation.pending || deps.generation.error ||
+            !deps.generation.result
+          ) {
             return "";
+          }
           return deps.generation.result.options?.[0]?.content || "";
-        }
+        },
       );
       const option1 = derive(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+          generation: {
+            pending: boolean;
+            error?: unknown;
+            result?: GenerationResult;
+          };
         }) => {
           if (!deps.shouldGenerate) return "";
-          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
+          if (
+            deps.generation.pending || deps.generation.error ||
+            !deps.generation.result
+          ) {
             return "";
+          }
           return deps.generation.result.options?.[1]?.content || "";
-        }
+        },
       );
       const option2 = derive(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+          generation: {
+            pending: boolean;
+            error?: unknown;
+            result?: GenerationResult;
+          };
         }) => {
           if (!deps.shouldGenerate) return "";
-          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
+          if (
+            deps.generation.pending || deps.generation.error ||
+            !deps.generation.result
+          ) {
             return "";
+          }
           return deps.generation.result.options?.[2]?.content || "";
-        }
+        },
       );
       const option3 = derive(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+          generation: {
+            pending: boolean;
+            error?: unknown;
+            result?: GenerationResult;
+          };
         }) => {
           if (!deps.shouldGenerate) return "";
-          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
+          if (
+            deps.generation.pending || deps.generation.error ||
+            !deps.generation.result
+          ) {
             return "";
+          }
           return deps.generation.result.options?.[3]?.content || "";
-        }
+        },
       );
 
       // Is generating?
       const isGenerating = derive(
         { shouldGenerate, generation },
         (deps: { shouldGenerate: boolean; generation: { pending: boolean } }) =>
-          deps.shouldGenerate && deps.generation.pending
+          deps.shouldGenerate && deps.generation.pending,
       );
 
       // Is deferred generation? (waiting for user to click Generate Options)
       const isDeferredGeneration = derive(
         config,
-        (c) => c ? !!(c as SpindleConfig).deferGeneration : false
+        (c) => c ? !!(c as SpindleConfig).deferGeneration : false,
       );
 
       // Is pinned?
-      const isPinned = derive(config, (c) => c ? (c as SpindleConfig).pinnedOptionIndex >= 0 : false);
+      const isPinned = derive(
+        config,
+        (c) => c ? (c as SpindleConfig).pinnedOptionIndex >= 0 : false,
+      );
 
       // Pinned output
-      const pinnedOutput = derive(config, (c) => c ? (c as SpindleConfig).pinnedOutput || null : null);
+      const pinnedOutput = derive(
+        config,
+        (c) => c ? (c as SpindleConfig).pinnedOutput || null : null,
+      );
 
       // UI-needed derived values (computed here to avoid derives-inside-map thrashing)
       // See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
       // Note: Use explicit null checks because config can be undefined during reactive passes
       // spindleId REMOVED - now using array index instead
-      const levelIndex = derive(config, (c) => (c as SpindleConfig)?.levelIndex ?? 0);
-      const siblingIndex = derive(config, (c) => (c as SpindleConfig)?.siblingIndex ?? 0);
-      const siblingCount = derive(config, (c) => (c as SpindleConfig)?.siblingCount ?? 1);
-      const levelTitle = derive(levelConfig, (lc) => (lc as LevelConfig)?.title || "Level");
-      const levelPrompt = derive(levelConfig, (lc) => (lc as LevelConfig)?.defaultPrompt || "");
-      const extraPromptValue = derive(config, (c) => (c as SpindleConfig)?.extraPrompt || "");
-      const hasExtraPrompt = derive(extraPromptValue, (p: string) => !!p && p.trim() !== "");
-      const pinnedIdx = derive(config, (c) => (c as SpindleConfig)?.pinnedOptionIndex ?? -1);
+      const levelIndex = derive(
+        config,
+        (c) => (c as SpindleConfig)?.levelIndex ?? 0,
+      );
+      const siblingIndex = derive(
+        config,
+        (c) => (c as SpindleConfig)?.siblingIndex ?? 0,
+      );
+      const siblingCount = derive(
+        config,
+        (c) => (c as SpindleConfig)?.siblingCount ?? 1,
+      );
+      const levelTitle = derive(
+        levelConfig,
+        (lc) => (lc as LevelConfig)?.title || "Level",
+      );
+      const levelPrompt = derive(
+        levelConfig,
+        (lc) => (lc as LevelConfig)?.defaultPrompt || "",
+      );
+      const extraPromptValue = derive(
+        config,
+        (c) => (c as SpindleConfig)?.extraPrompt || "",
+      );
+      const hasExtraPrompt = derive(
+        extraPromptValue,
+        (p: string) => !!p && p.trim() !== "",
+      );
+      const pinnedIdx = derive(
+        config,
+        (c) => (c as SpindleConfig)?.pinnedOptionIndex ?? -1,
+      );
 
       // Per-option pinned state
       const isPinned0 = derive(pinnedIdx, (p) => p === 0);
@@ -1409,11 +1597,16 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
 
       // Summary - only generate when pinned
       // (empty string prompt causes generateObject to return immediately without API call)
-      const hasPinnedOutput = derive(pinnedOutput, (o: string | null) => !!o && o.trim() !== "");
+      const hasPinnedOutput = derive(
+        pinnedOutput,
+        (o: string | null) => !!o && o.trim() !== "",
+      );
       const summaryPrompt = derive(
         pinnedOutput,
         (o: string | null) =>
-          o ? `${o}\n\n---\n\nSummarize the above in 2-3 concise sentences.` : ""
+          o
+            ? `${o}\n\n---\n\nSummarize the above in 2-3 concise sentences.`
+            : "",
       );
       const summaryGen = generateObject<SummaryResult>({
         model: "anthropic:claude-sonnet-4-5",
@@ -1426,14 +1619,21 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           pinnedOutput: string | null;
           summaryGen: { pending: boolean; result?: SummaryResult };
         }) => {
-          if (!deps.pinnedOutput || deps.summaryGen.pending || !deps.summaryGen.result)
+          if (
+            !deps.pinnedOutput || deps.summaryGen.pending ||
+            !deps.summaryGen.result
+          ) {
             return null;
+          }
           return deps.summaryGen.result.summary;
-        }
+        },
       );
 
       // Has summary check - also check for empty string
-      const hasSummary = derive(summary, (s: string | null) => !!s && s.trim() !== "");
+      const hasSummary = derive(
+        summary,
+        (s: string | null) => !!s && s.trim() !== "",
+      );
 
       // Is this the first peer in its sibling group?
       const isFirstPeer = derive(siblingIndex, (idx: number) => idx === 0);
@@ -1484,13 +1684,15 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // Group spindles by level for display
     const spindlesByLevel = derive(
       { spindleResults, levels },
-      (deps: { spindleResults: typeof spindleResults; levels: LevelConfig[] }) => {
+      (
+        deps: { spindleResults: typeof spindleResults; levels: LevelConfig[] },
+      ) => {
         // This returns grouped data for display
         const grouped: Record<number, typeof deps.spindleResults> = {};
         // Note: We can't actually iterate spindleResults here since it's a cell array
         // We'll handle grouping in the UI via filtering
         return deps.levels.length;
-      }
+      },
     );
 
     // Identify levels that have no spindles yet (orphan levels)
@@ -1502,11 +1704,16 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         if (!deps.levels || !deps.spindles) return [];
         // Use array with .includes() instead of Set - Sets don't serialize properly
         // See: community-docs/superstitions/2025-11-29-cells-must-be-json-serializable.md
-        const levelIndicesWithSpindles = deps.spindles.filter((s) => s).map((s) => s.levelIndex);
+        const levelIndicesWithSpindles = deps.spindles.filter((s) => s).map((
+          s,
+        ) => s.levelIndex);
         return deps.levels
-          .filter((level) => level && !level.isRoot && !levelIndicesWithSpindles.includes(level.index))
+          .filter((level) =>
+            level && !level.isRoot &&
+            !levelIndicesWithSpindles.includes(level.index)
+          )
           .map((level) => ({ index: level.index, title: level.title }));
-      }
+      },
     );
 
     // Get prompt details for the selected spindle (for View Prompt modal)
@@ -1518,7 +1725,10 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         levels: LevelConfig[];
         viewPromptSpindleIndex: number;
       }) => {
-        if (!deps.spindles || !deps.levels || deps.viewPromptSpindleIndex >= NO_SPINDLE_SELECTED) return null;
+        if (
+          !deps.spindles || !deps.levels ||
+          deps.viewPromptSpindleIndex >= NO_SPINDLE_SELECTED
+        ) return null;
         if (deps.viewPromptSpindleIndex >= deps.spindles.length) return null;
 
         const spindle = deps.spindles[deps.viewPromptSpindleIndex];
@@ -1538,9 +1748,10 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           positionSuffix: spindle.siblingCount > 1
             ? `Peer ${spindle.siblingIndex + 1} of ${spindle.siblingCount}`
             : null,
-          generationInstruction: `Generate exactly ${NUM_OPTIONS} distinct options for the above.`,
+          generationInstruction:
+            `Generate exactly ${NUM_OPTIONS} distinct options for the above.`,
         };
-      }
+      },
     );
 
     // =========================================================================
@@ -1550,13 +1761,13 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // Generate synopsis ideas when nonce > 0
     const shouldGenerateIdeas = derive(
       synopsisIdeasNonce,
-      (nonce: number) => nonce > 0
+      (nonce: number) => nonce > 0,
     );
 
     // Check if story has been started (has children spindles)
     const hasStartedStory = derive(
       spindles,
-      (s: SpindleConfig[]) => s.some((sp) => sp.levelIndex > 0)
+      (s: SpindleConfig[]) => s.some((sp) => sp.levelIndex > 0),
     );
 
     // Conditional prompt - empty string prevents LLM call when shouldGenerateIdeas is false
@@ -1573,12 +1784,13 @@ Make them diverse in genre and tone:
 - One could be contemporary/realistic
 
 [Generation attempt: ${deps.synopsisIdeasNonce}]`
-          : ""
+          : "",
     );
 
     const synopsisIdeasGeneration = generateObject<SynopsisIdeasResult>({
       model: "anthropic:claude-sonnet-4-5",
-      system: "You are a creative writing assistant specializing in story development. Generate compelling, original story premises.",
+      system:
+        "You are a creative writing assistant specializing in story development. Generate compelling, original story premises.",
       prompt: synopsisIdeasPrompt,
     });
 
@@ -1592,7 +1804,7 @@ Make them diverse in genre and tone:
           title: idea.title,
           synopsis: idea.synopsis,
         }));
-      }
+      },
     );
 
     // =========================================================================
@@ -1641,11 +1853,12 @@ Make them diverse in genre and tone:
                 />
                 {ifElse(
                   derive(boardDescription, (d: string) => d && d.trim() !== ""),
-                  <p style={{ margin: 0, color: "#666" }}>{boardDescription}</p>,
-                  null
+                  <p style={{ margin: 0, color: "#666" }}>{boardDescription}
+                  </p>,
+                  null,
                 )}
               </div>
-{/* Add Level button moved to bottom */}
+              {/* Add Level button moved to bottom */}
             </div>
           </div>
 
@@ -1667,7 +1880,15 @@ Make them diverse in genre and tone:
               placeholder="Enter your story synopsis or seed idea..."
               style="width: 100%; min-height: 100px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;"
             />
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                marginTop: "8px",
+                flexWrap: "wrap",
+              }}
+            >
               <button
                 onClick={setSynopsis({ spindles, synopsisText, levels })}
                 disabled={hasStartedStory}
@@ -1682,7 +1903,8 @@ Make them diverse in genre and tone:
                   fontWeight: "600",
                 }))}
               >
-                {derive(hasStartedStory, (started: boolean) => started ? "Story Started ✓" : "Start Story →")}
+                {derive(hasStartedStory, (started: boolean) =>
+                  started ? "Story Started ✓" : "Start Story →")}
               </button>
               <button
                 onClick={generateSynopsisIdeas({ synopsisIdeasNonce })}
@@ -1715,24 +1937,49 @@ Make them diverse in genre and tone:
                   borderRadius: "8px",
                 }}
               >
-                <div style={{ fontWeight: "600", marginBottom: "12px", color: "#7c3aed" }}>
+                <div
+                  style={{
+                    fontWeight: "600",
+                    marginBottom: "12px",
+                    color: "#7c3aed",
+                  }}
+                >
                   ✨ Story Ideas
                 </div>
                 {ifElse(
                   derive(
                     synopsisIdeasGeneration,
-                    (gen: { pending: boolean }) => gen.pending
+                    (gen: { pending: boolean }) =>
+                      gen.pending,
                   ),
-                  <div style={{ color: "#6b7280", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div
+                    style={{
+                      color: "#6b7280",
+                      fontStyle: "italic",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
                     <cf-loader size="sm" show-elapsed></cf-loader>
                     Generating ideas...
                   </div>,
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
                     {/* Use .map() on pre-computed cell instead of inside derive callback */}
                     {/* This allows onClick handlers to work because cells aren't read-only */}
                     {ideasList.map((idea) => (
                       <button
-                        onClick={selectSynopsisIdea({ synopsisText, synopsisIdeasNonce, synopsis: idea.synopsis })}
+                        onClick={selectSynopsisIdea({
+                          synopsisText,
+                          synopsisIdeasNonce,
+                          synopsis: idea.synopsis,
+                        })}
                         style={{
                           padding: "12px",
                           background: "white",
@@ -1750,13 +1997,16 @@ Make them diverse in genre and tone:
                         </div>
                       </button>
                     ))}
-                  </div>
+                  </div>,
                 )}
               </div>,
-              null
+              null,
             )}
             {ifElse(
-              derive(levels, (lvls: LevelConfig[]) => !lvls || lvls.length <= 1),
+              derive(
+                levels,
+                (lvls: LevelConfig[]) => !lvls || lvls.length <= 1,
+              ),
               <div
                 style={{
                   marginTop: "8px",
@@ -1765,14 +2015,17 @@ Make them diverse in genre and tone:
                   fontStyle: "italic",
                 }}
               >
-                Add a level below to start generating content from your synopsis.
+                Add a level below to start generating content from your
+                synopsis.
               </div>,
-              null
+              null,
             )}
           </div>
 
           {/* Spindle Results */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "24px" }}
+          >
             {spindleResults.map((result) => {
               // Use pre-computed values from the data layer - NO derives here!
               // See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
@@ -1795,15 +2048,31 @@ Make them diverse in genre and tone:
                   {/* Level Group Header - shown only for first peer when multiple peers */}
                   {ifElse(
                     derive(
-                      { isFirstPeer: result.isFirstPeer, siblingCount: result.siblingCount },
-                      (d: { isFirstPeer: boolean; siblingCount: number }) => d.isFirstPeer && d.siblingCount > 1
+                      {
+                        isFirstPeer: result.isFirstPeer,
+                        siblingCount: result.siblingCount,
+                      },
+                      (d: { isFirstPeer: boolean; siblingCount: number }) =>
+                        d.isFirstPeer && d.siblingCount > 1,
                     ),
                     <div
                       style={{
                         marginTop: "8px",
                         marginBottom: "8px",
-                        background: derive(result.levelIndex, (idx: number) => levelColors[(idx - 1) % levelColors.length]?.headerBg || "#f3f4f6"),
-                        borderLeft: derive(result.levelIndex, (idx: number) => `4px solid ${levelColors[(idx - 1) % levelColors.length]?.border || "#6b7280"}`),
+                        background: derive(
+                          result.levelIndex,
+                          (idx: number) =>
+                            levelColors[(idx - 1) % levelColors.length]
+                              ?.headerBg || "#f3f4f6",
+                        ),
+                        borderLeft: derive(
+                          result.levelIndex,
+                          (idx: number) =>
+                            `4px solid ${
+                              levelColors[(idx - 1) % levelColors.length]
+                                ?.border || "#6b7280"
+                            }`,
+                        ),
                         borderRadius: "4px",
                         overflow: "hidden",
                       }}
@@ -1820,7 +2089,13 @@ Make them diverse in genre and tone:
                           alignItems: "center",
                         }}
                       >
-                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
                           {result.levelTitle}
                           <button
                             onClick={openEditBranchModal({
@@ -1841,7 +2116,11 @@ Make them diverse in genre and tone:
                             }}
                             title="Edit branch factor"
                           >
-                            {derive(result.siblingCount, (count: number) => `${count} peer${count !== 1 ? "s" : ""}`)}
+                            {derive(
+                              result.siblingCount,
+                              (count: number) =>
+                                `${count} peer${count !== 1 ? "s" : ""}`,
+                            )}
                           </button>
                         </span>
                         <button
@@ -1892,7 +2171,7 @@ Make them diverse in genre and tone:
                         </div>
                       </div>
                     </div>,
-                    null
+                    null,
                   )}
 
                   {/* Spindle Card */}
@@ -1901,12 +2180,22 @@ Make them diverse in genre and tone:
                       border: ifElse(
                         result.isStale,
                         "2px solid #f59e0b",
-                        derive(result.levelIndex, (idx: number) => `1px solid ${levelColors[(idx - 1) % levelColors.length]?.border || "#e5e7eb"}`)
+                        derive(
+                          result.levelIndex,
+                          (idx: number) =>
+                            `1px solid ${
+                              levelColors[(idx - 1) % levelColors.length]
+                                ?.border || "#e5e7eb"
+                            }`,
+                        ),
                       ),
                       borderRadius: "8px",
                       background: "#fff",
                       overflow: "hidden",
-                      marginLeft: derive(result.siblingCount, (count: number) => count > 1 ? "16px" : "0"),
+                      marginLeft: derive(
+                        result.siblingCount,
+                        (count: number) => count > 1 ? "16px" : "0",
+                      ),
                     }}
                   >
                     {/* Stale indicator */}
@@ -1923,7 +2212,7 @@ Make them diverse in genre and tone:
                       >
                         ⚠️ Stale - parent has changed. Click Respin to refresh.
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Header */}
@@ -1931,27 +2220,50 @@ Make them diverse in genre and tone:
                       style={{
                         padding: "12px 16px",
                         borderBottom: "1px solid #e5e7eb",
-                        background: derive(result.levelIndex, (idx: number) => levelColors[(idx - 1) % levelColors.length]?.bg || "#f9fafb"),
+                        background: derive(
+                          result.levelIndex,
+                          (idx: number) =>
+                            levelColors[(idx - 1) % levelColors.length]?.bg ||
+                            "#f9fafb",
+                        ),
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: "600", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div
+                          style={{
+                            fontWeight: "600",
+                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
                           <span>
-                            {result.levelTitle}{" "}
-                            {derive(
-                              { siblingIndex: result.siblingIndex, siblingCount: result.siblingCount },
-                              (d: { siblingIndex: number; siblingCount: number }) =>
+                            {result.levelTitle} {derive(
+                              {
+                                siblingIndex: result.siblingIndex,
+                                siblingCount: result.siblingCount,
+                              },
+                              (
+                                d: {
+                                  siblingIndex: number;
+                                  siblingCount: number;
+                                },
+                              ) =>
                                 d.siblingCount > 1
-                                  ? `- Peer ${d.siblingIndex + 1} of ${d.siblingCount}`
-                                  : ""
+                                  ? `- Peer ${
+                                    d.siblingIndex + 1
+                                  } of ${d.siblingCount}`
+                                  : "",
                             )}
                           </span>
                           {/* Branch factor edit button - show for first peer or when siblingCount is 1 */}
                           {ifElse(
-                            derive(result.siblingIndex, (idx: number) => idx === 0),
+                            derive(result.siblingIndex, (idx: number) =>
+                              idx === 0),
                             <button
                               onClick={openEditBranchModal({
                                 showEditBranchModal,
@@ -1972,273 +2284,259 @@ Make them diverse in genre and tone:
                               }}
                               title="Edit branch factor (number of parallel peers)"
                             >
-                              {derive(result.siblingCount, (count: number) => `${count} peer${count !== 1 ? "s" : ""}`)}
+                              {derive(result.siblingCount, (count: number) =>
+                                `${count} peer${count !== 1 ? "s" : ""}`)}
                             </button>,
-                            null
+                            null,
                           )}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
                           {ifElse(
                             result.isGenerating,
-                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                              }}
+                            >
                               <cf-loader size="sm"></cf-loader>
                               Generating options...
                             </span>,
                             ifElse(
                               result.isPinned,
-                              derive(result.pinnedIdx, (i: number) => `Option ${i + 1} selected`),
-                              "Select an option"
-                            )
+                              derive(result.pinnedIdx, (i: number) =>
+                                `Option ${i + 1} selected`),
+                              "Select an option",
+                            ),
                           )}
                         </div>
                       </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button
-                        onClick={openViewPromptModal({
-                          showViewPromptModal,
-                          viewPromptSpindleIndex,
-                          spindleIndex: result.spindleIndex,
-                        })}
-                        style={{
-                          padding: "6px 12px",
-                          background: "#8b5cf6",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
-                      >
-                        View Composed Prompt
-                      </button>
-                      <button
-                        onClick={openEditLevelModal({
-                          showEditLevelModal,
-                          editingLevelIndex,
-                          editLevelTitle,
-                          editLevelPrompt,
-                          levels,
-                          levelIndex: result.levelIndex,
-                        })}
-                        style={{
-                          padding: "6px 12px",
-                          background: "#6b7280",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
-                      >
-                        Edit Prompt
-                      </button>
-                      <button
-                        onClick={respinSpindle({ spindles, spindleIndex: result.spindleIndex })}
-                        style={{
-                          padding: "6px 12px",
-                          background: "#3b82f6",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Respin
-                      </button>
-                      {/* Remove Level button - only for last level */}
-                      {ifElse(
-                        derive(
-                          { levelIndex: result.levelIndex, levels },
-                          (d: { levelIndex: number; levels: LevelConfig[] }) =>
-                            d.levelIndex === (d.levels?.length || 0) - 1
-                        ),
+                      <div style={{ display: "flex", gap: "8px" }}>
                         <button
-                          onClick={removeLevel({ levels, spindles, levelIndex: result.levelIndex })}
-                          style={{
-                            padding: "6px 12px",
-                            background: "#fee2e2",
-                            color: "#dc2626",
-                            border: "1px solid #fecaca",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                          }}
-                          title="Remove this level"
-                        >
-                          🗑️ Remove Level
-                        </button>,
-                        null
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Level Prompt Display - only when siblingCount === 1 (otherwise shown in group header) */}
-                  {ifElse(
-                    derive(result.siblingCount, (count: number) => count === 1),
-                    <div
-                      style={{
-                        padding: "12px 16px",
-                        borderBottom: "1px solid #e5e7eb",
-                        background: "#fafafa",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: "600",
-                          color: "#6b7280",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        Level Prompt
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "#374151",
-                          lineHeight: "1.5",
-                        }}
-                      >
-                        {result.levelPrompt}
-                      </div>
-                    </div>,
-                    null
-                  )}
-
-                  {/* Spindle Prompt - unique per spindle, always visible */}
-                  <div
-                    style={{
-                      padding: "12px 16px",
-                      borderBottom: "1px solid #e5e7eb",
-                      background: "#f5f3ff",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: "600",
-                          color: "#7c3aed",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        Spindle Prompt
-                      </div>
-                      <div style={{ display: "flex", gap: "4px" }}>
-                        <button
-                          onClick={openEditSpindlePromptModal({
-                            showEditSpindlePromptModal,
-                            editingSpindlePromptIndex,
-                            editSpindlePromptText,
-                            spindles,
+                          onClick={openViewPromptModal({
+                            showViewPromptModal,
+                            viewPromptSpindleIndex,
                             spindleIndex: result.spindleIndex,
                           })}
                           style={{
-                            padding: "2px 8px",
+                            padding: "6px 12px",
                             background: "#8b5cf6",
                             color: "white",
                             border: "none",
                             borderRadius: "4px",
                             cursor: "pointer",
-                            fontSize: "11px",
+                            fontSize: "12px",
                           }}
                         >
-                          Edit
+                          View Composed Prompt
                         </button>
+                        <button
+                          onClick={openEditLevelModal({
+                            showEditLevelModal,
+                            editingLevelIndex,
+                            editLevelTitle,
+                            editLevelPrompt,
+                            levels,
+                            levelIndex: result.levelIndex,
+                          })}
+                          style={{
+                            padding: "6px 12px",
+                            background: "#6b7280",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                          }}
+                        >
+                          Edit Prompt
+                        </button>
+                        <button
+                          onClick={respinSpindle({
+                            spindles,
+                            spindleIndex: result.spindleIndex,
+                          })}
+                          style={{
+                            padding: "6px 12px",
+                            background: "#3b82f6",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Respin
+                        </button>
+                        {/* Remove Level button - only for last level */}
                         {ifElse(
-                          result.hasExtraPrompt,
+                          derive(
+                            { levelIndex: result.levelIndex, levels },
+                            (
+                              d: { levelIndex: number; levels: LevelConfig[] },
+                            ) =>
+                              d.levelIndex === (d.levels?.length || 0) - 1,
+                          ),
                           <button
-                            onClick={clearSpindlePrompt({
+                            onClick={removeLevel({
+                              levels,
+                              spindles,
+                              levelIndex: result.levelIndex,
+                            })}
+                            style={{
+                              padding: "6px 12px",
+                              background: "#fee2e2",
+                              color: "#dc2626",
+                              border: "1px solid #fecaca",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                            }}
+                            title="Remove this level"
+                          >
+                            🗑️ Remove Level
+                          </button>,
+                          null,
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Level Prompt Display - only when siblingCount === 1 (otherwise shown in group header) */}
+                    {ifElse(
+                      derive(result.siblingCount, (count: number) =>
+                        count === 1),
+                      <div
+                        style={{
+                          padding: "12px 16px",
+                          borderBottom: "1px solid #e5e7eb",
+                          background: "#fafafa",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            color: "#6b7280",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Level Prompt
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#374151",
+                            lineHeight: "1.5",
+                          }}
+                        >
+                          {result.levelPrompt}
+                        </div>
+                      </div>,
+                      null,
+                    )}
+
+                    {/* Spindle Prompt - unique per spindle, always visible */}
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        borderBottom: "1px solid #e5e7eb",
+                        background: "#f5f3ff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            color: "#7c3aed",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          Spindle Prompt
+                        </div>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <button
+                            onClick={openEditSpindlePromptModal({
+                              showEditSpindlePromptModal,
+                              editingSpindlePromptIndex,
+                              editSpindlePromptText,
                               spindles,
                               spindleIndex: result.spindleIndex,
                             })}
                             style={{
                               padding: "2px 8px",
-                              background: "#fecaca",
-                              color: "#dc2626",
+                              background: "#8b5cf6",
+                              color: "white",
                               border: "none",
                               borderRadius: "4px",
                               cursor: "pointer",
                               fontSize: "11px",
                             }}
                           >
-                            Clear
-                          </button>,
-                          null
-                        )}
+                            Edit
+                          </button>
+                          {ifElse(
+                            result.hasExtraPrompt,
+                            <button
+                              onClick={clearSpindlePrompt({
+                                spindles,
+                                spindleIndex: result.spindleIndex,
+                              })}
+                              style={{
+                                padding: "2px 8px",
+                                background: "#fecaca",
+                                color: "#dc2626",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "11px",
+                              }}
+                            >
+                              Clear
+                            </button>,
+                            null,
+                          )}
+                        </div>
                       </div>
+                      {ifElse(
+                        result.hasExtraPrompt,
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#5b21b6",
+                            lineHeight: "1.5",
+                          }}
+                        >
+                          {result.extraPrompt}
+                        </div>,
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#9ca3af",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          No spindle-specific guidance set. Click Edit to add
+                          direction unique to this spindle (e.g., "Play up the
+                          wings metaphor" or "Focus on character chemistry").
+                        </div>,
+                      )}
                     </div>
-                    {ifElse(
-                      result.hasExtraPrompt,
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "#5b21b6",
-                          lineHeight: "1.5",
-                        }}
-                      >
-                        {result.extraPrompt}
-                      </div>,
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#9ca3af",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        No spindle-specific guidance set. Click Edit to add direction unique to this spindle (e.g., "Play up the wings metaphor" or "Focus on character chemistry").
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Options Grid, Loading State, or Deferred Generation */}
-                  {ifElse(
-                    result.isDeferredGeneration,
-                    /* Deferred generation - show Generate Options button */
-                    <div
-                      style={{
-                        padding: "48px 16px",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "16px",
-                      }}
-                    >
-                      <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>
-                        Ready to generate options
-                      </div>
-                      <button
-                        onClick={startGeneration({
-                          spindles,
-                          spindleIndex: result.spindleIndex,
-                        })}
-                        style={{
-                          padding: "12px 24px",
-                          background: "#2563eb",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "6px",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Generate Options
-                      </button>
-                    </div>,
-                    ifElse(
-                      result.isGenerating,
+                    {/* Options Grid, Loading State, or Deferred Generation */}
+                    {ifElse(
+                      result.isDeferredGeneration,
+                      /* Deferred generation - show Generate Options button */
                       <div
                         style={{
                           padding: "48px 16px",
@@ -2249,577 +2547,801 @@ Make them diverse in genre and tone:
                           gap: "16px",
                         }}
                       >
-                        <cf-loader size="lg" show-elapsed></cf-loader>
-                        <div style={{ color: "#6b7280", fontSize: "14px" }}>
-                          Generating options...
+                        <div
+                          style={{
+                            color: "#6b7280",
+                            fontSize: "14px",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          Ready to generate options
                         </div>
+                        <button
+                          onClick={startGeneration({
+                            spindles,
+                            spindleIndex: result.spindleIndex,
+                          })}
+                          style={{
+                            padding: "12px 24px",
+                            background: "#2563eb",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Generate Options
+                        </button>
                       </div>,
-                      <div>
-                        {/* Options header with fullscreen button */}
+                      ifElse(
+                        result.isGenerating,
                         <div
                           style={{
+                            padding: "48px 16px",
                             display: "flex",
-                            justifyContent: "space-between",
+                            flexDirection: "column",
                             alignItems: "center",
-                            padding: "12px 16px",
-                            borderBottom: "1px solid #e5e7eb",
-                            background: "#f9fafb",
+                            justifyContent: "center",
+                            gap: "16px",
                           }}
                         >
-                          <div style={{ fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-                            Generated Options
+                          <cf-loader size="lg" show-elapsed></cf-loader>
+                          <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                            Generating options...
                           </div>
-                          <button
-                            onClick={openOptionPicker({
-                              showOptionPicker,
-                              pickerSpindleIndex,
-                              pickerPreviewIndex,
-                              spindleIndex: result.spindleIndex,
-                              currentPinnedIdx: result.pinnedIdx,
-                            })}
-                            style={{
-                              padding: "6px 12px",
-                              background: "#4f46e5",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "12px",
-                              fontWeight: "500",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                            }}
-                          >
-                            🔍 Fullscreen View
-                          </button>
-                        </div>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "12px",
-                            padding: "16px",
-                          }}
-                        >
-                      {ifElse(
-                        result.hasOption0,
-                        <div
-                          style={{
-                            padding: ifElse(result.isPinned0, "16px", "12px"),
-                            borderRadius: "8px",
-                            minHeight: "80px",
-                            border: ifElse(
-                              result.isPinned0,
-                              "3px solid #2563eb",
-                              "1px solid #e5e7eb"
-                            ),
-                            background: ifElse(result.isPinned0, "#bfdbfe", "#fff"),
-                            boxShadow: ifElse(
-                              result.isPinned0,
-                              "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
-                              "none"
-                            ),
-                            opacity: ifElse(
-                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 0),
-                              "0.15",
-                              "1"
-                            ),
-                            transform: ifElse(result.isPinned0, "scale(1.03)", "scale(1)"),
-                            transition: "all 0.2s ease",
-                            position: "relative",
-                            zIndex: ifElse(result.isPinned0, "10", "1"),
-                          }}
-                        >
-                          {ifElse(
-                            result.isPinned0,
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: "-16px",
-                                left: "50%",
-                                transform: "translateX(-50%)",
-                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                                color: "white",
-                                padding: "8px 20px",
-                                borderRadius: "16px",
-                                fontSize: "14px",
-                                fontWeight: "800",
-                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              📌 SELECTED
-                            </div>,
-                            null
-                          )}
+                        </div>,
+                        <div>
+                          {/* Options header with fullscreen button */}
                           <div
                             style={{
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
-                              marginBottom: "8px",
-                              marginTop: ifElse(result.isPinned0, "8px", "0"),
+                              padding: "12px 16px",
+                              borderBottom: "1px solid #e5e7eb",
+                              background: "#f9fafb",
                             }}
                           >
                             <div
                               style={{
-                                fontSize: ifElse(result.isPinned0, "14px", "12px"),
+                                fontSize: "13px",
                                 fontWeight: "600",
-                                color: ifElse(result.isPinned0, "#1d4ed8", "#666"),
+                                color: "#374151",
                               }}
                             >
-                              Option 1
+                              Generated Options
                             </div>
-                            {ifElse(
-                              derive(result.pinnedIdx, (p: number) => p < 0),
-                              <button
-                                onClick={pinOption({
-                                  spindles,
-                                  levels,
-                                  spindleIndex: result.spindleIndex,
-                                  optionIndex: 0,
-                                  optionContent: result.option0,
-                                })}
-                                style={{
-                                  padding: "4px 8px",
-                                  background: "#2563eb",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  fontSize: "11px",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                📌 Pin
-                              </button>,
-                              null
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              maxHeight: ifElse(result.isPinned0, "none", "150px"),
-                              overflow: ifElse(result.isPinned0, "visible", "auto"),
-                              color: ifElse(
-                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 0),
-                                "#9ca3af",
-                                "#374151"
-                              ),
-                            }}
-                          >
-                            <cf-markdown content={result.option0} />
-                          </div>
-                        </div>,
-                        null
-                      )}
-                      {ifElse(
-                        result.hasOption1,
-                        <div
-                          style={{
-                            padding: ifElse(result.isPinned1, "16px", "12px"),
-                            borderRadius: "8px",
-                            minHeight: "80px",
-                            border: ifElse(
-                              result.isPinned1,
-                              "3px solid #2563eb",
-                              "1px solid #e5e7eb"
-                            ),
-                            background: ifElse(result.isPinned1, "#bfdbfe", "#fff"),
-                            boxShadow: ifElse(
-                              result.isPinned1,
-                              "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
-                              "none"
-                            ),
-                            opacity: ifElse(
-                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 1),
-                              "0.15",
-                              "1"
-                            ),
-                            transform: ifElse(result.isPinned1, "scale(1.03)", "scale(1)"),
-                            transition: "all 0.2s ease",
-                            position: "relative",
-                            zIndex: ifElse(result.isPinned1, "10", "1"),
-                          }}
-                        >
-                          {ifElse(
-                            result.isPinned1,
-                            <div
+                            <button
+                              onClick={openOptionPicker({
+                                showOptionPicker,
+                                pickerSpindleIndex,
+                                pickerPreviewIndex,
+                                spindleIndex: result.spindleIndex,
+                                currentPinnedIdx: result.pinnedIdx,
+                              })}
                               style={{
-                                position: "absolute",
-                                top: "-16px",
-                                left: "50%",
-                                transform: "translateX(-50%)",
-                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                                padding: "6px 12px",
+                                background: "#4f46e5",
                                 color: "white",
-                                padding: "8px 20px",
-                                borderRadius: "16px",
-                                fontSize: "14px",
-                                fontWeight: "800",
-                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              📌 SELECTED
-                            </div>,
-                            null
-                          )}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              marginBottom: "8px",
-                              marginTop: ifElse(result.isPinned1, "8px", "0"),
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: ifElse(result.isPinned1, "14px", "12px"),
-                                fontWeight: "600",
-                                color: ifElse(result.isPinned1, "#1d4ed8", "#666"),
-                              }}
-                            >
-                              Option 2
-                            </div>
-                            {ifElse(
-                              derive(result.pinnedIdx, (p: number) => p < 0),
-                              <button
-                                onClick={pinOption({
-                                  spindles,
-                                  levels,
-                                  spindleIndex: result.spindleIndex,
-                                  optionIndex: 1,
-                                  optionContent: result.option1,
-                                })}
-                                style={{
-                                  padding: "4px 8px",
-                                  background: "#2563eb",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  fontSize: "11px",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                📌 Pin
-                              </button>,
-                              null
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              maxHeight: ifElse(result.isPinned1, "none", "150px"),
-                              overflow: ifElse(result.isPinned1, "visible", "auto"),
-                              color: ifElse(
-                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 1),
-                                "#9ca3af",
-                                "#374151"
-                              ),
-                            }}
-                          >
-                            <cf-markdown content={result.option1} />
-                          </div>
-                        </div>,
-                        null
-                      )}
-                      {ifElse(
-                        result.hasOption2,
-                        <div
-                          style={{
-                            padding: ifElse(result.isPinned2, "16px", "12px"),
-                            borderRadius: "8px",
-                            minHeight: "80px",
-                            border: ifElse(
-                              result.isPinned2,
-                              "3px solid #2563eb",
-                              "1px solid #e5e7eb"
-                            ),
-                            background: ifElse(result.isPinned2, "#bfdbfe", "#fff"),
-                            boxShadow: ifElse(
-                              result.isPinned2,
-                              "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
-                              "none"
-                            ),
-                            opacity: ifElse(
-                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 2),
-                              "0.15",
-                              "1"
-                            ),
-                            transform: ifElse(result.isPinned2, "scale(1.03)", "scale(1)"),
-                            transition: "all 0.2s ease",
-                            position: "relative",
-                            zIndex: ifElse(result.isPinned2, "10", "1"),
-                          }}
-                        >
-                          {ifElse(
-                            result.isPinned2,
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: "-16px",
-                                left: "50%",
-                                transform: "translateX(-50%)",
-                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                                color: "white",
-                                padding: "8px 20px",
-                                borderRadius: "16px",
-                                fontSize: "14px",
-                                fontWeight: "800",
-                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              📌 SELECTED
-                            </div>,
-                            null
-                          )}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              marginBottom: "8px",
-                              marginTop: ifElse(result.isPinned2, "8px", "0"),
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: ifElse(result.isPinned2, "14px", "12px"),
-                                fontWeight: "600",
-                                color: ifElse(result.isPinned2, "#1d4ed8", "#666"),
-                              }}
-                            >
-                              Option 3
-                            </div>
-                            {ifElse(
-                              derive(result.pinnedIdx, (p: number) => p < 0),
-                              <button
-                                onClick={pinOption({
-                                  spindles,
-                                  levels,
-                                  spindleIndex: result.spindleIndex,
-                                  optionIndex: 2,
-                                  optionContent: result.option2,
-                                })}
-                                style={{
-                                  padding: "4px 8px",
-                                  background: "#2563eb",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  fontSize: "11px",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                📌 Pin
-                              </button>,
-                              null
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              maxHeight: ifElse(result.isPinned2, "none", "150px"),
-                              overflow: ifElse(result.isPinned2, "visible", "auto"),
-                              color: ifElse(
-                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 2),
-                                "#9ca3af",
-                                "#374151"
-                              ),
-                            }}
-                          >
-                            <cf-markdown content={result.option2} />
-                          </div>
-                        </div>,
-                        null
-                      )}
-                      {ifElse(
-                        result.hasOption3,
-                        <div
-                          style={{
-                            padding: ifElse(result.isPinned3, "16px", "12px"),
-                            borderRadius: "8px",
-                            minHeight: "80px",
-                            border: ifElse(
-                              result.isPinned3,
-                              "3px solid #2563eb",
-                              "1px solid #e5e7eb"
-                            ),
-                            background: ifElse(result.isPinned3, "#bfdbfe", "#fff"),
-                            boxShadow: ifElse(
-                              result.isPinned3,
-                              "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
-                              "none"
-                            ),
-                            opacity: ifElse(
-                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 3),
-                              "0.15",
-                              "1"
-                            ),
-                            transform: ifElse(result.isPinned3, "scale(1.03)", "scale(1)"),
-                            transition: "all 0.2s ease",
-                            position: "relative",
-                            zIndex: ifElse(result.isPinned3, "10", "1"),
-                          }}
-                        >
-                          {ifElse(
-                            result.isPinned3,
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: "-16px",
-                                left: "50%",
-                                transform: "translateX(-50%)",
-                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                                color: "white",
-                                padding: "8px 20px",
-                                borderRadius: "16px",
-                                fontSize: "14px",
-                                fontWeight: "800",
-                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              📌 SELECTED
-                            </div>,
-                            null
-                          )}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              marginBottom: "8px",
-                              marginTop: ifElse(result.isPinned3, "8px", "0"),
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: ifElse(result.isPinned3, "14px", "12px"),
-                                fontWeight: "600",
-                                color: ifElse(result.isPinned3, "#1d4ed8", "#666"),
-                              }}
-                            >
-                              Option 4
-                            </div>
-                            {ifElse(
-                              derive(result.pinnedIdx, (p: number) => p < 0),
-                              <button
-                                onClick={pinOption({
-                                  spindles,
-                                  levels,
-                                  spindleIndex: result.spindleIndex,
-                                  optionIndex: 3,
-                                  optionContent: result.option3,
-                                })}
-                                style={{
-                                  padding: "4px 8px",
-                                  background: "#2563eb",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  fontSize: "11px",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                📌 Pin
-                              </button>,
-                              null
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              maxHeight: ifElse(result.isPinned3, "none", "150px"),
-                              overflow: ifElse(result.isPinned3, "visible", "auto"),
-                              color: ifElse(
-                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 3),
-                                "#9ca3af",
-                                "#374151"
-                              ),
-                            }}
-                          >
-                            <cf-markdown content={result.option3} />
-                          </div>
-                        </div>,
-                        null
-                      )}
-                        </div>
-                      </div>
-                    )
-                  )}
-
-                  {/* Summary */}
-                  {ifElse(
-                    result.isPinned,
-                    <div
-                      style={{
-                        padding: "12px 16px",
-                        borderTop: "1px solid #e5e7eb",
-                        background: "#f0fdf4",
-                      }}
-                    >
-                      <strong style={{ fontSize: "12px", color: "#166534" }}>
-                        Summary:
-                      </strong>
-                      <div
-                        style={{ fontSize: "13px", color: "#15803d", marginTop: "4px" }}
-                      >
-                        {ifElse(
-                          result.hasSummary,
-                          <span>{result.summary}</span>,
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <div
-                              style={{
-                                display: "inline-block",
-                                background: "linear-gradient(90deg, #bbf7d0 0%, #86efac 50%, #bbf7d0 100%)",
-                                backgroundSize: "200% 100%",
-                                animation: "shimmer 1.5s ease-in-out infinite",
-                                padding: "4px 12px",
+                                border: "none",
                                 borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                fontWeight: "500",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
                               }}
                             >
-                              Generating summary...
-                            </div>
-                            <style>{`
+                              🔍 Fullscreen View
+                            </button>
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: "12px",
+                              padding: "16px",
+                            }}
+                          >
+                            {ifElse(
+                              result.hasOption0,
+                              <div
+                                style={{
+                                  padding: ifElse(
+                                    result.isPinned0,
+                                    "16px",
+                                    "12px",
+                                  ),
+                                  borderRadius: "8px",
+                                  minHeight: "80px",
+                                  border: ifElse(
+                                    result.isPinned0,
+                                    "3px solid #2563eb",
+                                    "1px solid #e5e7eb",
+                                  ),
+                                  background: ifElse(
+                                    result.isPinned0,
+                                    "#bfdbfe",
+                                    "#fff",
+                                  ),
+                                  boxShadow: ifElse(
+                                    result.isPinned0,
+                                    "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
+                                    "none",
+                                  ),
+                                  opacity: ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p >= 0 && p !== 0),
+                                    "0.15",
+                                    "1",
+                                  ),
+                                  transform: ifElse(
+                                    result.isPinned0,
+                                    "scale(1.03)",
+                                    "scale(1)",
+                                  ),
+                                  transition: "all 0.2s ease",
+                                  position: "relative",
+                                  zIndex: ifElse(result.isPinned0, "10", "1"),
+                                }}
+                              >
+                                {ifElse(
+                                  result.isPinned0,
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "-16px",
+                                      left: "50%",
+                                      transform: "translateX(-50%)",
+                                      background:
+                                        "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                                      color: "white",
+                                      padding: "8px 20px",
+                                      borderRadius: "16px",
+                                      fontSize: "14px",
+                                      fontWeight: "800",
+                                      boxShadow:
+                                        "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                      letterSpacing: "0.5px",
+                                    }}
+                                  >
+                                    📌 SELECTED
+                                  </div>,
+                                  null,
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "8px",
+                                    marginTop: ifElse(
+                                      result.isPinned0,
+                                      "8px",
+                                      "0",
+                                    ),
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: ifElse(
+                                        result.isPinned0,
+                                        "14px",
+                                        "12px",
+                                      ),
+                                      fontWeight: "600",
+                                      color: ifElse(
+                                        result.isPinned0,
+                                        "#1d4ed8",
+                                        "#666",
+                                      ),
+                                    }}
+                                  >
+                                    Option 1
+                                  </div>
+                                  {ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p < 0),
+                                    <button
+                                      onClick={pinOption({
+                                        spindles,
+                                        levels,
+                                        spindleIndex: result.spindleIndex,
+                                        optionIndex: 0,
+                                        optionContent: result.option0,
+                                      })}
+                                      style={{
+                                        padding: "4px 8px",
+                                        background: "#2563eb",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: "500",
+                                      }}
+                                    >
+                                      📌 Pin
+                                    </button>,
+                                    null,
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    maxHeight: ifElse(
+                                      result.isPinned0,
+                                      "none",
+                                      "150px",
+                                    ),
+                                    overflow: ifElse(
+                                      result.isPinned0,
+                                      "visible",
+                                      "auto",
+                                    ),
+                                    color: ifElse(
+                                      derive(result.pinnedIdx, (p: number) =>
+                                        p >= 0 && p !== 0),
+                                      "#9ca3af",
+                                      "#374151",
+                                    ),
+                                  }}
+                                >
+                                  <cf-markdown content={result.option0} />
+                                </div>
+                              </div>,
+                              null,
+                            )}
+                            {ifElse(
+                              result.hasOption1,
+                              <div
+                                style={{
+                                  padding: ifElse(
+                                    result.isPinned1,
+                                    "16px",
+                                    "12px",
+                                  ),
+                                  borderRadius: "8px",
+                                  minHeight: "80px",
+                                  border: ifElse(
+                                    result.isPinned1,
+                                    "3px solid #2563eb",
+                                    "1px solid #e5e7eb",
+                                  ),
+                                  background: ifElse(
+                                    result.isPinned1,
+                                    "#bfdbfe",
+                                    "#fff",
+                                  ),
+                                  boxShadow: ifElse(
+                                    result.isPinned1,
+                                    "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
+                                    "none",
+                                  ),
+                                  opacity: ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p >= 0 && p !== 1),
+                                    "0.15",
+                                    "1",
+                                  ),
+                                  transform: ifElse(
+                                    result.isPinned1,
+                                    "scale(1.03)",
+                                    "scale(1)",
+                                  ),
+                                  transition: "all 0.2s ease",
+                                  position: "relative",
+                                  zIndex: ifElse(result.isPinned1, "10", "1"),
+                                }}
+                              >
+                                {ifElse(
+                                  result.isPinned1,
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "-16px",
+                                      left: "50%",
+                                      transform: "translateX(-50%)",
+                                      background:
+                                        "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                                      color: "white",
+                                      padding: "8px 20px",
+                                      borderRadius: "16px",
+                                      fontSize: "14px",
+                                      fontWeight: "800",
+                                      boxShadow:
+                                        "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                      letterSpacing: "0.5px",
+                                    }}
+                                  >
+                                    📌 SELECTED
+                                  </div>,
+                                  null,
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "8px",
+                                    marginTop: ifElse(
+                                      result.isPinned1,
+                                      "8px",
+                                      "0",
+                                    ),
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: ifElse(
+                                        result.isPinned1,
+                                        "14px",
+                                        "12px",
+                                      ),
+                                      fontWeight: "600",
+                                      color: ifElse(
+                                        result.isPinned1,
+                                        "#1d4ed8",
+                                        "#666",
+                                      ),
+                                    }}
+                                  >
+                                    Option 2
+                                  </div>
+                                  {ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p < 0),
+                                    <button
+                                      onClick={pinOption({
+                                        spindles,
+                                        levels,
+                                        spindleIndex: result.spindleIndex,
+                                        optionIndex: 1,
+                                        optionContent: result.option1,
+                                      })}
+                                      style={{
+                                        padding: "4px 8px",
+                                        background: "#2563eb",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: "500",
+                                      }}
+                                    >
+                                      📌 Pin
+                                    </button>,
+                                    null,
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    maxHeight: ifElse(
+                                      result.isPinned1,
+                                      "none",
+                                      "150px",
+                                    ),
+                                    overflow: ifElse(
+                                      result.isPinned1,
+                                      "visible",
+                                      "auto",
+                                    ),
+                                    color: ifElse(
+                                      derive(result.pinnedIdx, (p: number) =>
+                                        p >= 0 && p !== 1),
+                                      "#9ca3af",
+                                      "#374151",
+                                    ),
+                                  }}
+                                >
+                                  <cf-markdown content={result.option1} />
+                                </div>
+                              </div>,
+                              null,
+                            )}
+                            {ifElse(
+                              result.hasOption2,
+                              <div
+                                style={{
+                                  padding: ifElse(
+                                    result.isPinned2,
+                                    "16px",
+                                    "12px",
+                                  ),
+                                  borderRadius: "8px",
+                                  minHeight: "80px",
+                                  border: ifElse(
+                                    result.isPinned2,
+                                    "3px solid #2563eb",
+                                    "1px solid #e5e7eb",
+                                  ),
+                                  background: ifElse(
+                                    result.isPinned2,
+                                    "#bfdbfe",
+                                    "#fff",
+                                  ),
+                                  boxShadow: ifElse(
+                                    result.isPinned2,
+                                    "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
+                                    "none",
+                                  ),
+                                  opacity: ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p >= 0 && p !== 2),
+                                    "0.15",
+                                    "1",
+                                  ),
+                                  transform: ifElse(
+                                    result.isPinned2,
+                                    "scale(1.03)",
+                                    "scale(1)",
+                                  ),
+                                  transition: "all 0.2s ease",
+                                  position: "relative",
+                                  zIndex: ifElse(result.isPinned2, "10", "1"),
+                                }}
+                              >
+                                {ifElse(
+                                  result.isPinned2,
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "-16px",
+                                      left: "50%",
+                                      transform: "translateX(-50%)",
+                                      background:
+                                        "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                                      color: "white",
+                                      padding: "8px 20px",
+                                      borderRadius: "16px",
+                                      fontSize: "14px",
+                                      fontWeight: "800",
+                                      boxShadow:
+                                        "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                      letterSpacing: "0.5px",
+                                    }}
+                                  >
+                                    📌 SELECTED
+                                  </div>,
+                                  null,
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "8px",
+                                    marginTop: ifElse(
+                                      result.isPinned2,
+                                      "8px",
+                                      "0",
+                                    ),
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: ifElse(
+                                        result.isPinned2,
+                                        "14px",
+                                        "12px",
+                                      ),
+                                      fontWeight: "600",
+                                      color: ifElse(
+                                        result.isPinned2,
+                                        "#1d4ed8",
+                                        "#666",
+                                      ),
+                                    }}
+                                  >
+                                    Option 3
+                                  </div>
+                                  {ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p < 0),
+                                    <button
+                                      onClick={pinOption({
+                                        spindles,
+                                        levels,
+                                        spindleIndex: result.spindleIndex,
+                                        optionIndex: 2,
+                                        optionContent: result.option2,
+                                      })}
+                                      style={{
+                                        padding: "4px 8px",
+                                        background: "#2563eb",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: "500",
+                                      }}
+                                    >
+                                      📌 Pin
+                                    </button>,
+                                    null,
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    maxHeight: ifElse(
+                                      result.isPinned2,
+                                      "none",
+                                      "150px",
+                                    ),
+                                    overflow: ifElse(
+                                      result.isPinned2,
+                                      "visible",
+                                      "auto",
+                                    ),
+                                    color: ifElse(
+                                      derive(result.pinnedIdx, (p: number) =>
+                                        p >= 0 && p !== 2),
+                                      "#9ca3af",
+                                      "#374151",
+                                    ),
+                                  }}
+                                >
+                                  <cf-markdown content={result.option2} />
+                                </div>
+                              </div>,
+                              null,
+                            )}
+                            {ifElse(
+                              result.hasOption3,
+                              <div
+                                style={{
+                                  padding: ifElse(
+                                    result.isPinned3,
+                                    "16px",
+                                    "12px",
+                                  ),
+                                  borderRadius: "8px",
+                                  minHeight: "80px",
+                                  border: ifElse(
+                                    result.isPinned3,
+                                    "3px solid #2563eb",
+                                    "1px solid #e5e7eb",
+                                  ),
+                                  background: ifElse(
+                                    result.isPinned3,
+                                    "#bfdbfe",
+                                    "#fff",
+                                  ),
+                                  boxShadow: ifElse(
+                                    result.isPinned3,
+                                    "0 0 0 4px rgba(37, 99, 235, 0.3), 0 8px 20px rgba(37, 99, 235, 0.35)",
+                                    "none",
+                                  ),
+                                  opacity: ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p >= 0 && p !== 3),
+                                    "0.15",
+                                    "1",
+                                  ),
+                                  transform: ifElse(
+                                    result.isPinned3,
+                                    "scale(1.03)",
+                                    "scale(1)",
+                                  ),
+                                  transition: "all 0.2s ease",
+                                  position: "relative",
+                                  zIndex: ifElse(result.isPinned3, "10", "1"),
+                                }}
+                              >
+                                {ifElse(
+                                  result.isPinned3,
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "-16px",
+                                      left: "50%",
+                                      transform: "translateX(-50%)",
+                                      background:
+                                        "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                                      color: "white",
+                                      padding: "8px 20px",
+                                      borderRadius: "16px",
+                                      fontSize: "14px",
+                                      fontWeight: "800",
+                                      boxShadow:
+                                        "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                      letterSpacing: "0.5px",
+                                    }}
+                                  >
+                                    📌 SELECTED
+                                  </div>,
+                                  null,
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "8px",
+                                    marginTop: ifElse(
+                                      result.isPinned3,
+                                      "8px",
+                                      "0",
+                                    ),
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: ifElse(
+                                        result.isPinned3,
+                                        "14px",
+                                        "12px",
+                                      ),
+                                      fontWeight: "600",
+                                      color: ifElse(
+                                        result.isPinned3,
+                                        "#1d4ed8",
+                                        "#666",
+                                      ),
+                                    }}
+                                  >
+                                    Option 4
+                                  </div>
+                                  {ifElse(
+                                    derive(result.pinnedIdx, (p: number) =>
+                                      p < 0),
+                                    <button
+                                      onClick={pinOption({
+                                        spindles,
+                                        levels,
+                                        spindleIndex: result.spindleIndex,
+                                        optionIndex: 3,
+                                        optionContent: result.option3,
+                                      })}
+                                      style={{
+                                        padding: "4px 8px",
+                                        background: "#2563eb",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: "500",
+                                      }}
+                                    >
+                                      📌 Pin
+                                    </button>,
+                                    null,
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    maxHeight: ifElse(
+                                      result.isPinned3,
+                                      "none",
+                                      "150px",
+                                    ),
+                                    overflow: ifElse(
+                                      result.isPinned3,
+                                      "visible",
+                                      "auto",
+                                    ),
+                                    color: ifElse(
+                                      derive(result.pinnedIdx, (p: number) =>
+                                        p >= 0 && p !== 3),
+                                      "#9ca3af",
+                                      "#374151",
+                                    ),
+                                  }}
+                                >
+                                  <cf-markdown content={result.option3} />
+                                </div>
+                              </div>,
+                              null,
+                            )}
+                          </div>
+                        </div>,
+                      ),
+                    )}
+
+                    {/* Summary */}
+                    {ifElse(
+                      result.isPinned,
+                      <div
+                        style={{
+                          padding: "12px 16px",
+                          borderTop: "1px solid #e5e7eb",
+                          background: "#f0fdf4",
+                        }}
+                      >
+                        <strong style={{ fontSize: "12px", color: "#166534" }}>
+                          Summary:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#15803d",
+                            marginTop: "4px",
+                          }}
+                        >
+                          {ifElse(
+                            result.hasSummary,
+                            <span>{result.summary}</span>,
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "inline-block",
+                                  background:
+                                    "linear-gradient(90deg, #bbf7d0 0%, #86efac 50%, #bbf7d0 100%)",
+                                  backgroundSize: "200% 100%",
+                                  animation:
+                                    "shimmer 1.5s ease-in-out infinite",
+                                  padding: "4px 12px",
+                                  borderRadius: "4px",
+                                }}
+                              >
+                                Generating summary...
+                              </div>
+                              <style>
+                                {`
                               @keyframes shimmer {
                                 0% { background-position: 200% 0; }
                                 100% { background-position: -200% 0; }
                               }
-                            `}</style>
-                          </div>
-                        )}
-                      </div>
-                    </div>,
-                    null
-                  )}
-                </div>
-                {/* End Spindle Card */}
-              </div>
+                            `}
+                              </style>
+                            </div>,
+                          )}
+                        </div>
+                      </div>,
+                      null,
+                    )}
+                  </div>
+                  {/* End Spindle Card */}
+                </div>,
               );
             })}
           </div>
 
           {/* Placeholder cards for levels without spindles */}
-          {/*
+          {
+            /*
             Using a single derive block to render all placeholders.
             Cannot map over derive results, so we render JSX inside the derive callback.
             See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
-          */}
+          */
+          }
           {derive(
             { orphanLevels, levels },
-            (deps: { orphanLevels: Array<{ index: number; title: string }>; levels: LevelConfig[] }) => {
+            (
+              deps: {
+                orphanLevels: Array<{ index: number; title: string }>;
+                levels: LevelConfig[];
+              },
+            ) => {
               const orphans = deps.orphanLevels;
               const totalLevels = deps.levels?.length || 0;
-              if (!orphans || orphans.length === 0) return null;
+              if (!orphans || orphans.length === 0) {
+                return null;
+              }
               return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
+                    marginTop: "16px",
+                  }}
+                >
                   {orphans.map((level) => {
                     const isLastLevel = level.index === totalLevels - 1;
                     return (
@@ -2833,13 +3355,30 @@ Make them diverse in genre and tone:
                           textAlign: "center",
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
-                          <div style={{ fontWeight: "600", fontSize: "14px", color: "#6b7280" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              fontSize: "14px",
+                              color: "#6b7280",
+                            }}
+                          >
                             Level {level.index} - {level.title}
                           </div>
                           {isLastLevel && (
                             <button
-                              onClick={removeLevel({ levels, spindles, levelIndex: level.index })}
+                              onClick={removeLevel({
+                                levels,
+                                spindles,
+                                levelIndex: level.index,
+                              })}
                               style={{
                                 padding: "2px 8px",
                                 background: "#fee2e2",
@@ -2855,18 +3394,31 @@ Make them diverse in genre and tone:
                             </button>
                           )}
                         </div>
-                        <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px" }}>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "#9ca3af",
+                            marginTop: "8px",
+                          }}
+                        >
                           ⏳ Waiting for parent level to be pinned
                         </div>
-                        <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
-                          Pin an option in the level above to generate options here
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#9ca3af",
+                            marginTop: "4px",
+                          }}
+                        >
+                          Pin an option in the level above to generate options
+                          here
                         </div>
                       </div>
                     );
                   })}
                 </div>
               );
-            }
+            },
           )}
 
           {/* Add Level Button */}
@@ -3002,7 +3554,13 @@ Make them diverse in genre and tone:
                   />
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    justifyContent: "flex-end",
+                  }}
+                >
                   <button
                     onClick={closeModal({ showAddLevelModal })}
                     style={{
@@ -3040,7 +3598,7 @@ Make them diverse in genre and tone:
                 </div>
               </div>
             </div>,
-            null
+            null,
           )}
 
           {/* Edit Level Modal */}
@@ -3109,7 +3667,13 @@ Make them diverse in genre and tone:
                   />
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    justifyContent: "flex-end",
+                  }}
+                >
                   <button
                     onClick={closeEditLevelModal({ showEditLevelModal })}
                     style={{
@@ -3146,7 +3710,7 @@ Make them diverse in genre and tone:
                 </div>
               </div>
             </div>,
-            null
+            null,
           )}
 
           {/* View Prompt Modal */}
@@ -3185,7 +3749,9 @@ Make them diverse in genre and tone:
                     marginBottom: "16px",
                   }}
                 >
-                  <h2 style={{ margin: 0, fontSize: "18px" }}>Full Composed Prompt</h2>
+                  <h2 style={{ margin: 0, fontSize: "18px" }}>
+                    Full Composed Prompt
+                  </h2>
                   <button
                     onClick={closeViewPromptModal({ showViewPromptModal })}
                     style={{
@@ -3202,8 +3768,15 @@ Make them diverse in genre and tone:
                 </div>
 
                 {ifElse(
-                  derive(viewPromptDetails, (d) => d !== null),
-                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  derive(viewPromptDetails, (d) =>
+                    d !== null),
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "16px",
+                    }}
+                  >
                     {/* Header info */}
                     <div
                       style={{
@@ -3219,8 +3792,7 @@ Make them diverse in genre and tone:
                           ? d.positionSuffix
                             ? `${d.levelTitle} - ${d.positionSuffix}`
                             : d.levelTitle
-                          : ""
-                      )}
+                          : "")}
                     </div>
 
                     {/* Section 1: Parent Output */}
@@ -3249,7 +3821,8 @@ Make them diverse in genre and tone:
                           border: "1px solid #fcd34d",
                         }}
                       >
-                        {derive(viewPromptDetails, (d) => d?.parentOutput || "")}
+                        {derive(viewPromptDetails, (d) =>
+                          d?.parentOutput || "")}
                       </div>
                     </div>
 
@@ -3277,13 +3850,15 @@ Make them diverse in genre and tone:
                           border: "1px solid #93c5fd",
                         }}
                       >
-                        {derive(viewPromptDetails, (d) => d?.levelPrompt || "")}
+                        {derive(viewPromptDetails, (d) =>
+                          d?.levelPrompt || "")}
                       </div>
                     </div>
 
                     {/* Section 3: Extra Prompt (conditional) */}
                     {ifElse(
-                      derive(viewPromptDetails, (d) => !!d?.extraPrompt),
+                      derive(viewPromptDetails, (d) =>
+                        !!d?.extraPrompt),
                       <div>
                         <div
                           style={{
@@ -3307,15 +3882,17 @@ Make them diverse in genre and tone:
                             border: "1px solid #f9a8d4",
                           }}
                         >
-                          {derive(viewPromptDetails, (d) => d?.extraPrompt || "")}
+                          {derive(viewPromptDetails, (d) =>
+                            d?.extraPrompt || "")}
                         </div>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Section 4: Position Suffix - only shown when multiple siblings */}
                     {ifElse(
-                      derive(viewPromptDetails, (d) => !!d?.positionSuffix),
+                      derive(viewPromptDetails, (d) =>
+                        !!d?.positionSuffix),
                       <div>
                         <div
                           style={{
@@ -3328,8 +3905,9 @@ Make them diverse in genre and tone:
                           }}
                         >
                           {derive(viewPromptDetails, (d) =>
-                            d?.extraPrompt ? "4. Position Suffix" : "3. Position Suffix"
-                          )}
+                            d?.extraPrompt
+                              ? "4. Position Suffix"
+                              : "3. Position Suffix")}
                         </div>
                         <div
                           style={{
@@ -3340,10 +3918,11 @@ Make them diverse in genre and tone:
                             border: "1px solid #86efac",
                           }}
                         >
-                          {derive(viewPromptDetails, (d) => d?.positionSuffix || "")}
+                          {derive(viewPromptDetails, (d) =>
+                            d?.positionSuffix || "")}
                         </div>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Section: Generation Instruction - number depends on what's shown */}
@@ -3359,11 +3938,17 @@ Make them diverse in genre and tone:
                         }}
                       >
                         {derive(viewPromptDetails, (d) => {
-                          if (!d) return "Generation Instruction";
+                          if (!d) {
+                            return "Generation Instruction";
+                          }
                           // Base: Parent Output (1), Level Prompt (2)
                           let num = 3;
-                          if (d.extraPrompt) num++;
-                          if (d.positionSuffix) num++;
+                          if (d.extraPrompt) {
+                            num++;
+                          }
+                          if (d.positionSuffix) {
+                            num++;
+                          }
                           return `${num}. Generation Instruction`;
                         })}
                       </div>
@@ -3377,13 +3962,20 @@ Make them diverse in genre and tone:
                           border: "1px solid #d8b4fe",
                         }}
                       >
-                        {derive(viewPromptDetails, (d) => d?.generationInstruction || "")}
+                        {derive(viewPromptDetails, (d) =>
+                          d?.generationInstruction || "")}
                       </div>
                     </div>
                   </div>,
-                  <div style={{ color: "#666", textAlign: "center", padding: "20px" }}>
+                  <div
+                    style={{
+                      color: "#666",
+                      textAlign: "center",
+                      padding: "20px",
+                    }}
+                  >
                     No prompt details available
-                  </div>
+                  </div>,
                 )}
 
                 <div
@@ -3410,7 +4002,7 @@ Make them diverse in genre and tone:
                 </div>
               </div>
             </div>,
-            null
+            null,
           )}
 
           {/* Edit Spindle Prompt Modal */}
@@ -3439,13 +4031,27 @@ Make them diverse in genre and tone:
                   maxWidth: "90%",
                 }}
               >
-                <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#7c3aed" }}>
+                <h2
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: "18px",
+                    color: "#7c3aed",
+                  }}
+                >
                   Edit Spindle Prompt
                 </h2>
 
-                <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#6b7280" }}>
-                  Add specific guidance for THIS spindle only. This is combined with the level prompt to generate options.
-                  Examples: "Play up the wings metaphor", "Focus on the chemistry between Sarah and Steve", "Make it more suspenseful".
+                <p
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: "13px",
+                    color: "#6b7280",
+                  }}
+                >
+                  Add specific guidance for THIS spindle only. This is combined
+                  with the level prompt to generate options. Examples: "Play up
+                  the wings metaphor", "Focus on the chemistry between Sarah and
+                  Steve", "Make it more suspenseful".
                 </p>
 
                 <div style={{ marginBottom: "16px" }}>
@@ -3466,9 +4072,17 @@ Make them diverse in genre and tone:
                   />
                 </div>
 
-                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    justifyContent: "flex-end",
+                  }}
+                >
                   <button
-                    onClick={closeEditSpindlePromptModal({ showEditSpindlePromptModal })}
+                    onClick={closeEditSpindlePromptModal({
+                      showEditSpindlePromptModal,
+                    })}
                     style={{
                       padding: "8px 16px",
                       background: "#f3f4f6",
@@ -3502,7 +4116,7 @@ Make them diverse in genre and tone:
                 </div>
               </div>
             </div>,
-            null
+            null,
           )}
 
           {/* Edit Branch Factor Modal */}
@@ -3534,7 +4148,13 @@ Make them diverse in genre and tone:
                 <h2 style={{ margin: "0 0 16px 0", fontSize: "18px" }}>
                   Edit Branch Factor
                 </h2>
-                <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#6b7280" }}>
+                <p
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: "14px",
+                    color: "#6b7280",
+                  }}
+                >
                   How many variations to generate at this level?
                 </p>
 
@@ -3549,12 +4169,23 @@ Make them diverse in genre and tone:
                       marginBottom: "16px",
                     }}
                   >
-                    <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#991b1b" }}>
-                      <strong>Warning:</strong> Decreasing the branch factor will delete some spindles and their content.
+                    <p
+                      style={{
+                        margin: "0 0 12px 0",
+                        fontSize: "14px",
+                        color: "#991b1b",
+                      }}
+                    >
+                      <strong>Warning:</strong>{" "}
+                      Decreasing the branch factor will delete some spindles and
+                      their content.
                     </p>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button
-                        onClick={closeEditBranchModal({ showEditBranchModal, showBranchDeleteWarning })}
+                        onClick={closeEditBranchModal({
+                          showEditBranchModal,
+                          showBranchDeleteWarning,
+                        })}
                         style={{
                           padding: "6px 12px",
                           background: "#f3f4f6",
@@ -3590,9 +4221,17 @@ Make them diverse in genre and tone:
                     </div>
                   </div>,
                   <div style={{ marginBottom: "16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                      }}
+                    >
                       <button
-                        onClick={decrementEditBranchFactor({ editBranchFactor })}
+                        onClick={decrementEditBranchFactor({
+                          editBranchFactor,
+                        })}
                         style={{
                           width: "36px",
                           height: "36px",
@@ -3605,11 +4244,21 @@ Make them diverse in genre and tone:
                       >
                         -
                       </button>
-                      <span style={{ fontSize: "24px", fontWeight: "600", minWidth: "40px", textAlign: "center" }}>
-                        {derive(editBranchFactor, (v: number) => String(v))}
+                      <span
+                        style={{
+                          fontSize: "24px",
+                          fontWeight: "600",
+                          minWidth: "40px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {derive(editBranchFactor, (v: number) =>
+                          String(v))}
                       </span>
                       <button
-                        onClick={incrementEditBranchFactor({ editBranchFactor })}
+                        onClick={incrementEditBranchFactor({
+                          editBranchFactor,
+                        })}
                         style={{
                           width: "36px",
                           height: "36px",
@@ -3623,15 +4272,24 @@ Make them diverse in genre and tone:
                         +
                       </button>
                     </div>
-                  </div>
+                  </div>,
                 )}
 
                 {ifElse(
                   showBranchDeleteWarning,
                   null,
-                  <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      justifyContent: "flex-end",
+                    }}
+                  >
                     <button
-                      onClick={closeEditBranchModal({ showEditBranchModal, showBranchDeleteWarning })}
+                      onClick={closeEditBranchModal({
+                        showEditBranchModal,
+                        showBranchDeleteWarning,
+                      })}
                       style={{
                         padding: "8px 16px",
                         background: "#f3f4f6",
@@ -3665,11 +4323,11 @@ Make them diverse in genre and tone:
                     >
                       Apply
                     </button>
-                  </div>
+                  </div>,
                 )}
               </div>
             </div>,
-            null
+            null,
           )}
 
           {/* Option Picker Modal - Fullscreen */}
@@ -3714,7 +4372,8 @@ Make them diverse in genre and tone:
                 </button>
 
                 <div style={{ fontWeight: "600", fontSize: "16px" }}>
-                  Option {derive(pickerPreviewIndex, (i: number) => i + 1)} of 4
+                  Option {derive(pickerPreviewIndex, (i: number) =>
+                    i + 1)} of 4
                 </div>
 
                 <button
@@ -3725,11 +4384,21 @@ Make them diverse in genre and tone:
                     pickerPreviewIndex,
                     showOptionPicker,
                     optionContent: derive(
-                      { pickerSpindleIndex, pickerPreviewIndex, spindleResults },
-                      (deps: { pickerSpindleIndex: number; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
+                      {
+                        pickerSpindleIndex,
+                        pickerPreviewIndex,
+                        spindleResults,
+                      },
+                      (
+                        deps: {
+                          pickerSpindleIndex: number;
+                          pickerPreviewIndex: number;
+                          spindleResults: typeof spindleResults;
+                        },
+                      ) => {
                         // This is a simplified approach - would need proper lookup
                         return "";
-                      }
+                      },
                     ),
                   })}
                   style={{
@@ -3747,12 +4416,14 @@ Make them diverse in genre and tone:
                 </button>
               </div>
 
-              {/* Content - show current option
+              {
+                /* Content - show current option
                   TODO: Integrate ct-picker component here to display options.
                   Challenge: Need to create Cell array with UI for each option without
                   causing reactivity loops. See labs/packages/ui/src/v2/components/ct-picker/
                   and labs/packages/patterns/wish.tsx for examples of ct-picker usage.
-              */}
+              */
+              }
               <div
                 style={{
                   flex: 1,
@@ -3791,7 +4462,10 @@ Make them diverse in genre and tone:
                 }}
               >
                 <button
-                  onClick={decrementPickerPreviewIndex({ pickerPreviewIndex, count: 4 })}
+                  onClick={decrementPickerPreviewIndex({
+                    pickerPreviewIndex,
+                    count: 4,
+                  })}
                   style={{
                     padding: "12px 24px",
                     background: "#f3f4f6",
@@ -3814,17 +4488,23 @@ Make them diverse in genre and tone:
                         borderRadius: "50%",
                         background: derive(
                           pickerPreviewIndex,
-                          (idx: number) => idx === i ? "#2563eb" : "#d1d5db"
+                          (idx: number) => idx === i ? "#2563eb" : "#d1d5db",
                         ),
                         cursor: "pointer",
                       }}
-                      onClick={setPickerPreviewIndex({ pickerPreviewIndex, index: i })}
+                      onClick={setPickerPreviewIndex({
+                        pickerPreviewIndex,
+                        index: i,
+                      })}
                     />
                   ))}
                 </div>
 
                 <button
-                  onClick={incrementPickerPreviewIndex({ pickerPreviewIndex, count: 4 })}
+                  onClick={incrementPickerPreviewIndex({
+                    pickerPreviewIndex,
+                    count: 4,
+                  })}
                   style={{
                     padding: "12px 24px",
                     background: "#f3f4f6",
@@ -3838,7 +4518,7 @@ Make them diverse in genre and tone:
                 </button>
               </div>
             </div>,
-            null
+            null,
           )}
         </div>
       ),
@@ -3849,7 +4529,7 @@ Make them diverse in genre and tone:
       levels,
       spindles,
     };
-  }
+  },
 );
 
 // =============================================================================

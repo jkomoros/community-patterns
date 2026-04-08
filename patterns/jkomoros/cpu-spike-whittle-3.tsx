@@ -16,8 +16,8 @@ import {
   NAME,
   navigateTo,
   pattern,
-  UI,
   safeDateNow,
+  UI,
 } from "commonfabric";
 
 // =============================================================================
@@ -87,13 +87,20 @@ export default pattern<Input, Output>(
           <h2>CPU Spike Whittle - Step 3</h2>
 
           <p style={{ color: "#666", marginBottom: "16px" }}>
-            <strong>No GoogleAuth</strong> - Creates a simple inline pattern instead.
+            <strong>No GoogleAuth</strong>{" "}
+            - Creates a simple inline pattern instead.
           </p>
 
           <div style={{ fontSize: "13px", marginBottom: "16px" }}>
-            <p>Step 1 (wish + GoogleAuth): <strong>40s</strong></p>
-            <p>Step 2 (just GoogleAuth): <strong>19s</strong></p>
-            <p>Step 3 (simple pattern): <strong>???</strong></p>
+            <p>
+              Step 1 (wish + GoogleAuth): <strong>40s</strong>
+            </p>
+            <p>
+              Step 2 (just GoogleAuth): <strong>19s</strong>
+            </p>
+            <p>
+              Step 3 (simple pattern): <strong>???</strong>
+            </p>
           </div>
 
           <cf-button
@@ -106,5 +113,5 @@ export default pattern<Input, Output>(
       ),
       testName: "CPU Spike Whittle 3",
     };
-  }
+  },
 );

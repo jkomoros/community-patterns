@@ -9,11 +9,14 @@ description: >
 
 # Filing Issues
 
-**Location:** `patterns/$GITHUB_USER/issues/` for framework issues or pattern architecture questions
+**Location:** `patterns/$GITHUB_USER/issues/` for framework issues or pattern
+architecture questions
 
-**IMPORTANT: File issues ONLY after exhausting all other approaches AND getting user permission.**
+**IMPORTANT: File issues ONLY after exhausting all other approaches AND getting
+user permission.**
 
 **Prerequisites before filing:**
+
 1. ✅ Checked official `~/Code/labs/docs/common/` documentation
 2. ✅ Searched community-docs superstitions
 3. ✅ Studied similar working patterns
@@ -25,6 +28,7 @@ description: >
 ## When to File an Issue
 
 **After above prerequisites:**
+
 - Encountering framework behavior you don't understand
 - Pattern architecture questions that aren't answered by docs
 - Suspected framework bugs or limitations
@@ -33,11 +37,12 @@ description: >
 
 **File naming:** `ISSUE-Brief-Title.md`
 
-**Example:** `ISSUE-Automatic-Side-Effects.md`, `ISSUE-Reactive-Computed-Timing.md`
+**Example:** `ISSUE-Automatic-Side-Effects.md`,
+`ISSUE-Reactive-Computed-Timing.md`
 
 ## Issue Template
 
-```markdown
+````markdown
 # Issue: [Brief Question/Problem Title]
 
 ## Summary
@@ -49,6 +54,7 @@ description: >
 **Pattern:** Name of the pattern where this came up
 
 **What you're trying to accomplish:**
+
 - Clear description of the goal
 - Why you need this behavior
 - Context about the pattern
@@ -60,6 +66,7 @@ Show what you have working currently (if anything):
 ```typescript
 // Code that works (even if not ideal)
 ```
+````
 
 ## What We Tried (Failed Attempts)
 
@@ -70,6 +77,7 @@ Show what you have working currently (if anything):
 ```
 
 **Error:**
+
 ```
 Exact error message
 ```
@@ -94,6 +102,7 @@ Exact error message
 ## Desired Behavior
 
 What you want to happen:
+
 1. Step 1
 2. Step 2
 3. Expected outcome
@@ -107,8 +116,8 @@ What you want to happen:
 ---
 
 **Any guidance on the correct approach would be greatly appreciated!**
-```
 
+```
 ## When to File vs. When to Use Community Docs
 
 **File an issue when:**
@@ -144,17 +153,19 @@ What you want to happen:
    - Try multiple different approaches
    - Consider asking user for clarification first
 3. **Ask user permission:**
-   ```
-   "I've tried [list approaches]. This seems like a framework architecture question.
-   Would you like me to file an issue in patterns/$GITHUB_USER/issues/ to document
-   this for framework authors to review?"
-   ```
+```
+
+"I've tried [list approaches]. This seems like a framework architecture
+question. Would you like me to file an issue in patterns/$GITHUB_USER/issues/ to
+document this for framework authors to review?"
+
+```
 4. **Only if user says yes:**
-   - Check if similar issue exists in your issues/ folder
-   - Create new issue file with template
-   - Include all failed attempts with code
-   - Document clear problem statement
-   - Commit: `"Add issue: [brief description]"`
+- Check if similar issue exists in your issues/ folder
+- Create new issue file with template
+- Include all failed attempts with code
+- Document clear problem statement
+- Commit: `"Add issue: [brief description]"`
 
 **Never file an issue proactively - always get user approval first.**
 
@@ -165,3 +176,4 @@ What you want to happen:
 - **recovery-strategies** - Use issue filing as final escalation step
 - **community-docs** - Check before filing issues
 - **pattern-development** - Issues arise during development
+```

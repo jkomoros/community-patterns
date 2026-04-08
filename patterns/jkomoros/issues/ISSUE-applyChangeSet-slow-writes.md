@@ -2,7 +2,10 @@
 
 ## Summary
 
-When `generateObject` extracts data into a complex schema with many fields, there's a ~16 second UI freeze. The root cause is in `tx.writeValueOrThrow()` - each write takes ~68ms on average, and with 226 writes from the extraction result, this adds up to 15.4 seconds of blocking time.
+When `generateObject` extracts data into a complex schema with many fields,
+there's a ~16 second UI freeze. The root cause is in `tx.writeValueOrThrow()` -
+each write takes ~68ms on average, and with 226 writes from the extraction
+result, this adds up to 15.4 seconds of blocking time.
 
 **Key metric:** `15,441ms for 226 writes (avg 68.33ms per write)`
 
@@ -45,35 +48,39 @@ export default pattern(() => ({
 **Target pattern uses `generateObject` with 14-field schema:**
 
 ```typescript
-const { result: extractionResult, pending: extractionPending } = generateObject({
-  system: `You are a profile data extraction assistant. Extract structured information...`,
-  prompt: guardedPrompt,
-  model: "anthropic:claude-sonnet-4-5",
-  schema: {
-    type: "object",
-    properties: {
-      displayName: { type: "string" },
-      givenName: { type: "string" },
-      familyName: { type: "string" },
-      nickname: { type: "string" },
-      pronouns: { type: "string" },
-      email: { type: "string" },
-      phone: { type: "string" },
-      birthday: { type: "string" },
-      twitter: { type: "string" },
-      linkedin: { type: "string" },
-      github: { type: "string" },
-      instagram: { type: "string" },
-      mastodon: { type: "string" },
-      remainingNotes: { type: "string" },
+const { result: extractionResult, pending: extractionPending } = generateObject(
+  {
+    system:
+      `You are a profile data extraction assistant. Extract structured information...`,
+    prompt: guardedPrompt,
+    model: "anthropic:claude-sonnet-4-5",
+    schema: {
+      type: "object",
+      properties: {
+        displayName: { type: "string" },
+        givenName: { type: "string" },
+        familyName: { type: "string" },
+        nickname: { type: "string" },
+        pronouns: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+        birthday: { type: "string" },
+        twitter: { type: "string" },
+        linkedin: { type: "string" },
+        github: { type: "string" },
+        instagram: { type: "string" },
+        mastodon: { type: "string" },
+        remainingNotes: { type: "string" },
+      },
     },
   },
-});
+);
 ```
 
 ### Steps to Reproduce
 
-1. Deploy launcher: `deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space repro-test ../community-patterns/patterns/jkomoros/person-test-launcher.tsx`
+1. Deploy launcher:
+   `deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space repro-test ../community-patterns/patterns/jkomoros/person-test-launcher.tsx`
 2. Open: `http://localhost:5173/repro-test/`
 3. Click **"Launch Person (with notes)"**
 4. Wait for Person pattern to load
@@ -82,26 +89,27 @@ const { result: extractionResult, pending: extractionPending } = generateObject(
 
 ### Expected vs Actual
 
-| Metric | Expected | Actual |
-|--------|----------|--------|
-| LLM API response | ~2-3 seconds | ~2-3 seconds ✓ |
-| UI update after response | <100ms | **15+ seconds** ✗ |
-| CPU during extraction | Low | **100% single core** ✗ |
-| UI responsiveness | Normal | **Completely frozen** ✗ |
+| Metric                   | Expected     | Actual                  |
+| ------------------------ | ------------ | ----------------------- |
+| LLM API response         | ~2-3 seconds | ~2-3 seconds ✓          |
+| UI update after response | <100ms       | **15+ seconds** ✗       |
+| CPU during extraction    | Low          | **100% single core** ✗  |
+| UI responsiveness        | Normal       | **Completely frozen** ✗ |
 
 ### Control Test (Direct Deployment)
 
 Deploy the Person pattern directly (not via navigateTo):
+
 ```bash
 deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space control-test ../community-patterns/patterns/jkomoros/person.tsx
 ```
 
 **Result:** Extraction completes in ~2-3 seconds (normal).
 
-| Creation Method | Extraction Time |
-|-----------------|-----------------|
-| Direct `charm new` | ~2-3s |
-| Via `navigateTo()` | ~16s freeze |
+| Creation Method    | Extraction Time |
+| ------------------ | --------------- |
+| Direct `charm new` | ~2-3s           |
+| Via `navigateTo()` | ~16s freeze     |
 
 ---
 
@@ -121,7 +129,10 @@ We added targeted timing measurements at each layer of the write stack:
 **In `data-updating.ts` - `applyChangeSet()`:**
 
 ```typescript
-export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeSet) {
+export function applyChangeSet(
+  tx: IExtendedStorageTransaction,
+  changes: ChangeSet,
+) {
   let totalWriteTime = 0;
   let slowWrites = 0;
   for (let i = 0; i < changes.length; i++) {
@@ -133,14 +144,28 @@ export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeS
     if (elapsed > 10) {
       slowWrites++;
       if (slowWrites <= 5) {
-        console.log(`[PROFILING] applyChangeSet slow write #${i}: ${elapsed.toFixed(2)}ms path=${change.location.path.join(".")}`);
+        console.log(
+          `[PROFILING] applyChangeSet slow write #${i}: ${
+            elapsed.toFixed(2)
+          }ms path=${change.location.path.join(".")}`,
+        );
       }
     }
   }
   if (slowWrites > 5) {
-    console.log(`[PROFILING] applyChangeSet: ${slowWrites - 5} more slow writes not shown`);
+    console.log(
+      `[PROFILING] applyChangeSet: ${
+        slowWrites - 5
+      } more slow writes not shown`,
+    );
   }
-  console.log(`[PROFILING] applyChangeSet totalWriteTime: ${totalWriteTime.toFixed(2)}ms for ${changes.length} writes (avg ${(totalWriteTime / changes.length).toFixed(2)}ms)`);
+  console.log(
+    `[PROFILING] applyChangeSet totalWriteTime: ${
+      totalWriteTime.toFixed(2)
+    }ms for ${changes.length} writes (avg ${
+      (totalWriteTime / changes.length).toFixed(2)
+    }ms)`,
+  );
 }
 ```
 
@@ -159,18 +184,20 @@ export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeS
 
 ### What We Ruled Out
 
-| Hypothesis | Evidence Against It |
-|------------|---------------------|
-| O(n²) in scheduler | `topologicalSort-build-graph` and `arraysOverlap` both <1ms |
-| `normalizeAndDiff` traversal | Completed in 1.8ms (even for 226 changes) |
-| LLM response parsing | `generateObject-idle-wait` completed in <1ms |
-| Schema transformation | `recursivelyAddIDIfNeeded` completed in <5ms |
-| ct-autolayout component | Removed it, still freezes |
-| Network/async overhead | All time spent in synchronous `applyChangeSet` |
+| Hypothesis                   | Evidence Against It                                         |
+| ---------------------------- | ----------------------------------------------------------- |
+| O(n²) in scheduler           | `topologicalSort-build-graph` and `arraysOverlap` both <1ms |
+| `normalizeAndDiff` traversal | Completed in 1.8ms (even for 226 changes)                   |
+| LLM response parsing         | `generateObject-idle-wait` completed in <1ms                |
+| Schema transformation        | `recursivelyAddIDIfNeeded` completed in <5ms                |
+| ct-autolayout component      | Removed it, still freezes                                   |
+| Network/async overhead       | All time spent in synchronous `applyChangeSet`              |
 
 ### Definitive Finding
 
-The problem is in `applyChangeSet()`. Each individual `tx.writeValueOrThrow()` call takes ~68ms on average. With 226 writes, this adds up to 15+ seconds of blocking time.
+The problem is in `applyChangeSet()`. Each individual `tx.writeValueOrThrow()`
+call takes ~68ms on average. With 226 writes, this adds up to 15+ seconds of
+blocking time.
 
 ---
 
@@ -182,7 +209,8 @@ The `writeValueOrThrow` call chain reveals significant per-write overhead:
 
 1. **Path Resolution & Validation** (`chronicle.ts`)
    - Each write loads the current fact from the replica
-   - Validates against current state via `rebase()` which iterates over prior novelty entries
+   - Validates against current state via `rebase()` which iterates over prior
+     novelty entries
 
 2. **Deep Cloning via JSON Serialization** (`attestation.ts` lines 82-85)
    ```typescript
@@ -190,7 +218,8 @@ The `writeValueOrThrow` call chain reveals significant per-write overhead:
      ? source.value
      : JSON.parse(JSON.stringify(source.value)),
    ```
-   Every write creates a full deep clone. With 226 writes to a complex nested object, this is extremely expensive.
+   Every write creates a full deep clone. With 226 writes to a complex nested
+   object, this is extremely expensive.
 
 3. **Activity Tracking Overhead** (`journal.ts`)
    ```typescript
@@ -198,8 +227,9 @@ The `writeValueOrThrow` call chain reveals significant per-write overhead:
    ```
    Each write creates a new activity object.
 
-4. **Novelty Map Operations** (`chronicle.ts` - `Changes.rebase()`)
-   Iterates through existing changes to find overlapping addresses. With many writes, this approaches O(n²).
+4. **Novelty Map Operations** (`chronicle.ts` - `Changes.rebase()`) Iterates
+   through existing changes to find overlapping addresses. With many writes,
+   this approaches O(n²).
 
 ### Why 68ms Per Write?
 
@@ -231,10 +261,14 @@ Cell.set()
 
 **Complexity:** Low | **Impact:** High
 
-Group changes by document ID and write the merged result once instead of 226 individual writes:
+Group changes by document ID and write the merged result once instead of 226
+individual writes:
 
 ```typescript
-export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeSet) {
+export function applyChangeSet(
+  tx: IExtendedStorageTransaction,
+  changes: ChangeSet,
+) {
   // Group changes by document (id + type)
   const byDocument = new Map<string, ChangeSet>();
   for (const change of changes) {
@@ -245,7 +279,7 @@ export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeS
 
   // Apply changes per document as a single merged write
   for (const [_key, docChanges] of byDocument) {
-    const rootChange = docChanges.find(c => c.location.path.length === 0);
+    const rootChange = docChanges.find((c) => c.location.path.length === 0);
     if (rootChange) {
       const merged = applyNestedChanges(rootChange.value, docChanges);
       tx.writeValueOrThrow(rootChange.location, merged);
@@ -261,6 +295,7 @@ export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeS
 ### Option 2: Batch Write API
 
 Add `writeValuesOrThrow` batch method that:
+
 - Performs single rebase per document
 - Defers activity tracking to batch completion
 - Uses single deep clone, mutates in place
@@ -268,6 +303,7 @@ Add `writeValuesOrThrow` batch method that:
 ### Option 3: Eliminate JSON Deep Clone
 
 Replace `JSON.parse(JSON.stringify())` with structural sharing (Immer-style):
+
 - Only clone the path from root to modified leaf
 - Share unchanged subtrees between versions
 
@@ -275,23 +311,27 @@ Replace `JSON.parse(JSON.stringify())` with structural sharing (Immer-style):
 
 ## Questions for Framework Authors
 
-1. **Transaction Isolation:** Is it acceptable for reads within the same transaction to not immediately see prior writes? (Would enable deferred consolidation)
+1. **Transaction Isolation:** Is it acceptable for reads within the same
+   transaction to not immediately see prior writes? (Would enable deferred
+   consolidation)
 
-2. **Activity Tracking:** Is per-write activity tracking essential, or could it be aggregated?
+2. **Activity Tracking:** Is per-write activity tracking essential, or could it
+   be aggregated?
 
-3. **Existing Batch Patterns:** Are there internal batch patterns we should follow?
+3. **Existing Batch Patterns:** Are there internal batch patterns we should
+   follow?
 
 ---
 
 ## Critical Files
 
-| File | Relevance |
-|------|-----------|
-| `data-updating.ts` | `applyChangeSet()` - the slow loop |
-| `chronicle.ts` | `write()` and `rebase()` - per-write overhead |
-| `attestation.ts` | `JSON.parse(JSON.stringify())` deep clone |
-| `extended-storage-transaction.ts` | `writeValueOrThrow()` wrapper |
-| `cell.ts` | Entry point `Cell.set()` |
+| File                              | Relevance                                     |
+| --------------------------------- | --------------------------------------------- |
+| `data-updating.ts`                | `applyChangeSet()` - the slow loop            |
+| `chronicle.ts`                    | `write()` and `rebase()` - per-write overhead |
+| `attestation.ts`                  | `JSON.parse(JSON.stringify())` deep clone     |
+| `extended-storage-transaction.ts` | `writeValueOrThrow()` wrapper                 |
+| `cell.ts`                         | Entry point `Cell.set()`                      |
 
 ---
 
@@ -314,4 +354,5 @@ See: `patterns/jkomoros/person-test-launcher.tsx`
 
 See: `patterns/jkomoros/person.tsx` (1360 lines)
 
-The key section triggering this issue is the `generateObject` call at lines 686-728.
+The key section triggering this issue is the `generateObject` call at lines
+686-728.

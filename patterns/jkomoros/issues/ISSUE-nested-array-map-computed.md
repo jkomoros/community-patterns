@@ -2,32 +2,38 @@
 
 **Severity:** Medium - Requires data restructuring or UI changes
 
-**Discovered:** 2025-12-14
-**Pattern:** extracurricular-selector
-**Related Community Docs:**
-- `superstitions/verifications/2025-11-21-cannot-map-computed-arrays-in-jsx.md` (2 confirmations)
+**Discovered:** 2025-12-14 **Pattern:** extracurricular-selector **Related
+Community Docs:**
+
+- `superstitions/verifications/2025-11-21-cannot-map-computed-arrays-in-jsx.md`
+  (2 confirmations)
 - `superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md`
 
 ---
 
 ## Summary
 
-When mapping over items from a `computed()` result, nested array properties (like `item.tags`) cannot be mapped. Attempting to call `.map()` on a nested array throws:
+When mapping over items from a `computed()` result, nested array properties
+(like `item.tags`) cannot be mapped. Attempting to call `.map()` on a nested
+array throws:
 
 ```
 TypeError: item.tags.mapWithPattern is not a function
 ```
 
-This prevents common UI patterns like rendering lists of tags, categories, or other nested collections.
+This prevents common UI patterns like rendering lists of tags, categories, or
+other nested collections.
 
 ---
 
 ## Classification: CONFIRMED BUG
 
-**After deep code analysis, this is a BUG where the compiler's expectations don't match runtime behavior.**
+**After deep code analysis, this is a BUG where the compiler's expectations
+don't match runtime behavior.**
 
 - Test fixtures in the framework show this SHOULD work
-- The compiler transforms `.map()` to `.mapWithPattern()` expecting the method to exist
+- The compiler transforms `.map()` to `.mapWithPattern()` expecting the method
+  to exist
 - At runtime, nested arrays from computed results don't have this method
 - This is a type/runtime mismatch, not an intentional limitation
 
@@ -38,17 +44,21 @@ This prevents common UI patterns like rendering lists of tags, categories, or ot
 Should be able to map over nested array properties:
 
 ```typescript
-const items = computed(() => data.get().map(d => ({
-  name: d.name,
-  tags: d.tags  // string[]
-})));
+const items = computed(() =>
+  data.get().map((d) => ({
+    name: d.name,
+    tags: d.tags, // string[]
+  }))
+);
 
-{items.map((item) => (
-  <div>
-    {item.name}
-    {item.tags.map((tag) => <span>{tag}</span>)}  // Should work
-  </div>
-))}
+{
+  items.map((item) => (
+    <div>
+      {item.name}
+      {item.tags.map((tag) => <span>{tag}</span>)} // Should work
+    </div>
+  ));
+}
 ```
 
 ---
@@ -65,13 +75,18 @@ TypeError: item.tags.mapWithPattern is not a function
 
 ### Root Cause: Type Mismatch Between Compiler and Runtime
 
-The CTS compiler transforms all `.map()` calls in JSX to `.mapWithPattern()`, but nested arrays from computed results are plain JavaScript arrays without this method.
+The CTS compiler transforms all `.map()` calls in JSX to `.mapWithPattern()`,
+but nested arrays from computed results are plain JavaScript arrays without this
+method.
 
 #### 1. The CTS Compiler Transformation
 
-**File:** `/Users/alex/Code/labs/packages/ts-transformers/src/closures/strategies/map-strategy.ts` (Lines 122-155)
+**File:**
+`/Users/alex/Code/labs/packages/ts-transformers/src/closures/strategies/map-strategy.ts`
+(Lines 122-155)
 
-The compiler's `isOpaqueRefArrayMapCall()` function determines whether to transform `.map()`:
+The compiler's `isOpaqueRefArrayMapCall()` function determines whether to
+transform `.map()`:
 
 ```typescript
 export function isOpaqueRefArrayMapCall(
@@ -97,26 +112,32 @@ export function isOpaqueRefArrayMapCall(
 }
 ```
 
-**Key insight:** This checks if the **immediate target** is an OpaqueRef/Cell. But when you do `item.tags.map()`:
+**Key insight:** This checks if the **immediate target** is an OpaqueRef/Cell.
+But when you do `item.tags.map()`:
+
 - `item` = OpaqueRef (from mapWithPattern) ✅
 - `item.tags` = plain array (from property access) ❌
 
 #### 2. Test Fixtures Show Expected Behavior
 
-**File:** `/Users/alex/Code/labs/packages/ts-transformers/test/fixtures/closures/pattern-nested-jsx-map.input.tsx` (Lines 40-41)
+**File:**
+`/Users/alex/Code/labs/packages/ts-transformers/test/fixtures/closures/pattern-nested-jsx-map.input.tsx`
+(Lines 40-41)
 
 ```tsx
-{item.tags.map((tag, i) => (
-  <li>{tag.name}</li>
-))}
+{
+  item.tags.map((tag, i) => <li>{tag.name}</li>);
+}
 ```
 
 **Expected output at line 629:**
+
 ```tsx
 {item.tags.mapWithPattern(__ctHelpers.recipe(...), { ... })}
 ```
 
-**This test fixture proves the framework EXPECTS `item.tags` to have `mapWithPattern()`**, but at runtime it doesn't.
+**This test fixture proves the framework EXPECTS `item.tags` to have
+`mapWithPattern()`**, but at runtime it doesn't.
 
 #### 3. The OpaqueRef Proxy Implementation
 
@@ -155,7 +176,9 @@ get(): Readonly<T> {
 }
 ```
 
-The `validateAndTransform()` returns **plain JavaScript data**, not OpaqueRef-wrapped data. Nested arrays become plain arrays without `mapWithPattern()`.
+The `validateAndTransform()` returns **plain JavaScript data**, not
+OpaqueRef-wrapped data. Nested arrays become plain arrays without
+`mapWithPattern()`.
 
 ### The Data Flow Problem
 
@@ -184,12 +207,12 @@ Runtime Error: TypeError: item.tags.mapWithPattern is not a function
 
 ## Evidence This Is a Bug (Not Design Choice)
 
-| Evidence | Implication |
-|----------|-------------|
-| Test fixture `pattern-nested-jsx-map` expects `mapWithPattern` on nested arrays | Framework intends this to work |
-| Compiler transforms ALL `.map()` calls in JSX | No exception for nested properties |
-| OpaqueRef proxy DOES wrap nested cells | Implementation attempts to support this |
-| Only fails at runtime, not compile time | Type system doesn't catch the mismatch |
+| Evidence                                                                        | Implication                             |
+| ------------------------------------------------------------------------------- | --------------------------------------- |
+| Test fixture `pattern-nested-jsx-map` expects `mapWithPattern` on nested arrays | Framework intends this to work          |
+| Compiler transforms ALL `.map()` calls in JSX                                   | No exception for nested properties      |
+| OpaqueRef proxy DOES wrap nested cells                                          | Implementation attempts to support this |
+| Only fails at runtime, not compile time                                         | Type system doesn't catch the mismatch  |
 
 ---
 
@@ -197,7 +220,8 @@ Runtime Error: TypeError: item.tags.mapWithPattern is not a function
 
 ### Option 1: Schema-Aware Compiler (Most Correct)
 
-Make the compiler aware of schema structure to know `item.tags` should be OpaqueRef<string[]>:
+Make the compiler aware of schema structure to know `item.tags` should be
+OpaqueRef<string[]>:
 
 ```typescript
 // In map-strategy.ts when analyzing item.tags
@@ -212,7 +236,8 @@ if (tagsSchema.type === "array") {
 
 ### Option 2: Deeper Runtime Wrapping
 
-Modify `validateAndTransform()` to return OpaqueRef-wrapped arrays for array properties:
+Modify `validateAndTransform()` to return OpaqueRef-wrapped arrays for array
+properties:
 
 ```typescript
 if (Array.isArray(result) && parentIsOpaqueRef) {
@@ -245,13 +270,15 @@ Add explicit documentation that nested array mapping doesn't work.
 
 ## Performance Considerations
 
-The current workarounds (computing JSX inside computed) are actually **more efficient**:
+The current workarounds (computing JSX inside computed) are actually **more
+efficient**:
 
 1. **Single-level map()** - No nested reactivity tracking
 2. **Memoized computed** - JSX rendered once per change
 3. **No proxy overhead** - Plain arrays are faster
 
 If deeply nested mapping were supported, it would require:
+
 - Tracking reactivity through multiple levels of proxies
 - Creating recipes for each nested level
 - Potential exponential complexity for deeply nested structures
@@ -265,24 +292,24 @@ In extracurricular-selector, each class has multiple category tags:
 ```typescript
 interface Class {
   name: string;
-  categoryTagNames: string[];  // e.g., ["Robotics", "STEM", "Engineering"]
+  categoryTagNames: string[]; // e.g., ["Robotics", "STEM", "Engineering"]
 }
 
-const filteredClasses = computed(() =>
-  classes.get().filter(c => c.eligible)
-);
+const filteredClasses = computed(() => classes.get().filter((c) => c.eligible));
 
 // Wanted to render tags as chips:
-{filteredClasses.map((cls) => (
-  <div>
-    {cls.name}
-    <div class="tags">
-      {cls.categoryTagNames.map((tag) => (  // ❌ Fails
-        <span class="chip">{tag}</span>
-      ))}
+{
+  filteredClasses.map((cls) => (
+    <div>
+      {cls.name}
+      <div class="tags">
+        {cls.categoryTagNames.map((tag) => ( // ❌ Fails
+          <span class="chip">{tag}</span>
+        ))}
+      </div>
     </div>
-  </div>
-))}
+  ));
+}
 ```
 
 ---
@@ -295,40 +322,46 @@ Pre-render the nested content inside the computed:
 
 ```typescript
 const classesWithTagsUI = computed(() =>
-  classes.get().filter(c => c.eligible).map(c => ({
+  classes.get().filter((c) => c.eligible).map((c) => ({
     ...c,
-    tagsUI: c.categoryTagNames.map(tag => <span class="chip">{tag}</span>)
+    tagsUI: c.categoryTagNames.map((tag) => <span class="chip">{tag}</span>),
   }))
 );
 
-{classesWithTagsUI.map((cls) => (
-  <div>
-    {cls.name}
-    <div class="tags">{cls.tagsUI}</div>  // ✅ Works
-  </div>
-))}
+{
+  classesWithTagsUI.map((cls) => (
+    <div>
+      {cls.name}
+      <div class="tags">{cls.tagsUI}</div> // ✅ Works
+    </div>
+  ));
+}
 ```
 
 ### 2. Flatten to String (Simple Cases)
 
 ```typescript
-{filteredClasses.map((cls) => (
-  <div>
-    {cls.name}
-    <span>{cls.categoryTagNames.join(", ")}</span>  // ✅ Works
-  </div>
-))}
+{
+  filteredClasses.map((cls) => (
+    <div>
+      {cls.name}
+      <span>{cls.categoryTagNames.join(", ")}</span> // ✅ Works
+    </div>
+  ));
+}
 ```
 
 ### 3. Show Count Only
 
 ```typescript
-{filteredClasses.map((cls) => (
-  <div>
-    {cls.name}
-    <span>{cls.categoryTagNames.length} tags</span>  // ✅ Works
-  </div>
-))}
+{
+  filteredClasses.map((cls) => (
+    <div>
+      {cls.name}
+      <span>{cls.categoryTagNames.length} tags</span> // ✅ Works
+    </div>
+  ));
+}
 ```
 
 ---
@@ -337,36 +370,40 @@ const classesWithTagsUI = computed(() =>
 
 This issue has been confirmed by multiple developers:
 
-| Date | Pattern | Verification |
-|------|---------|--------------|
-| 2025-06-12 | Unknown | Initial superstition |
-| 2025-11-21 | photo-gallery | Verified by jkomoros |
-| 2025-12-02 | reward-spinner | Confirmed in verification doc |
+| Date       | Pattern                  | Verification                  |
+| ---------- | ------------------------ | ----------------------------- |
+| 2025-06-12 | Unknown                  | Initial superstition          |
+| 2025-11-21 | photo-gallery            | Verified by jkomoros          |
+| 2025-12-02 | reward-spinner           | Confirmed in verification doc |
 | 2025-12-14 | extracurricular-selector | Confirmed, workaround applied |
 
 ---
 
 ## Questions for Framework Authors
 
-1. **Confirm this is a bug:** The test fixtures suggest nested array mapping should work. Is this intended?
+1. **Confirm this is a bug:** The test fixtures suggest nested array mapping
+   should work. Is this intended?
 
-2. **Preferred fix approach:** Which of the potential fixes aligns best with the framework architecture?
+2. **Preferred fix approach:** Which of the potential fixes aligns best with the
+   framework architecture?
 
-3. **Timeline:** Is this something that could be fixed, or should we document it as a known limitation?
+3. **Timeline:** Is this something that could be fixed, or should we document it
+   as a known limitation?
 
-4. **Workaround validation:** Is computing JSX inside computed() the recommended pattern, or is there a better approach?
+4. **Workaround validation:** Is computing JSX inside computed() the recommended
+   pattern, or is there a better approach?
 
 ---
 
 ## Key Files Reference
 
-| Component | File | Lines |
-|-----------|------|-------|
-| Map Transformation | `map-strategy.ts` | 122-155, 188-213 |
-| OpaqueRef Proxy | `cell.ts` | 1126-1175 |
-| mapWithPattern | `cell.ts` | 1209-1227 |
-| Test Fixture | `pattern-nested-jsx-map.input.tsx` | 40-41 |
-| Expected Output | `pattern-nested-jsx-map.expected.tsx` | ~629 |
+| Component          | File                                  | Lines            |
+| ------------------ | ------------------------------------- | ---------------- |
+| Map Transformation | `map-strategy.ts`                     | 122-155, 188-213 |
+| OpaqueRef Proxy    | `cell.ts`                             | 1126-1175        |
+| mapWithPattern     | `cell.ts`                             | 1209-1227        |
+| Test Fixture       | `pattern-nested-jsx-map.input.tsx`    | 40-41            |
+| Expected Output    | `pattern-nested-jsx-map.expected.tsx` | ~629             |
 
 ---
 

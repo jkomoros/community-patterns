@@ -8,7 +8,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -16,6 +15,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // Types
@@ -37,7 +37,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
@@ -47,7 +47,7 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 const toggleFetching = handler<unknown, { enableFetching: Writable<boolean> }>(
   (_, { enableFetching }) => {
     enableFetching.set(!enableFetching.get());
-  }
+  },
 );
 
 export default pattern<Input, Output>(({ ids, enableFetching }) => {
@@ -67,8 +67,10 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
           : values.idCell;
 
         // THE BUG TRIGGER: Return empty string when not enabled
-        return enabled ? `https://jsonplaceholder.typicode.com/users/${id}` : "";
-      }
+        return enabled
+          ? `https://jsonplaceholder.typicode.com/users/${id}`
+          : "";
+      },
     );
 
     // fetchData with potentially empty URL
@@ -86,8 +88,15 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
       <div style={{ padding: "20px", fontFamily: "system-ui" }}>
         <h1>fetchData Empty URL Repro</h1>
 
-        <p style={{ background: "#fff3cd", padding: "10px", borderRadius: "4px" }}>
-          <strong>BUG:</strong> fetchData inside .map() with empty URL causes Frame mismatch
+        <p
+          style={{
+            background: "#fff3cd",
+            padding: "10px",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>BUG:</strong>{" "}
+          fetchData inside .map() with empty URL causes Frame mismatch
         </p>
 
         <div style={{ marginBottom: "20px" }}>
@@ -97,38 +106,63 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
           <button
             onClick={toggleFetching({ enableFetching })}
             style={{
-              background: derive(enableFetching, e => e ? "#28a745" : "#dc3545"),
+              background: derive(
+                enableFetching,
+                (e) => e ? "#28a745" : "#dc3545",
+              ),
               color: "white",
               border: "none",
               padding: "5px 10px",
-              borderRadius: "4px"
+              borderRadius: "4px",
             }}
           >
-            Fetching: {derive(enableFetching, e => e ? "ON" : "OFF")}
+            Fetching: {derive(enableFetching, (e) => e ? "ON" : "OFF")}
           </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
-          <strong>Fetching Enabled:</strong> {derive(enableFetching, e => e ? "YES (URLs have data)" : "NO (URLs are empty)")}
+          <strong>Fetching Enabled:</strong> {derive(
+            enableFetching,
+            (e) => e ? "YES (URLs have data)" : "NO (URLs are empty)",
+          )}
         </div>
 
         <h2>Results (check console for Frame mismatch errors):</h2>
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
+              </div>
               <div>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result ? u.result.name : u?.pending ? "..." : "—")}
+                <strong>User:</strong> {derive(
+                  item.userData,
+                  (u) => u?.result ? u.result.name : u?.pending ? "..." : "—",
+                )}
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#f8d7da", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#f8d7da",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Steps to reproduce:</strong>
           <ol>
             <li>Keep "Fetching: OFF" (default)</li>

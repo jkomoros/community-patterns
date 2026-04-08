@@ -3,13 +3,7 @@
  * @title generateObject Map Perf Launcher
  * @description Launcher for the generateObject + map performance repro
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import GenerateObjectMapRepro from "./generateobject-map-perf-repro.tsx";
 
@@ -53,8 +47,9 @@ export default pattern(() => {
             borderRadius: "4px",
           }}
         >
-          <strong>Test:</strong> Does navigateTo() + generateObject() + ifElse()
-          + nested map cause the ~30s CPU spike?
+          <strong>Test:</strong>{" "}
+          Does navigateTo() + generateObject() + ifElse() + nested map cause the
+          ~30s CPU spike?
         </div>
 
         <h2>Test Cases</h2>

@@ -9,11 +9,11 @@ import {
   type Opaque,
   OpaqueRef,
   pattern,
+  safeDateNow,
   str,
   UI,
   wish,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 // Type for a person charm reference
@@ -47,7 +47,11 @@ type Output = {
 // Handler to trigger analysis
 const triggerAnalysis = handler<
   Record<string, never>,
-  { analysisInput: Writable<string>; personCharms: Array<OpaqueRef<PersonCharm>>; hasAnalyzed: Writable<boolean> }
+  {
+    analysisInput: Writable<string>;
+    personCharms: Array<OpaqueRef<PersonCharm>>;
+    hasAnalyzed: Writable<boolean>;
+  }
 >(
   (_, { analysisInput, personCharms, hasAnalyzed }) => {
     // Create a snapshot of all person data for analysis
@@ -59,7 +63,9 @@ const triggerAnalysis = handler<
     }));
 
     // Add timestamp to ensure the trigger value always changes
-    analysisInput.set(`${JSON.stringify(snapshot)}\n---ANALYZE-${safeDateNow()}---`);
+    analysisInput.set(
+      `${JSON.stringify(snapshot)}\n---ANALYZE-${safeDateNow()}---`,
+    );
     hasAnalyzed.set(true);
   },
 );
@@ -85,8 +91,10 @@ const MetaAnalyzer = pattern<Input, Output>(
     const personCount = computed(() => personCharms.length);
 
     // LLM analysis for field suggestions
-    const { result: analysisResult, pending: analysisPending } = generateObject({
-      system: `You are an AI assistant that analyzes contact/person data to suggest useful custom fields.
+    const { result: analysisResult, pending: analysisPending } = generateObject(
+      {
+        system:
+          `You are an AI assistant that analyzes contact/person data to suggest useful custom fields.
 
 Your task is to analyze the notes from multiple person profiles and identify patterns that could become structured fields.
 
@@ -106,46 +114,53 @@ Only suggest fields that appear in at least 2 profiles and would genuinely be us
 Do not suggest fields that are already standard (name, email, phone, birthday, social media).
 
 Return an array of suggestions, or an empty array if no patterns are found.`,
-      prompt: analysisInput,
-      model: "anthropic:claude-sonnet-4-5",
-      schema: {
-        type: "object",
-        properties: {
-          suggestions: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                fieldKey: { type: "string" },
-                fieldLabel: { type: "string" },
-                dataType: {
-                  type: "string",
-                  enum: ["text", "number", "date", "url"]
-                },
-                frequency: { type: "number" },
-                samples: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      personName: { type: "string" },
-                      value: { type: "string" },
+        prompt: analysisInput,
+        model: "anthropic:claude-sonnet-4-5",
+        schema: {
+          type: "object",
+          properties: {
+            suggestions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  fieldKey: { type: "string" },
+                  fieldLabel: { type: "string" },
+                  dataType: {
+                    type: "string",
+                    enum: ["text", "number", "date", "url"],
+                  },
+                  frequency: { type: "number" },
+                  samples: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        personName: { type: "string" },
+                        value: { type: "string" },
+                      },
+                      required: ["personName", "value"],
                     },
-                    required: ["personName", "value"]
-                  }
-                }
+                  },
+                },
+                required: [
+                  "fieldKey",
+                  "fieldLabel",
+                  "dataType",
+                  "frequency",
+                  "samples",
+                ],
               },
-              required: ["fieldKey", "fieldLabel", "dataType", "frequency", "samples"]
-            }
-          }
+            },
+          },
+          required: ["suggestions"],
         },
-        required: ["suggestions"]
       },
-    });
+    );
 
     // Derive the suggestions array from the result
     const suggestions = computed(
-      () => analysisResult?.suggestions || []
+      () => analysisResult?.suggestions || [],
     );
 
     return {
@@ -161,21 +176,32 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
               <cf-hstack style={{ alignItems: "center", gap: "12px" }}>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: 0, color: "#666", fontSize: "13px" }}>
-                    {personCount} profile{personCount !== 1 ? "s" : ""} • Click Analyze to find common fields
+                    {personCount} profile{personCount !== 1 ? "s" : ""}{" "}
+                    • Click Analyze to find common fields
                   </p>
                 </div>
                 <cf-button
-                  onClick={triggerAnalysis({ analysisInput, personCharms, hasAnalyzed })}
+                  onClick={triggerAnalysis({
+                    analysisInput,
+                    personCharms,
+                    hasAnalyzed,
+                  })}
                   disabled={analysisPending}
                   variant="secondary"
                 >
                   {ifElse(
                     analysisPending,
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
                       <cf-loader size="sm" show-elapsed></cf-loader>
                       Analyzing...
                     </span>,
-                    "Analyze Profiles"
+                    "Analyze Profiles",
                   )}
                 </cf-button>
               </cf-hstack>
@@ -183,59 +209,86 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
               {ifElse(
                 computed(() => suggestions.length > 0),
                 <cf-vstack style={{ gap: "12px" }}>
-                  <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Suggested Fields</h3>
+                  <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>
+                    Suggested Fields
+                  </h3>
                   {suggestions.map((suggestion: FieldSuggestion) => (
-                  <cf-vstack
-                    style={{
-                      padding: "12px",
-                      background: "#f9fafb",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "6px",
-                      gap: "8px",
-                    }}
-                  >
-                    <cf-hstack style={{ alignItems: "center", gap: "12px" }}>
-                      <div style={{ flex: 1 }}>
-                        <strong style={{ fontSize: "14px" }}>
-                          {suggestion.fieldLabel}
-                        </strong>
-                        <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
-                          Found in {suggestion.frequency} profile{suggestion.frequency !== 1 ? "s" : ""} • {suggestion.dataType}
+                    <cf-vstack
+                      style={{
+                        padding: "12px",
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        gap: "8px",
+                      }}
+                    >
+                      <cf-hstack style={{ alignItems: "center", gap: "12px" }}>
+                        <div style={{ flex: 1 }}>
+                          <strong style={{ fontSize: "14px" }}>
+                            {suggestion.fieldLabel}
+                          </strong>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#666",
+                              marginTop: "2px",
+                            }}
+                          >
+                            Found in {suggestion.frequency}{" "}
+                            profile{suggestion.frequency !== 1 ? "s" : ""} •
+                            {" "}
+                            {suggestion.dataType}
+                          </div>
                         </div>
-                      </div>
-                      <cf-button variant="secondary" size="sm" disabled>
-                        Field
-                      </cf-button>
-                    </cf-hstack>
+                        <cf-button variant="secondary" size="sm" disabled>
+                          Field
+                        </cf-button>
+                      </cf-hstack>
 
-                    <cf-vstack style={{ gap: "6px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: "500", color: "#555" }}>
-                        Examples:
-                      </div>
-                      {suggestion.samples.map((sample: { personName: string; value: string }) => (
+                      <cf-vstack style={{ gap: "6px" }}>
                         <div
                           style={{
-                            fontSize: "11px",
-                            padding: "6px 8px",
-                            background: "white",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: "3px",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            color: "#555",
                           }}
                         >
-                          <strong>{sample.personName}:</strong> {sample.value}
+                          Examples:
                         </div>
-                      ))}
+                        {suggestion.samples.map((
+                          sample: { personName: string; value: string },
+                        ) => (
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              padding: "6px 8px",
+                              background: "white",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "3px",
+                            }}
+                          >
+                            <strong>{sample.personName}:</strong> {sample.value}
+                          </div>
+                        ))}
+                      </cf-vstack>
                     </cf-vstack>
-                  </cf-vstack>
-                ))}
+                  ))}
                 </cf-vstack>,
                 ifElse(
                   computed(() => hasAnalyzed.get() && !analysisPending),
-                  <div style={{ padding: "16px", textAlign: "center", color: "#666", fontSize: "13px" }}>
-                    No common patterns found. Try adding more profiles with similar information in the notes.
+                  <div
+                    style={{
+                      padding: "16px",
+                      textAlign: "center",
+                      color: "#666",
+                      fontSize: "13px",
+                    }}
+                  >
+                    No common patterns found. Try adding more profiles with
+                    similar information in the notes.
                   </div>,
-                  null
-                )
+                  null,
+                ),
               )}
             </cf-vstack>
           </cf-vscroll>
@@ -243,7 +296,11 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
       ),
       suggestions,
       isAnalyzing: analysisPending,
-      analyzeTrigger: triggerAnalysis({ analysisInput, personCharms, hasAnalyzed }),
+      analyzeTrigger: triggerAnalysis({
+        analysisInput,
+        personCharms,
+        hasAnalyzed,
+      }),
     };
   },
 );

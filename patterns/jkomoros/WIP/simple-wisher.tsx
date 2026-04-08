@@ -8,14 +8,22 @@ export default pattern<{}, {}>(
 
     return {
       [NAME]: "Simple Wisher",
-      [UI]: <div style={{ padding: "20px" }}>
-        <h2>Simple Wisher</h2>
-        <p>Click the link below to test cross-space navigation:</p>
-        <div style={{ padding: "10px", border: "1px solid #ccc", margin: "10px 0" }}>
-          {wishResult.result}
+      [UI]: (
+        <div style={{ padding: "20px" }}>
+          <h2>Simple Wisher</h2>
+          <p>Click the link below to test cross-space navigation:</p>
+          <div
+            style={{
+              padding: "10px",
+              border: "1px solid #ccc",
+              margin: "10px 0",
+            }}
+          >
+            {wishResult.result}
+          </div>
+          {wishResult}
         </div>
-        {wishResult}
-      </div>,
+      ),
     };
   },
 );

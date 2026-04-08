@@ -8,17 +8,17 @@
  * Outputs a markdown-formatted "agentic notes" blob with footnoted sources.
  */
 import {
-  Writable,
   Default,
   derive,
   handler,
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 import GmailAgenticSearch, {
-  type SearchProgress,
   type DebugLogEntry,
+  type SearchProgress,
 } from "../gmail-agentic-search.tsx";
 
 // TODO: createReportTool was removed from gmail-agentic-search.tsx
@@ -32,7 +32,9 @@ function createReportTool<TInput, TOutput>(config: {
   toRecord: (input: TInput, id: string, timestamp: number) => TOutput;
 }): any {
   // Stub implementation - returns a handler-like function
-  console.warn(`createReportTool(${config.idPrefix}) is deprecated - pattern needs refactoring`);
+  console.warn(
+    `createReportTool(${config.idPrefix}) is deprecated - pattern needs refactoring`,
+  );
   return () => ({ success: false, error: "createReportTool has been removed" });
 }
 
@@ -402,7 +404,9 @@ function generateAgenticNotes(
     );
     lines.push(`- Reasoning: ${primary.reasoning}`);
     footnotes.push(
-      `[${fn}] Analyzed ${findings.communicationStats.totalEmails || "multiple"} emails`,
+      `[${fn}] Analyzed ${
+        findings.communicationStats.totalEmails || "multiple"
+      } emails`,
     );
     lines.push("");
   }
@@ -589,9 +593,17 @@ const PersonResearchGmailAgent = pattern<
 
         return `Research information about "${name}" from my Gmail.
 
-${email ? `Known email address: ${email}` : "No email address provided - search by name."}
+${
+          email
+            ? `Known email address: ${email}`
+            : "No email address provided - search by name."
+        }
 ${context ? `Context: ${context}` : ""}
-${isQuickMode ? `\n⚠️ LIMITED TO ${max} SEARCHES. Focus on high-value queries!\n` : ""}
+${
+          isQuickMode
+            ? `\n⚠️ LIMITED TO ${max} SEARCHES. Focus on high-value queries!\n`
+            : ""
+        }
 
 Your task:
 1. Search Gmail for emails from/to/mentioning this person
@@ -599,7 +611,11 @@ Your task:
 3. Look for: email addresses, phone numbers, relationship context, topics discussed
 
 Search strategies:
-${email ? `- Search from:${email} and to:${email} for direct communication` : `- Search for "${name}" in quotes to find exact matches`}
+${
+          email
+            ? `- Search from:${email} and to:${email} for direct communication`
+            : `- Search for "${name}" in quotes to find exact matches`
+        }
 - Look in email signatures for phone numbers and social links
 - Analyze email domains to infer organization
 - Note the tone and topics to infer relationship type
@@ -624,7 +640,8 @@ When done, provide a summary of what you found.`;
 
     const searcher = GmailAgenticSearch({
       agentGoal,
-      systemPrompt: `You are a person research agent. Your job is to search Gmail and extract information about a specific person.
+      systemPrompt:
+        `You are a person research agent. Your job is to search Gmail and extract information about a specific person.
 
 You have these tools:
 1. searchGmail({ query }) - Search Gmail and return matching emails
@@ -662,8 +679,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
           handler: reportRelationshipTypeHandler({ items: relationshipTypes }),
         },
         reportTopic: {
-          description:
-            "Report a topic frequently discussed with this person.",
+          description: "Report a topic frequently discussed with this person.",
           handler: reportTopicHandler({ items: topics }),
         },
         reportOrganization: {
@@ -674,11 +690,15 @@ IMPORTANT: Report each finding immediately as you discover it!`,
         reportCommunicationStats: {
           description:
             "Report overall communication statistics (total emails, date range, frequency).",
-          handler: reportCommunicationStatsHandler({ stats: communicationStats }),
+          handler: reportCommunicationStatsHandler({
+            stats: communicationStats,
+          }),
         },
       },
-      title: derive([effectiveName], ([name]: [string]) =>
-        name ? `Person Research: ${name}` : "Person Research",
+      title: derive(
+        [effectiveName],
+        ([name]: [string]) =>
+          name ? `Person Research: ${name}` : "Person Research",
       ),
       scanButtonLabel: "🔍 Research This Person",
       maxSearches,
@@ -723,8 +743,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
       [effectiveName, findings],
       ([name, f]: [string, PersonFindings]) => {
         if (!name) return "";
-        const hasFindings =
-          f.emailAddresses.length > 0 ||
+        const hasFindings = f.emailAddresses.length > 0 ||
           f.phoneNumbers.length > 0 ||
           f.relationshipTypes.length > 0 ||
           f.topics.length > 0 ||
@@ -752,8 +771,10 @@ IMPORTANT: Report each finding immediately as you discover it!`,
     // ========================================================================
 
     return {
-      [NAME]: derive([effectiveName], ([name]: [string]) =>
-        name ? `🔍 Research: ${name}` : "🔍 Person Research",
+      [NAME]: derive(
+        [effectiveName],
+        ([name]: [string]) =>
+          name ? `🔍 Research: ${name}` : "🔍 Person Research",
       ),
 
       // Output
@@ -828,9 +849,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
 
               {/* Embed the base searcher - provides auth + scan UI */}
               {derive([effectiveName], ([name]: [string]) =>
-                name ? (
-                  searcher
-                ) : (
+                name ? searcher : (
                   <div
                     style={{
                       padding: "24px",
@@ -842,231 +861,253 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                   >
                     Enter a person's name above to start research
                   </div>
-                ),
-              )}
+                ))}
 
               {/* Findings Summary */}
               {derive(totalFindings, (count: number) =>
-                count > 0 ? (
-                  <cf-card>
-                    <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
-                      Findings ({count})
-                    </h3>
+                count > 0
+                  ? (
+                    <cf-card>
+                      <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
+                        Findings ({count})
+                      </h3>
 
-                    {/* Email Addresses */}
-                    {derive(emailAddresses, (emails: EmailAddressFinding[]) =>
-                      emails.length > 0 ? (
-                        <div style={{ marginBottom: "12px" }}>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              fontWeight: "600",
-                              color: "#475569",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Email Addresses
-                          </div>
-                          {emails.map((e: EmailAddressFinding) => (
-                            <div
-                              style={{
-                                padding: "6px 8px",
-                                background: "#f1f5f9",
-                                borderRadius: "4px",
-                                marginBottom: "4px",
-                                fontSize: "13px",
-                              }}
-                            >
-                              {e.value}{" "}
-                              <span
-                                style={{ color: "#94a3b8", fontSize: "11px" }}
-                              >
-                                ({e.confidence})
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null,
-                    )}
-
-                    {/* Phone Numbers */}
-                    {derive(phoneNumbers, (phones: PhoneNumberFinding[]) =>
-                      phones.length > 0 ? (
-                        <div style={{ marginBottom: "12px" }}>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              fontWeight: "600",
-                              color: "#475569",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Phone Numbers
-                          </div>
-                          {phones.map((p: PhoneNumberFinding) => (
-                            <div
-                              style={{
-                                padding: "6px 8px",
-                                background: "#f1f5f9",
-                                borderRadius: "4px",
-                                marginBottom: "4px",
-                                fontSize: "13px",
-                              }}
-                            >
-                              {p.value}
-                              {p.type ? ` (${p.type})` : ""}{" "}
-                              <span
-                                style={{ color: "#94a3b8", fontSize: "11px" }}
-                              >
-                                ({p.confidence})
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null,
-                    )}
-
-                    {/* Relationship */}
-                    {derive(
-                      relationshipTypes,
-                      (rels: RelationshipTypeFinding[]) =>
-                        rels.length > 0 ? (
-                          <div style={{ marginBottom: "12px" }}>
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                fontWeight: "600",
-                                color: "#475569",
-                                marginBottom: "4px",
-                              }}
-                            >
-                              Relationship
-                            </div>
-                            <div
-                              style={{
-                                padding: "6px 8px",
-                                background: "#f1f5f9",
-                                borderRadius: "4px",
-                                fontSize: "13px",
-                              }}
-                            >
-                              {rels[0].type}{" "}
-                              <span
-                                style={{ color: "#94a3b8", fontSize: "11px" }}
-                              >
-                                ({rels[0].confidence})
-                              </span>
+                      {/* Email Addresses */}
+                      {derive(emailAddresses, (emails: EmailAddressFinding[]) =>
+                        emails.length > 0
+                          ? (
+                            <div style={{ marginBottom: "12px" }}>
                               <div
                                 style={{
-                                  fontSize: "11px",
-                                  color: "#64748b",
-                                  marginTop: "4px",
+                                  fontSize: "13px",
+                                  fontWeight: "600",
+                                  color: "#475569",
+                                  marginBottom: "4px",
                                 }}
                               >
-                                {rels[0].reasoning}
+                                Email Addresses
+                              </div>
+                              {emails.map((e: EmailAddressFinding) => (
+                                <div
+                                  style={{
+                                    padding: "6px 8px",
+                                    background: "#f1f5f9",
+                                    borderRadius: "4px",
+                                    marginBottom: "4px",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  {e.value}{" "}
+                                  <span
+                                    style={{
+                                      color: "#94a3b8",
+                                      fontSize: "11px",
+                                    }}
+                                  >
+                                    ({e.confidence})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                          : null)}
+
+                      {/* Phone Numbers */}
+                      {derive(phoneNumbers, (phones: PhoneNumberFinding[]) =>
+                        phones.length > 0
+                          ? (
+                            <div style={{ marginBottom: "12px" }}>
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  fontWeight: "600",
+                                  color: "#475569",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                Phone Numbers
+                              </div>
+                              {phones.map((p: PhoneNumberFinding) => (
+                                <div
+                                  style={{
+                                    padding: "6px 8px",
+                                    background: "#f1f5f9",
+                                    borderRadius: "4px",
+                                    marginBottom: "4px",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  {p.value}
+                                  {p.type ? ` (${p.type})` : ""}{" "}
+                                  <span
+                                    style={{
+                                      color: "#94a3b8",
+                                      fontSize: "11px",
+                                    }}
+                                  >
+                                    ({p.confidence})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                          : null)}
+
+                      {/* Relationship */}
+                      {derive(
+                        relationshipTypes,
+                        (rels: RelationshipTypeFinding[]) =>
+                          rels.length > 0
+                            ? (
+                              <div style={{ marginBottom: "12px" }}>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    fontWeight: "600",
+                                    color: "#475569",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  Relationship
+                                </div>
+                                <div
+                                  style={{
+                                    padding: "6px 8px",
+                                    background: "#f1f5f9",
+                                    borderRadius: "4px",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  {rels[0].type}{" "}
+                                  <span
+                                    style={{
+                                      color: "#94a3b8",
+                                      fontSize: "11px",
+                                    }}
+                                  >
+                                    ({rels[0].confidence})
+                                  </span>
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      color: "#64748b",
+                                      marginTop: "4px",
+                                    }}
+                                  >
+                                    {rels[0].reasoning}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                            : null,
+                      )}
+
+                      {/* Topics */}
+                      {derive(topics, (tops: TopicFinding[]) =>
+                        tops.length > 0
+                          ? (
+                            <div style={{ marginBottom: "12px" }}>
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  fontWeight: "600",
+                                  color: "#475569",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                Topics Discussed
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: "4px",
+                                }}
+                              >
+                                {tops.slice(0, 5).map((t: TopicFinding) => (
+                                  <span
+                                    style={{
+                                      padding: "4px 8px",
+                                      background: "#dbeafe",
+                                      borderRadius: "12px",
+                                      fontSize: "12px",
+                                      color: "#1e40af",
+                                    }}
+                                  >
+                                    {t.topic} ({t.mentions})
+                                  </span>
+                                ))}
                               </div>
                             </div>
-                          </div>
-                        ) : null,
-                    )}
+                          )
+                          : null)}
 
-                    {/* Topics */}
-                    {derive(topics, (tops: TopicFinding[]) =>
-                      tops.length > 0 ? (
-                        <div style={{ marginBottom: "12px" }}>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              fontWeight: "600",
-                              color: "#475569",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Topics Discussed
-                          </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                            {tops.slice(0, 5).map((t: TopicFinding) => (
-                              <span
+                      {/* Organization */}
+                      {derive(organizations, (orgs: OrganizationFinding[]) =>
+                        orgs.length > 0
+                          ? (
+                            <div>
+                              <div
                                 style={{
-                                  padding: "4px 8px",
-                                  background: "#dbeafe",
-                                  borderRadius: "12px",
-                                  fontSize: "12px",
-                                  color: "#1e40af",
+                                  fontSize: "13px",
+                                  fontWeight: "600",
+                                  color: "#475569",
+                                  marginBottom: "4px",
                                 }}
                               >
-                                {t.topic} ({t.mentions})
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null,
-                    )}
-
-                    {/* Organization */}
-                    {derive(organizations, (orgs: OrganizationFinding[]) =>
-                      orgs.length > 0 ? (
-                        <div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              fontWeight: "600",
-                              color: "#475569",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            Organization
-                          </div>
-                          <div
-                            style={{
-                              padding: "6px 8px",
-                              background: "#f1f5f9",
-                              borderRadius: "4px",
-                              fontSize: "13px",
-                            }}
-                          >
-                            {orgs[0].name}
-                          </div>
-                        </div>
-                      ) : null,
-                    )}
-                  </cf-card>
-                ) : null,
-              )}
+                                Organization
+                              </div>
+                              <div
+                                style={{
+                                  padding: "6px 8px",
+                                  background: "#f1f5f9",
+                                  borderRadius: "4px",
+                                  fontSize: "13px",
+                                }}
+                              >
+                                {orgs[0].name}
+                              </div>
+                            </div>
+                          )
+                          : null)}
+                    </cf-card>
+                  )
+                  : null)}
 
               {/* Generated Notes */}
               {derive(generatedNotes, (notes: string) =>
-                notes ? (
-                  <cf-card>
-                    <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
-                      Agentic Notes
-                    </h3>
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "#f8fafc",
-                        borderRadius: "6px",
-                        fontFamily: "monospace",
-                        fontSize: "12px",
-                        whiteSpace: "pre-wrap",
-                        maxHeight: "300px",
-                        overflow: "auto",
-                      }}
-                    >
-                      {notes}
-                    </div>
-                    <div
-                      style={{
-                        marginTop: "8px",
-                        fontSize: "11px",
-                        color: "#94a3b8",
-                      }}
-                    >
-                      Copy this to the person's notes field for reference
-                    </div>
-                  </cf-card>
-                ) : null,
-              )}
+                notes
+                  ? (
+                    <cf-card>
+                      <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
+                        Agentic Notes
+                      </h3>
+                      <div
+                        style={{
+                          padding: "12px",
+                          background: "#f8fafc",
+                          borderRadius: "6px",
+                          fontFamily: "monospace",
+                          fontSize: "12px",
+                          whiteSpace: "pre-wrap",
+                          maxHeight: "300px",
+                          overflow: "auto",
+                        }}
+                      >
+                        {notes}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          fontSize: "11px",
+                          color: "#94a3b8",
+                        }}
+                      >
+                        Copy this to the person's notes field for reference
+                      </div>
+                    </cf-card>
+                  )
+                  : null)}
             </cf-vstack>
           </cf-vscroll>
         </cf-screen>

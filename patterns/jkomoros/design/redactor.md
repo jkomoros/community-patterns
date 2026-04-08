@@ -2,45 +2,58 @@
 
 ## Implementation Progress
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Simple PII Vault (`simple-pii-vault.tsx`) | ✅ Done | UI for managing PII entries by category |
-| Canonicalization algorithm | ✅ Done | NFKC, confusables, strip whitespace/punctuation |
-| PII matching with evasion resistance | ✅ Done | Word boundary checking, position mapping |
-| Nonce generation per category | ✅ Done | Realistic pools per category |
-| Redactor pattern (`redactor.tsx`) | ✅ Done | Full redact/restore with session state |
-| End-to-end testing | ✅ Done | See Test Results section below |
+| Component                                 | Status  | Notes                                           |
+| ----------------------------------------- | ------- | ----------------------------------------------- |
+| Simple PII Vault (`simple-pii-vault.tsx`) | ✅ Done | UI for managing PII entries by category         |
+| Canonicalization algorithm                | ✅ Done | NFKC, confusables, strip whitespace/punctuation |
+| PII matching with evasion resistance      | ✅ Done | Word boundary checking, position mapping        |
+| Nonce generation per category             | ✅ Done | Realistic pools per category                    |
+| Redactor pattern (`redactor.tsx`)         | ✅ Done | Full redact/restore with session state          |
+| End-to-end testing                        | ✅ Done | See Test Results section below                  |
 
 ## Test Results
 
 ### Basic Redaction & Restore
+
 - ✅ "Alex Komoros" → "Alice Anderson" (name category)
 - ✅ "alex@example.com" → "alice0@example.com" (email category)
 - ✅ Restore correctly reverses nonces back to original PII
 
 ### Evasion Resistance
-- ✅ "A l e x  K o m o r o s" (spaced) → correctly redacted
+
+- ✅ "A l e x K o m o r o s" (spaced) → correctly redacted
 - ✅ "a.l.e.x@example.com" (punctuated) → correctly redacted
 - ✅ "A_L_E_X@example.com" (underscored) → correctly redacted
-- ⚠️ Extreme obfuscation (mixed symbols like "A~L.E*X--K%O%M%O%R%O%S") partially works
+- ⚠️ Extreme obfuscation (mixed symbols like "A~L.E*X--K%O%M%O%R%O%S") partially
+  works
 
 ### Known Limitations
+
 - Partial matches in heavily obfuscated text may not all be caught
-- Auto-split name parts match independently (may replace "Alex" and "Komoros" separately)
+- Auto-split name parts match independently (may replace "Alex" and "Komoros"
+  separately)
 
 ---
 
 ## Overview
 
-The Redactor pattern provides a privacy-preserving layer between sensitive user data and untrusted systems (primarily LLMs). It accepts a structured list of PII (Personally Identifying Information), redacts that PII from outgoing text by replacing it with realistic-looking nonces, and restores the original PII when responses come back.
+The Redactor pattern provides a privacy-preserving layer between sensitive user
+data and untrusted systems (primarily LLMs). It accepts a structured list of PII
+(Personally Identifying Information), redacts that PII from outgoing text by
+replacing it with realistic-looking nonces, and restores the original PII when
+responses come back.
 
-**Key insight**: The LLM never sees real PII, but produces responses that reference the nonces. When restored, the output appears as if the LLM had access to the real data.
+**Key insight**: The LLM never sees real PII, but produces responses that
+reference the nonces. When restored, the output appears as if the LLM had access
+to the real data.
 
 ## Goals
 
 1. **Privacy**: PII never leaves the local system
-2. **Transparency**: Upstream consumers see seamless results (as if PII was used)
-3. **Consistency**: Same PII maps to same nonce within a prompt (so LLM reasoning is coherent)
+2. **Transparency**: Upstream consumers see seamless results (as if PII was
+   used)
+3. **Consistency**: Same PII maps to same nonce within a prompt (so LLM
+   reasoning is coherent)
 4. **Robustness**: Resist evasion attempts (whitespace, unicode tricks, etc.)
 5. **Realism**: Nonces look like plausible real data of the same type
 
@@ -48,8 +61,10 @@ The Redactor pattern provides a privacy-preserving layer between sensitive user 
 
 ### What we're defending against
 
-1. **Direct PII exposure**: User accidentally pastes content containing their PII into a prompt
-2. **Inference attacks**: Attacker tries to extract PII by observing patterns in redacted output
+1. **Direct PII exposure**: User accidentally pastes content containing their
+   PII into a prompt
+2. **Inference attacks**: Attacker tries to extract PII by observing patterns in
+   redacted output
 3. **Evasion attacks**: Malicious input tries to sneak PII through via:
    - Whitespace insertion: `J o h n   S m i t h`
    - Case variations: `JOHN smith`, `jOhN sMiTh`
@@ -61,7 +76,8 @@ The Redactor pattern provides a privacy-preserving layer between sensitive user 
 
 ### What we're NOT defending against
 
-1. **Semantic inference**: If PII is "works at Google" and prompt says "the user's employer", LLM might still reference Google
+1. **Semantic inference**: If PII is "works at Google" and prompt says "the
+   user's employer", LLM might still reference Google
 2. **Side-channel attacks**: Timing, response length variations
 3. **Determined adversaries with full system access**
 
@@ -107,17 +123,17 @@ The Redactor pattern provides a privacy-preserving layer between sensitive user 
 
 ```typescript
 type PIICategory =
-  | 'name'      // Full names, first names, last names
-  | 'email'     // Email addresses
-  | 'phone'     // Phone numbers
-  | 'ssn'       // Social Security Numbers
-  | 'address'   // Physical addresses
-  | 'custom';   // User-defined sensitive strings
+  | "name" // Full names, first names, last names
+  | "email" // Email addresses
+  | "phone" // Phone numbers
+  | "ssn" // Social Security Numbers
+  | "address" // Physical addresses
+  | "custom"; // User-defined sensitive strings
 
 interface PIIEntry {
   category: PIICategory;
-  value: string;           // Original value
-  canonical: string;       // Normalized form for matching
+  value: string; // Original value
+  canonical: string; // Normalized form for matching
 }
 
 interface PIIRegistry {
@@ -131,11 +147,11 @@ interface PIIRegistry {
 ```typescript
 interface NoncePools {
   name: {
-    first: string[];    // ["Alice", "Bob", "Carol", "David", ...]
-    last: string[];     // ["Anderson", "Brown", "Chen", "Davis", ...]
+    first: string[]; // ["Alice", "Bob", "Carol", "David", ...]
+    last: string[]; // ["Anderson", "Brown", "Chen", "Davis", ...]
   };
   email: {
-    domains: string[];  // ["example.com", "test.org", "sample.net"]
+    domains: string[]; // ["example.com", "test.org", "sample.net"]
   };
   phone: {
     // 555-01XX range is reserved for fiction
@@ -147,8 +163,8 @@ interface NoncePools {
     patterns: string[]; // ["900-00-0001", "900-00-0002", ...]
   };
   address: {
-    streets: string[];  // ["123 Example St", "456 Test Ave", ...]
-    cities: string[];   // ["Anytown", "Somewhere", ...]
+    streets: string[]; // ["123 Example St", "456 Test Ave", ...]
+    cities: string[]; // ["Anytown", "Somewhere", ...]
   };
   custom: {
     // Generic placeholders
@@ -162,10 +178,10 @@ interface NoncePools {
 ```typescript
 interface RedactionSession {
   // Forward mapping: what nonce did we use for this PII?
-  piiToNonce: Map<string, string>;  // canonical PII → nonce
+  piiToNonce: Map<string, string>; // canonical PII → nonce
 
   // Reverse mapping: what PII does this nonce represent?
-  nonceToPii: Map<string, string>;  // nonce → original PII (preserving case)
+  nonceToPii: Map<string, string>; // nonce → original PII (preserving case)
 
   // Track which nonces have been used (to avoid collisions)
   usedNonces: Set<string>;
@@ -182,7 +198,9 @@ interface RedactionSession {
 Transform text into a normalized form for matching:
 
 ```typescript
-function canonicalize(text: string): { canonical: string; positionMap: number[] } {
+function canonicalize(
+  text: string,
+): { canonical: string; positionMap: number[] } {
   // positionMap[i] = index in original text that produced canonical[i]
 
   const result: string[] = [];
@@ -190,7 +208,7 @@ function canonicalize(text: string): { canonical: string; positionMap: number[] 
 
   // Step 1: Unicode NFKC normalization
   // Handles: ﬁ→fi, ２→2, etc.
-  let normalized = text.normalize('NFKC');
+  let normalized = text.normalize("NFKC");
 
   // Step 2: Map Unicode confusables to ASCII
   // Cyrillic а→a, о→o, е→e, etc.
@@ -220,8 +238,8 @@ function canonicalize(text: string): { canonical: string; positionMap: number[] 
   }
 
   return {
-    canonical: result.join(''),
-    positionMap
+    canonical: result.join(""),
+    positionMap,
   };
 }
 ```
@@ -233,14 +251,14 @@ Find all PII occurrences in text, handling evasion attempts:
 ```typescript
 function findPIIMatches(
   text: string,
-  registry: PIIRegistry
+  registry: PIIRegistry,
 ): PIIMatch[] {
   const { canonical: canonicalText, positionMap } = canonicalize(text);
   const matches: PIIMatch[] = [];
 
   // Sort PII by canonical length descending (match longest first)
   const sortedPII = [...registry.entries].sort(
-    (a, b) => b.canonical.length - a.canonical.length
+    (a, b) => b.canonical.length - a.canonical.length,
   );
 
   // Track which positions are already matched (for overlapping PII)
@@ -265,16 +283,21 @@ function findPIIMatches(
       if (!overlaps) {
         // Map back to original text positions
         const originalStart = positionMap[matchIndex];
-        const originalEnd = positionMap[matchIndex + pii.canonical.length - 1] + 1;
+        const originalEnd = positionMap[matchIndex + pii.canonical.length - 1] +
+          1;
 
         // Expand to include surrounding whitespace/punctuation that was part of evasion
-        const expandedSpan = expandToOriginalBoundaries(text, originalStart, originalEnd);
+        const expandedSpan = expandToOriginalBoundaries(
+          text,
+          originalStart,
+          originalEnd,
+        );
 
         matches.push({
           pii,
           originalStart: expandedSpan.start,
           originalEnd: expandedSpan.end,
-          originalText: text.slice(expandedSpan.start, expandedSpan.end)
+          originalText: text.slice(expandedSpan.start, expandedSpan.end),
         });
 
         // Mark positions as matched
@@ -300,7 +323,7 @@ Generate realistic replacement values:
 function generateNonce(
   category: PIICategory,
   session: RedactionSession,
-  pools: NoncePools
+  pools: NoncePools,
 ): string {
   const counter = session.nonceCounters.get(category) || 0;
   session.nonceCounters.set(category, counter + 1);
@@ -308,43 +331,48 @@ function generateNonce(
   let nonce: string;
 
   switch (category) {
-    case 'name':
+    case "name":
       // Combine first and last names
       const firstIdx = counter % pools.name.first.length;
-      const lastIdx = Math.floor(counter / pools.name.first.length) % pools.name.last.length;
+      const lastIdx = Math.floor(counter / pools.name.first.length) %
+        pools.name.last.length;
       nonce = `${pools.name.first[firstIdx]} ${pools.name.last[lastIdx]}`;
       break;
 
-    case 'email':
+    case "email":
       // Generate email from name nonce
-      const nameForEmail = pools.name.first[counter % pools.name.first.length].toLowerCase();
+      const nameForEmail = pools.name.first[counter % pools.name.first.length]
+        .toLowerCase();
       const domain = pools.email.domains[counter % pools.email.domains.length];
       nonce = `${nameForEmail}${counter}@${domain}`;
       break;
 
-    case 'phone':
+    case "phone":
       // Use 555-01XX reserved range
-      nonce = `555-01${String(counter % 100).padStart(2, '0')}`;
+      nonce = `555-01${String(counter % 100).padStart(2, "0")}`;
       break;
 
-    case 'ssn':
+    case "ssn":
       // Use 900-XX-XXXX (never issued)
       const group = Math.floor(counter / 10000) % 100;
       const serial = counter % 10000;
-      nonce = `900-${String(group).padStart(2, '0')}-${String(serial).padStart(4, '0')}`;
+      nonce = `900-${String(group).padStart(2, "0")}-${
+        String(serial).padStart(4, "0")
+      }`;
       break;
 
-    case 'address':
+    case "address":
       const streetNum = 100 + counter;
-      const street = pools.address.streets[counter % pools.address.streets.length];
+      const street =
+        pools.address.streets[counter % pools.address.streets.length];
       const city = pools.address.cities[counter % pools.address.cities.length];
       nonce = `${streetNum} ${street}, ${city}`;
       break;
 
-    case 'custom':
+    case "custom":
     default:
       // Generic placeholder with unique ID
-      nonce = `[ITEM-${String(counter + 1).padStart(3, '0')}]`;
+      nonce = `[ITEM-${String(counter + 1).padStart(3, "0")}]`;
       break;
   }
 
@@ -365,12 +393,12 @@ function redact(
   text: string,
   registry: PIIRegistry,
   session: RedactionSession,
-  pools: NoncePools
+  pools: NoncePools,
 ): string {
   const matches = findPIIMatches(text, registry);
 
   // Build result by replacing matches
-  let result = '';
+  let result = "";
   let lastEnd = 0;
 
   for (const match of matches) {
@@ -401,13 +429,13 @@ function redact(
 ```typescript
 function restore(
   text: string,
-  session: RedactionSession
+  session: RedactionSession,
 ): string {
   let result = text;
 
   // Sort nonces by length descending (match longest first)
   const sortedNonces = [...session.nonceToPii.entries()].sort(
-    (a, b) => b[0].length - a[0].length
+    (a, b) => b[0].length - a[0].length,
   );
 
   for (const [nonce, originalPII] of sortedNonces) {
@@ -424,29 +452,34 @@ function restore(
 Apply the case pattern from the original matched text to the nonce:
 
 ```typescript
-type CasePattern = 'lower' | 'upper' | 'title' | 'mixed';
+type CasePattern = "lower" | "upper" | "title" | "mixed";
 
 function detectCasePattern(text: string): CasePattern {
-  const letters = text.replace(/[^a-zA-Z]/g, '');
-  if (!letters) return 'lower';
+  const letters = text.replace(/[^a-zA-Z]/g, "");
+  if (!letters) return "lower";
 
   const isAllLower = letters === letters.toLowerCase();
   const isAllUpper = letters === letters.toUpperCase();
   const isTitle = /^[A-Z][a-z]*(\s+[A-Z][a-z]*)*$/.test(text.trim());
 
-  if (isAllLower) return 'lower';
-  if (isAllUpper) return 'upper';
-  if (isTitle) return 'title';
-  return 'mixed';
+  if (isAllLower) return "lower";
+  if (isAllUpper) return "upper";
+  if (isTitle) return "title";
+  return "mixed";
 }
 
 function applyCasePattern(text: string, pattern: CasePattern): string {
   switch (pattern) {
-    case 'lower': return text.toLowerCase();
-    case 'upper': return text.toUpperCase();
-    case 'title': return text.replace(/\b\w/g, c => c.toUpperCase());
-    case 'mixed': return text; // Keep nonce's default case
-    default: return text;
+    case "lower":
+      return text.toLowerCase();
+    case "upper":
+      return text.toUpperCase();
+    case "title":
+      return text.replace(/\b\w/g, (c) => c.toUpperCase());
+    case "mixed":
+      return text; // Keep nonce's default case
+    default:
+      return text;
   }
 }
 
@@ -470,12 +503,12 @@ interface FormatPattern {
 }
 
 function detectFormatPattern(text: string): FormatPattern | null {
-  const digitsOnly = text.replace(/\D/g, '');
+  const digitsOnly = text.replace(/\D/g, "");
   if (!digitsOnly) return null;
 
   const separatorPositions: number[] = [];
   let digitIndex = 0;
-  let separator = '';
+  let separator = "";
 
   for (let i = 0; i < text.length; i++) {
     if (/\d/.test(text[i])) {
@@ -489,16 +522,19 @@ function detectFormatPattern(text: string): FormatPattern | null {
   return {
     separatorPositions,
     separator,
-    digitCount: digitsOnly.length
+    digitCount: digitsOnly.length,
   };
 }
 
-function applyFormatPattern(digits: string, pattern: FormatPattern | null): string {
+function applyFormatPattern(
+  digits: string,
+  pattern: FormatPattern | null,
+): string {
   if (!pattern || pattern.separatorPositions.length === 0) {
     return digits; // No formatting needed
   }
 
-  let result = '';
+  let result = "";
   let digitIndex = 0;
 
   for (let i = 0; i < digits.length; i++) {
@@ -538,7 +574,7 @@ function isWordBoundary(text: string, index: number): boolean {
 function isValidMatch(
   text: string,
   matchStart: number,
-  matchEnd: number
+  matchEnd: number,
 ): boolean {
   // Check boundary before match
   const beforeBoundary = isWordBoundary(text, matchStart - 1);
@@ -566,18 +602,18 @@ function addNamePII(
   registry: PIIRegistry,
   fullName: string,
   session: RedactionSession,
-  pools: NoncePools
+  pools: NoncePools,
 ): void {
   // Add the full name
   const fullNameEntry: PIIEntry = {
-    category: 'name',
+    category: "name",
     value: fullName,
-    canonical: canonicalize(fullName).canonical
+    canonical: canonicalize(fullName).canonical,
   };
   registry.entries.push(fullNameEntry);
 
   // Generate nonce for full name
-  const fullNonce = generateNonce('name', session, pools);
+  const fullNonce = generateNonce("name", session, pools);
   // e.g., "Alice Anderson"
 
   // Split into components
@@ -590,11 +626,11 @@ function addNamePII(
     if (part.length < 2) continue; // Skip initials
 
     const partEntry: PIIEntry = {
-      category: 'name',
+      category: "name",
       value: part,
       canonical: canonicalize(part).canonical,
       // Link to the corresponding nonce part
-      linkedNonce: nonceParts[i] || nonceParts[nonceParts.length - 1]
+      linkedNonce: nonceParts[i] || nonceParts[nonceParts.length - 1],
     };
     registry.entries.push(partEntry);
   }
@@ -617,14 +653,23 @@ When adding an email, split into local part and domain:
 // Common email provider prefixes (match any TLD)
 // e.g., "gmail" matches gmail.com, gmail.co.uk, gmail.de, etc.
 const COMMON_EMAIL_PROVIDERS = new Set([
-  'gmail', 'hotmail', 'yahoo', 'outlook',
-  'icloud', 'aol', 'protonmail', 'mail',
-  'live', 'msn', 'ymail', 'googlemail'
+  "gmail",
+  "hotmail",
+  "yahoo",
+  "outlook",
+  "icloud",
+  "aol",
+  "protonmail",
+  "mail",
+  "live",
+  "msn",
+  "ymail",
+  "googlemail",
 ]);
 
 function isCommonEmailDomain(domain: string): boolean {
   // Extract provider name (everything before first dot)
-  const provider = domain.split('.')[0].toLowerCase();
+  const provider = domain.split(".")[0].toLowerCase();
   return COMMON_EMAIL_PROVIDERS.has(provider);
 }
 
@@ -637,18 +682,18 @@ function addEmailPII(
   registry: PIIRegistry,
   email: string,
   session: RedactionSession,
-  pools: NoncePools
+  pools: NoncePools,
 ): void {
   // Add full email
   const emailEntry: PIIEntry = {
-    category: 'email',
+    category: "email",
     value: email,
-    canonical: canonicalize(email).canonical
+    canonical: canonicalize(email).canonical,
   };
   registry.entries.push(emailEntry);
 
   // Parse email
-  const atIndex = email.lastIndexOf('@');
+  const atIndex = email.lastIndexOf("@");
   if (atIndex === -1) return;
 
   const localPart = email.slice(0, atIndex);
@@ -656,18 +701,18 @@ function addEmailPII(
 
   // Always add local part (often contains name)
   const localEntry: PIIEntry = {
-    category: 'name', // Treat as name-like for matching
+    category: "name", // Treat as name-like for matching
     value: localPart,
-    canonical: canonicalize(localPart).canonical
+    canonical: canonicalize(localPart).canonical,
   };
   registry.entries.push(localEntry);
 
   // Add domain only if not a common provider
   if (!isCommonEmailDomain(domain)) {
     const domainEntry: PIIEntry = {
-      category: 'custom',
+      category: "custom",
       value: domain,
-      canonical: canonicalize(domain).canonical
+      canonical: canonicalize(domain).canonical,
     };
     registry.entries.push(domainEntry);
   }
@@ -722,9 +767,9 @@ interface Redactor {
 ```typescript
 // Setup
 const redactor = createRedactor();
-redactor.addPII('name', 'John Smith');
-redactor.addPII('email', 'john.smith@company.com');
-redactor.addPII('ssn', '123-45-6789');
+redactor.addPII("name", "John Smith");
+redactor.addPII("email", "john.smith@company.com");
+redactor.addPII("ssn", "123-45-6789");
 
 // For each LLM interaction
 const session = redactor.createSession();
@@ -795,61 +840,91 @@ const restoredResponse = redactor.restore(llmResponse, session);
 ```typescript
 // Cells for the pattern
 const piiRegistry = cell<PIIEntry[]>([]);
-const inputText = cell<string>('');
-const llmResponse = cell<string>('');
+const inputText = cell<string>("");
+const llmResponse = cell<string>("");
 
 // Derived state
 const currentSession = cell<RedactionSession | null>(null);
-const redactedOutput = cell<string>('');
-const restoredOutput = cell<string>('');
+const redactedOutput = cell<string>("");
+const restoredOutput = cell<string>("");
 ```
 
 ## Design Decisions
 
 ### Resolved
 
-1. **Partial name matching**: YES. If PII includes "John Smith", we automatically also match "John" and "Smith" individually. This provides better privacy at the cost of potential over-redaction. When adding a name, we split on whitespace and add each component as a separate PII entry (linked to the same nonce family for consistency).
+1. **Partial name matching**: YES. If PII includes "John Smith", we
+   automatically also match "John" and "Smith" individually. This provides
+   better privacy at the cost of potential over-redaction. When adding a name,
+   we split on whitespace and add each component as a separate PII entry (linked
+   to the same nonce family for consistency).
 
-2. **Case preservation**: YES. If input has "JOHN SMITH", the nonce should also be "ALICE ANDERSON". Analyze the case pattern of the matched text and apply it to the nonce.
+2. **Case preservation**: YES. If input has "JOHN SMITH", the nonce should also
+   be "ALICE ANDERSON". Analyze the case pattern of the matched text and apply
+   it to the nonce.
 
-3. **Format preservation**: YES. If SSN is registered as "123-45-6789" but input has "123456789", the replacement should also be "900000001" (no dashes). Detect the format pattern and apply to nonce.
+3. **Format preservation**: YES. If SSN is registered as "123-45-6789" but input
+   has "123456789", the replacement should also be "900000001" (no dashes).
+   Detect the format pattern and apply to nonce.
 
-4. **Word boundary awareness**: YES. "John" should NOT match inside "Johnson". Matching requires word boundaries (whitespace, punctuation, or start/end of string) on both sides. However, "John" SHOULD match in "John@email.com" since @ is a word boundary.
+4. **Word boundary awareness**: YES. "John" should NOT match inside "Johnson".
+   Matching requires word boundaries (whitespace, punctuation, or start/end of
+   string) on both sides. However, "John" SHOULD match in "John@email.com" since
+   @ is a word boundary.
 
-5. **PII registry as input**: The pattern accepts PII as an input cell. Don't worry about persistence or where it comes from - that's the caller's responsibility.
+5. **PII registry as input**: The pattern accepts PII as an input cell. Don't
+   worry about persistence or where it comes from - that's the caller's
+   responsibility.
 
-6. **Custom category nonces**: Use `[ITEM-001]` style for custom PII. Simple and clear.
+6. **Custom category nonces**: Use `[ITEM-001]` style for custom PII. Simple and
+   clear.
 
 7. **Email auto-splitting**: When adding an email like `john.smith@company.com`:
    - Always add the local part (`john.smith`) as a separate name-like entry
-   - Add the domain (`company.com`) UNLESS it's a common provider prefix (gmail.*, hotmail.*, yahoo.*, outlook.*, icloud.*, aol.*, protonmail.*, mail.*, live.*, msn.*)
+   - Add the domain (`company.com`) UNLESS it's a common provider prefix
+     (gmail._, hotmail._, yahoo._, outlook._, icloud._, aol._, protonmail._,
+     mail._, live._, msn._)
    - Matches any TLD: gmail.com, gmail.co.uk, gmail.de all excluded
-   - This prevents over-redaction of common domains while protecting custom/corporate domains
+   - This prevents over-redaction of common domains while protecting
+     custom/corporate domains
 
-8. **Address handling**: Treat addresses as opaque strings. Don't attempt to parse into components (street, city, zip). Too complex and error-prone.
+8. **Address handling**: Treat addresses as opaque strings. Don't attempt to
+   parse into components (street, city, zip). Too complex and error-prone.
 
 ### Open (for future consideration)
 
-1. **Multi-language support**: Names in non-Latin scripts would need localized nonce pools. Defer for now.
+1. **Multi-language support**: Names in non-Latin scripts would need localized
+   nonce pools. Defer for now.
 
-2. **Audit logging**: Could log what was redacted locally for debugging. Defer - creates another sensitive data store.
+2. **Audit logging**: Could log what was redacted locally for debugging. Defer -
+   creates another sensitive data store.
 
 ## Future Extensions
 
-1. **Auto-extraction**: Pattern that scans documents and extracts likely PII automatically
-2. **LLM wrapper**: Middleware that automatically redacts prompts and restores responses
-3. **Confidence scoring**: Mark matches with confidence levels (exact match vs fuzzy)
-4. **Allowlisting**: Mark certain contexts where PII is OK (e.g., "My name is {name}" pattern)
-5. **Streaming support**: Handle streaming LLM responses with incremental restoration
+1. **Auto-extraction**: Pattern that scans documents and extracts likely PII
+   automatically
+2. **LLM wrapper**: Middleware that automatically redacts prompts and restores
+   responses
+3. **Confidence scoring**: Mark matches with confidence levels (exact match vs
+   fuzzy)
+4. **Allowlisting**: Mark certain contexts where PII is OK (e.g., "My name is
+   {name}" pattern)
+5. **Streaming support**: Handle streaming LLM responses with incremental
+   restoration
 
 ## Security Considerations
 
-1. **PII storage**: The PII registry is the most sensitive part. In the pattern, it lives only in browser memory. Never persist to server without encryption.
+1. **PII storage**: The PII registry is the most sensitive part. In the pattern,
+   it lives only in browser memory. Never persist to server without encryption.
 
-2. **Nonce collisions**: Ensure generated nonces can't accidentally match other PII items.
+2. **Nonce collisions**: Ensure generated nonces can't accidentally match other
+   PII items.
 
-3. **Timing attacks**: Canonicalization and matching should be constant-time if possible (probably not critical for this use case).
+3. **Timing attacks**: Canonicalization and matching should be constant-time if
+   possible (probably not critical for this use case).
 
-4. **Memory clearing**: When session ends, explicitly clear nonce mappings from memory.
+4. **Memory clearing**: When session ends, explicitly clear nonce mappings from
+   memory.
 
-5. **Copy/paste safety**: Warn users that redacted text is safe to copy, but the mapping info should never leave the pattern.
+5. **Copy/paste safety**: Warn users that redacted text is safe to copy, but the
+   mapping info should never leave the pattern.

@@ -1,5 +1,13 @@
 /// <cts-enable />
-import { computed, Default, NAME, nonPrivateRandom, pattern, UI, wish } from "commonfabric";
+import {
+  computed,
+  Default,
+  NAME,
+  nonPrivateRandom,
+  pattern,
+  UI,
+  wish,
+} from "commonfabric";
 
 // ============================================================================
 // Types

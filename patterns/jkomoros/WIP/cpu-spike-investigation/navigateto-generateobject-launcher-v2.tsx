@@ -3,18 +3,16 @@
  * @title Extract Launcher V2
  * @description Launcher for pattern() wrapper test
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import ExtractTargetV2 from "./navigateto-generateobject-target-v2.tsx";
 
 const launchTarget = handler<void, void>(() =>
-  navigateTo(ExtractTargetV2({ notes: "Created via navigateTo - testing pattern() wrapper!" }))
+  navigateTo(
+    ExtractTargetV2({
+      notes: "Created via navigateTo - testing pattern() wrapper!",
+    }),
+  )
 );
 
 export default pattern(() => {
@@ -24,8 +22,15 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Extract Launcher V2</h1>
 
-        <div style={{ backgroundColor: "#dbeafe", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>TEST 1:</strong> Target uses pattern() wrapper instead of pattern()
+        <div
+          style={{
+            backgroundColor: "#dbeafe",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>TEST 1:</strong>{" "}
+          Target uses pattern() wrapper instead of pattern()
         </div>
 
         <h2>Reproduction Steps</h2>

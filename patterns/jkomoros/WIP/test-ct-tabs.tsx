@@ -1,5 +1,13 @@
 /// <cts-enable />
-import { Writable, Default, handler, NAME, pattern, str, UI } from "commonfabric";
+import {
+  Default,
+  handler,
+  NAME,
+  pattern,
+  str,
+  UI,
+  Writable,
+} from "commonfabric";
 
 /**
  * Test pattern for ct-tabs with $value cell binding
@@ -33,14 +41,14 @@ const onTabChange = handler<
 const switchToTab1 = handler<unknown, { activeTab: Writable<string> }>(
   (_, { activeTab }) => {
     activeTab.set("tab1");
-  }
+  },
 );
 
 // Handler to programmatically switch to Tab 2
 const switchToTab2 = handler<unknown, { activeTab: Writable<string> }>(
   (_, { activeTab }) => {
     activeTab.set("tab2");
-  }
+  },
 );
 
 export default pattern<TabsTestInput, TabsTestOutput>(
@@ -88,7 +96,10 @@ export default pattern<TabsTestInput, TabsTestOutput>(
             </div>
           </div>
 
-          <cf-tabs $value={activeTab} oncf-change={onTabChange({ changeCount })}>
+          <cf-tabs
+            $value={activeTab}
+            oncf-change={onTabChange({ changeCount })}
+          >
             <cf-tab-list>
               <cf-tab value="tab1">Tab 1</cf-tab>
               <cf-tab value="tab2">Tab 2</cf-tab>
@@ -136,7 +147,9 @@ export default pattern<TabsTestInput, TabsTestOutput>(
               <li>
                 Clicking Tab 2 should show Tab 2 content and update debug info
               </li>
-              <li>"Switch to Tab 2" button should change tabs programmatically</li>
+              <li>
+                "Switch to Tab 2" button should change tabs programmatically
+              </li>
               <li>Tab 3 should be disabled and not clickable</li>
               <li>oncf-change should fire with value and oldValue</li>
             </ol>
@@ -146,5 +159,5 @@ export default pattern<TabsTestInput, TabsTestOutput>(
       activeTab,
       changeCount,
     };
-  }
+  },
 );

@@ -3,6 +3,7 @@
 ## Current Status
 
 **Completed:**
+
 - ✅ Issue 1: Gmail Auth Prominence (prominent warning box)
 - ✅ Gmail content extraction works correctly
 - ✅ Email fetching and display working
@@ -17,21 +18,26 @@
 - ✅ Wish import code implemented (merges wished memberships with local)
 
 **⚠️ UNTESTED - Needs Testing:**
+
 - ❌ **Wish Import Feature** - Code implemented but NOT tested end-to-end
   - Uses `wish<HotelMembershipOutput>({ query: "#hotelMemberships" })`
-  - Merges wished memberships with local memberships (deduplication by brand+number)
+  - Merges wished memberships with local memberships (deduplication by
+    brand+number)
   - Shows "imported" badge on wished memberships in UI
   - **Blocked by CT-1085**: Favorites don't persist across page navigation
   - **Cannot test locally**: OAuth doesn't work in local dev environment
-  - **To test**: Need production deployment OR CT-1085 fix OR manual `charm link`
+  - **To test**: Need production deployment OR CT-1085 fix OR manual
+    `charm link`
 
 **Remaining - NEW ISSUE:**
-- ❌ Save handler data extraction - agent returns correct data (visible in summary)
-  but extracted membership objects have empty brand/program names
+
+- ❌ Save handler data extraction - agent returns correct data (visible in
+  summary) but extracted membership objects have empty brand/program names
   - Hypothesis: generateObject returns cells/links that need special handling
   - Added getValue() helper and debug logging to diagnose
 
 **Blocked (Framework Limitation):**
+
 - Issue 2: Auto-Fetch Emails - Framework doesn't support reactive side effects
 - CT-1085: Favorites don't persist across navigation (blocks wish-based auth)
 
@@ -39,38 +45,46 @@
 
 ## 🌐 Future Feature: Crowd-Sourced Search Patterns
 
-**Concept:** Users can share effective search patterns in a public space so everyone's agent does a better job at finding memberships.
+**Concept:** Users can share effective search patterns in a public space so
+everyone's agent does a better job at finding memberships.
 
-Currently `EFFECTIVE_QUERIES` (lines 22-40) is hardcoded. This feature would make it community-powered.
+Currently `EFFECTIVE_QUERIES` (lines 22-40) is hardcoded. This feature would
+make it community-powered.
 
 ### Design Notes (from framework author)
 
 - Create a **public space** for shared queries
-- Pattern reads from and writes to this public space (the "home space" for queries)
-- **User flow:** "I discovered a new query - are you willing to share it?" → User confirms → Upload to shared space
+- Pattern reads from and writes to this public space (the "home space" for
+  queries)
+- **User flow:** "I discovered a new query - are you willing to share it?" →
+  User confirms → Upload to shared space
 
 ### Key Considerations
 
-1. **Permission/Consent Flow**: Need explicit user confirmation before sharing queries
-   - Pattern: Agent finds effective query → "This worked! Share with community?" → User approves → Upload
+1. **Permission/Consent Flow**: Need explicit user confirmation before sharing
+   queries
+   - Pattern: Agent finds effective query → "This worked! Share with community?"
+     → User approves → Upload
    - This prevents accidental leakage of queries that might reveal personal info
 
-2. **Blessed Component Needed**: Framework will likely need a blessed/trusted component for this
+2. **Blessed Component Needed**: Framework will likely need a blessed/trusted
+   component for this
    - Users shouldn't be tricked into sharing things they don't want to share
    - Need a core component that the framework can vouch for safety
 
 3. **Query Structure to Share**:
    ```typescript
    interface SharedQuery {
-     query: string;           // The Gmail search query
-     hotelBrand: string;      // Which brand it found memberships for
-     successCount: number;    // How many times it worked
-     contributedBy?: string;  // Optional: who shared it
-     addedAt: number;         // Timestamp
+     query: string; // The Gmail search query
+     hotelBrand: string; // Which brand it found memberships for
+     successCount: number; // How many times it worked
+     contributedBy?: string; // Optional: who shared it
+     addedAt: number; // Timestamp
    }
    ```
 
-4. **Reading Shared Queries**: Agent would fetch queries from public space at scan time
+4. **Reading Shared Queries**: Agent would fetch queries from public space at
+   scan time
    - Merge with hardcoded `EFFECTIVE_QUERIES` as baseline
    - Community queries extend the knowledge base
 
@@ -83,13 +97,13 @@ const sharedQueriesSpace = "public/hotel-membership-queries";
 // Read shared queries (at pattern init or scan start)
 const communityQueries = wish<SharedQuery[]>({
   space: sharedQueriesSpace,
-  query: "#hotelSearchQueries"
+  query: "#hotelSearchQueries",
 });
 
 // Merge with hardcoded queries
 const allQueries = derive([communityQueries], (community) => [
   ...EFFECTIVE_QUERIES,
-  ...(community?.map(q => q.query) || [])
+  ...(community?.map((q) => q.query) || []),
 ]);
 
 // Prompt user to share after successful extraction
@@ -111,18 +125,22 @@ Development notes and work tracking for the Hotel Membership Extractor pattern.
 ### Framework Author Recommendation
 
 **OLD DESIGN (Abandoned):** 2-stage LLM approach
+
 - Stage 1: Query generator picks brand, generates Gmail query
 - Stage 2: Fetch ALL emails from query
 - Stage 3: Extractor processes all email content
 
 **Problems with Old Design:**
+
 - ❌ Fetches ALL emails from broad queries (wastes context)
 - ❌ LLM sees promotional emails it doesn't care about
 - ❌ Can't iteratively refine queries based on results
 - ❌ High context usage, high API costs
 - ❌ Two separate LLM calls (query gen + extraction)
 
-**NEW DESIGN (Agent with Tools):** Single agent with `generateObject` + tool calls
+**NEW DESIGN (Agent with Tools):** Single agent with `generateObject` + tool
+calls
+
 - Agent uses tools to search and read emails iteratively
 - Only reads promising emails based on subject analysis
 - Refines queries organically based on what it finds
@@ -131,6 +149,7 @@ Development notes and work tracking for the Hotel Membership Extractor pattern.
 ### Agent Tools
 
 #### Tool 1: `searchGmail(query: string)` → EmailPreview[]
+
 - **Purpose:** Search Gmail, return metadata ONLY (no content)
 - **Returns:** Up to 20 email previews `{ id, subject, from, date }`
 - **Implementation:** Pattern tool (via `patternTool()`)
@@ -138,13 +157,16 @@ Development notes and work tracking for the Hotel Membership Extractor pattern.
 - **Gmail API:** Only called if query not in recent cache
 
 #### Tool 2: `readEmail(emailId: string)` → EmailFull
+
 - **Purpose:** Read full content of specific email
 - **Returns:** `{ id, subject, from, date, content }` (markdown)
 - **Implementation:** Pattern tool reading from FIFO cache
 - **Key:** Does NOT hit Gmail API - reads from cache only
-- **Error:** If email not in cache, returns error prompting agent to search first
+- **Error:** If email not in cache, returns error prompting agent to search
+  first
 
 #### Tool 3: `finalResult(memberships: MembershipRecord[])` → void
+
 - **Purpose:** Agent calls when done to return results
 - **Implementation:** Automatically provided by `generateObject` schema
 - Agent must call this to complete
@@ -154,21 +176,23 @@ Development notes and work tracking for the Hotel Membership Extractor pattern.
 **Purpose:** Prevent re-fetching same emails from Gmail API
 
 **Structure:**
+
 ```typescript
 interface EmailCache {
-  entries: Map<string, EmailFull>;  // emailId → full email data
-  searchHistory: SearchEntry[];      // Recent searches
-  maxEntries: 200;                   // Keep last 200 emails (FIFO eviction)
+  entries: Map<string, EmailFull>; // emailId → full email data
+  searchHistory: SearchEntry[]; // Recent searches
+  maxEntries: 200; // Keep last 200 emails (FIFO eviction)
 }
 
 interface SearchEntry {
   query: string;
   timestamp: number;
-  emailIds: string[];   // IDs returned by this search
+  emailIds: string[]; // IDs returned by this search
 }
 ```
 
 **Workflow:**
+
 1. Agent calls `searchGmail("from:marriott.com")`
 2. Tool checks cache: if query recent, return cached previews
 3. If not cached: fetch from Gmail, add to cache, return previews
@@ -178,6 +202,7 @@ interface SearchEntry {
 7. If cache miss: error "Email not in cache, search first"
 
 **Why FIFO?**
+
 - Agent may search same brand multiple times
 - Don't want to re-fetch emails we already have
 - 200 emails is enough for ~5 brands × 40 emails each
@@ -188,6 +213,7 @@ interface SearchEntry {
 **Purpose:** Agent's working memory - persistent across sessions
 
 **Structure:**
+
 ```typescript
 interface BrandHistory {
   brand: string;
@@ -198,20 +224,22 @@ interface BrandHistory {
 interface QueryAttempt {
   query: string;
   attemptedAt: number;
-  emailsFound: number;        // How many emails searchGmail returned
-  emailsRead: number;         // How many agent called readEmail on
-  membershipsFound: number;   // How many memberships extracted
-  emailIds: string[];         // Which emails (for deduplication)
+  emailsFound: number; // How many emails searchGmail returned
+  emailsRead: number; // How many agent called readEmail on
+  membershipsFound: number; // How many memberships extracted
+  emailIds: string[]; // Which emails (for deduplication)
 }
 ```
 
 **Why This Matters:**
+
 - Other patterns can inspect agent progress
 - UI can show "Tried 3 queries for Marriott, found 1 membership"
 - Agent sees its own history to avoid repeating failed queries
 - Survives page refresh (persisted state)
 
 **Example brandHistory After Agent Run:**
+
 ```typescript
 [
   {
@@ -271,26 +299,31 @@ interface QueryAttempt {
 ### NEW PRIORITIES FOR AGENT ARCHITECTURE
 
 ### 1. Implement FIFO Email Cache (HIGH PRIORITY)
+
 **Status:** TODO - Required foundation for tools
 
 **Task:** Create email cache structure and management
 
 **Implementation:**
+
 - Create `emailCache` cell with `Map<string, EmailFull>` entries
 - Track recent searches with timestamps
 - Implement FIFO eviction (keep 200 most recent)
 - Cache hit/miss tracking for debugging
 
 **Files to Create/Modify:**
+
 - New cache logic in hotel-membership-extractor.tsx OR
 - Separate cache pattern (if reusable)
 
 ### 2. Build searchGmail Pattern Tool (HIGH PRIORITY)
+
 **Status:** TODO - Agent's primary search tool
 
 **Task:** Create pattern that wraps GmailImporter and caches results
 
 **Pattern Signature:**
+
 ```typescript
 const SearchGmail = pattern((
   { auth, query, cache }: {
@@ -314,6 +347,7 @@ const SearchGmail = pattern((
 ```
 
 **Usage in Agent:**
+
 ```typescript
 tools: {
   searchGmail: patternTool(SearchGmail, { auth, cache }),
@@ -321,15 +355,18 @@ tools: {
 ```
 
 **Key Decision:** How to pass auth to patternTool?
+
 - Research how it's done in labs/ patterns
 - Look at suggestion.tsx and other patterns with auth
 
 ### 3. Build readEmail Pattern Tool (HIGH PRIORITY)
+
 **Status:** TODO - Agent's email reading tool
 
 **Task:** Create pattern that reads from cache
 
 **Pattern Signature:**
+
 ```typescript
 const ReadEmail = pattern((
   { emailId, cache }: {
@@ -349,6 +386,7 @@ const ReadEmail = pattern((
 ```
 
 **Usage in Agent:**
+
 ```typescript
 tools: {
   readEmail: patternTool(ReadEmail, { cache }),
@@ -356,11 +394,13 @@ tools: {
 ```
 
 ### 4. Implement Agent with generateObject (HIGH PRIORITY)
+
 **Status:** TODO - Core agent logic
 
 **Task:** Create agent using `generateObject` with tools
 
 **Implementation:**
+
 ```typescript
 const agent = generateObject({
   system: `You are a hotel membership number extractor...
@@ -377,7 +417,7 @@ const agent = generateObject({
 
   prompt: derive([brandHistory, memberships], ([history, found]) => {
     return `Current progress:
-    - Brands searched: ${history.map(b => b.brand).join(", ")}
+    - Brands searched: ${history.map((b) => b.brand).join(", ")}
     - Memberships found: ${found.length}
 
     Continue searching for hotel memberships.`;
@@ -394,11 +434,13 @@ const agent = generateObject({
 ```
 
 ### 5. Auto-Run on Authentication (HIGH PRIORITY)
+
 **Status:** TODO - User wants "Login and Run" button
 
 **Task:** Trigger agent automatically when user authenticates
 
 **Implementation:**
+
 ```typescript
 // Watch auth state
 const shouldRunAgent = derive(auth, (a) => a && a.authenticated);
@@ -420,17 +462,20 @@ const agent = generateObject({
 ```
 
 **UI:**
+
 - Button: "🔒 Login and Run"
 - On click → Gmail OAuth
 - After auth → Agent starts automatically
 - Show progress in real-time
 
 ### 6. UI for Agent Progress (MEDIUM PRIORITY)
+
 **Status:** TODO - Show agent's tool calls and progress
 
 **Task:** Display agent progress from brandHistory
 
 **UI Elements:**
+
 - Current brand being searched
 - Query attempts for each brand
 - Emails found/read/memberships extracted
@@ -438,6 +483,7 @@ const agent = generateObject({
 - Final membership results
 
 **Example UI:**
+
 ```
 🤖 Agent Progress
 
@@ -458,11 +504,13 @@ const agent = generateObject({
 
 ## Session Summary (Agent Architecture Implementation - In Progress)
 
-**Session Goal:** Implement agent-based architecture with tool calling to replace 2-stage LLM
+**Session Goal:** Implement agent-based architecture with tool calling to
+replace 2-stage LLM
 
 **Progress Made:**
 
-###  ✅ 1. FIFO Email Cache Data Structures
+### ✅ 1. FIFO Email Cache Data Structures
+
 - Added EmailPreview, EmailFull, SearchEntry, EmailCache interfaces
 - Integrated emailCache into HotelMembershipInput with default state
 - Cache structure: entries map, searchHistory array, maxEntries (200)
@@ -470,6 +518,7 @@ const agent = generateObject({
 - **Commit:** "Add FIFO email cache data structures"
 
 ### ✅ 2. SearchGmailTool Pattern Function
+
 - Created SearchGmailTool pattern that wraps GmailImporter
 - Input: query string, authCharm
 - Returns: EmailPreview[] (id, subject, from, date only - NO content)
@@ -479,6 +528,7 @@ const agent = generateObject({
 - **Status:** Compiled and exported
 
 ### ✅ 3. ReadEmailTool Pattern Function
+
 - Created ReadEmailTool pattern for reading email content
 - Input: emailId, recentSearches cell
 - Returns: EmailFull (with content) OR error
@@ -491,35 +541,43 @@ const agent = generateObject({
 ### 🚧 4. Agent with generateObject - NOT YET IMPLEMENTED
 
 **Current State:**
+
 - Pattern still uses OLD 2-stage LLM architecture (query generator + extractor)
 - Tool patterns are defined but NOT integrated into agent workflow
 - Need to add generateObject call with tools
 
 **Next Steps:**
+
 1. Add generateObject call after authCharm setup
 2. Define agent system prompt (search strategy, brands to search)
-3. Wire tools using patternTool(SearchGmailTool, { ... }) and patternTool(ReadEmailTool, { ... })
+3. Wire tools using patternTool(SearchGmailTool, { ... }) and
+   patternTool(ReadEmailTool, { ... })
 4. Figure out how to pass authCharm to SearchGmailTool via patternTool
 5. Define schema for final result (memberships array)
 6. Test agent workflow
 
 **Key Decision Needed:** How to integrate agent with existing pattern?
+
 - Option A: Replace entire 2-stage LLM with agent (big refactor)
 - Option B: Add agent alongside old workflow, with switch (testing)
 - Option C: Fresh start - remove old code, agent-only
 
 **Files Modified:**
+
 - `patterns/jkomoros/hotel-membership-extractor.tsx` - Added cache + tools
 - Work log - Updated with agent architecture specs
 
 **Commits Made:**
-1. "Hotel Membership Extractor: Radical redesign to agent architecture" (design docs)
+
+1. "Hotel Membership Extractor: Radical redesign to agent architecture" (design
+   docs)
 2. "Add FIFO email cache data structures"
 3. "Add SearchGmailTool and ReadEmailTool pattern functions"
 
 **Branch:** `jkomoros/hotel-membership-agent` (pushed to remote)
 
 **Blockers/Questions:**
+
 - How to pass authCharm to patternTool (research needed)
 - Should we keep old 2-stage LLM during transition?
 - How will agent update brandHistory state?
@@ -533,19 +591,23 @@ const agent = generateObject({
 
 **Framework Developer Feedback Received:**
 
-> "it shouldn't do the caching thing and it can use the cell reading tools instead of the readEmail tool:
-> the tool should just be a thin wrapper around the gmail importer
-> specify the return type as second type parameter for the pattern and make emails any. this makes it so that they are outputtet as links to the llm and it can then use the read tool to read the emails"
+> "it shouldn't do the caching thing and it can use the cell reading tools
+> instead of the readEmail tool: the tool should just be a thin wrapper around
+> the gmail importer specify the return type as second type parameter for the
+> pattern and make emails any. this makes it so that they are outputtet as links
+> to the llm and it can then use the read tool to read the emails"
 
 **What This Means:**
 
 ### ❌ Original Approach (WRONG):
+
 - SearchGmailTool fetches emails, stores in cache, returns previews
 - ReadEmailTool reads from cache
 - Tools coordinate via shared emailCache cell
 - Complex state management
 
 ### ✅ Correct Approach (Framework Idiomatic):
+
 - SearchGmailTool is **thin wrapper** around GmailImporter
 - Return emails as `any` type → framework converts to `@link` references
 - LLM sees email links: `[{"@link": "/of:abc/email/0"}, ...]`
@@ -563,6 +625,7 @@ const agent = generateObject({
 6. LLM extracts memberships, calls finalResult
 
 **Example Agent Flow:**
+
 ```
 Agent: searchGmail("from:marriott.com")
 → Returns: [{"@link": "/of:abc/email/0"}, {"@link": "/of:abc/email/1"}, ...]
@@ -577,17 +640,18 @@ Agent: Found membership! finalResult({ memberships: [...] })
 
 ### Major Simplifications:
 
-| Component | Old Approach | New Approach |
-|-----------|-------------|--------------|
+| Component       | Old Approach                      | New Approach                       |
+| --------------- | --------------------------------- | ---------------------------------- |
 | SearchGmailTool | Complex: fetch + cache + previews | Simple: thin wrapper, return `any` |
-| ReadEmailTool | Custom pattern | ❌ DELETE - use built-in |
-| EmailCache | Custom FIFO cache cell | ❌ DELETE - not needed |
-| Agent tools | `{ searchGmail, readEmail }` | `{ searchGmail }` only |
-| Code complexity | High (cache coordination) | Low (leverage framework) |
+| ReadEmailTool   | Custom pattern                    | ❌ DELETE - use built-in           |
+| EmailCache      | Custom FIFO cache cell            | ❌ DELETE - not needed             |
+| Agent tools     | `{ searchGmail, readEmail }`      | `{ searchGmail }` only             |
+| Code complexity | High (cache coordination)         | Low (leverage framework)           |
 
 ### Implementation Changes Required:
 
 **DELETED:**
+
 - ❌ EmailCache interface and cell
 - ❌ EmailPreview, EmailFull interfaces (still need MembershipRecord)
 - ❌ SearchEntry interface
@@ -595,13 +659,16 @@ Agent: Found membership! finalResult({ memberships: [...] })
 - ❌ All cache management logic
 
 **REWRITTEN:**
+
 - 🔄 SearchGmailTool → Thin wrapper, return type `any`
 
 **SIMPLIFIED:**
+
 - ✅ Agent setup → Only register `searchGmail` tool
 - ✅ No cache coordination needed
 
 **NEW TODO List:**
+
 1. Remove emailCache infrastructure
 2. Rewrite SearchGmailTool as thin wrapper (return `any`)
 3. Delete ReadEmailTool
@@ -612,6 +679,7 @@ Agent: Found membership! finalResult({ memberships: [...] })
 8. Test end-to-end
 
 **Why This is Better:**
+
 - **Simpler:** ~200 lines of cache code deleted
 - **Idiomatic:** Uses framework's @link system as designed
 - **Maintainable:** Leverage built-in tools vs custom logic
@@ -628,6 +696,7 @@ Agent: Found membership! finalResult({ memberships: [...] })
 **Key Discovery:** ✅ **Emails DO have content!** Gmail API works perfectly.
 
 **Investigation Results:**
+
 1. **Added comprehensive debug logging to gmail-importer.tsx messageToEmail()**
    - Logs payload structure, parts, body.data, content lengths
    - Confirmed Gmail API returns full email content
@@ -636,26 +705,34 @@ Agent: Found membership! finalResult({ memberships: [...] })
 
 2. **Tested in Playwright:**
    - Deployed pattern, authenticated, fetched 40 Marriott emails
-   - Gmail Importer table showed FULL email content (confirmed by expanding "Show Markdown")
-   - First email: "Journey Into the Heart of the Caribbean..." with thousands of characters
-   - Extraction Debug UI showed "NO CONTENT" - but this was STALE data from before fetch!
+   - Gmail Importer table showed FULL email content (confirmed by expanding
+     "Show Markdown")
+   - First email: "Journey Into the Heart of the Caribbean..." with thousands of
+     characters
+   - Extraction Debug UI showed "NO CONTENT" - but this was STALE data from
+     before fetch!
 
 3. **Root Cause Identified:**
    - ✅ Gmail API works perfectly
    - ✅ Content extraction works perfectly
-   - ❌ **Problem:** Query `from:marriott.com` finds promotional emails, NOT membership emails
+   - ❌ **Problem:** Query `from:marriott.com` finds promotional emails, NOT
+     membership emails
    - ❌ **Problem:** LLM query generator gives up after one attempt per brand
    - ❌ **Problem:** No learning from failed queries or successful patterns
 
-**User Feedback:** "The LLM should see that query was tried, returned emails but no memberships, and try a more specific query"
+**User Feedback:** "The LLM should see that query was tried, returned emails but
+no memberships, and try a more specific query"
 
-**Next Priority:** Issue #3 (Smarter Query Iteration) - LLM needs query history and iterative refinement
+**Next Priority:** Issue #3 (Smarter Query Iteration) - LLM needs query history
+and iterative refinement
 
 **Files Modified:**
+
 - `gmail-importer.tsx` - Added comprehensive debug logging to messageToEmail()
 - Work log - Updated with findings and new implementation plan
 
 **Files Ready to Commit:**
+
 - `gmail-importer.tsx` - Debug logging is valuable for future troubleshooting
 
 ---
@@ -663,17 +740,22 @@ Agent: Found membership! finalResult({ memberships: [...] })
 ## Work Completed
 
 ### ✅ Auto-Query with derive() Solution
+
 - **Problem:** Using computed() for side effects caused reactivity catch-22
-- **Solution:** Use derive() to create autoQuery cell that conditionally returns LLM query or manual query
-- **Result:** Works perfectly! LLM query automatically propagates to GmailImporter
+- **Solution:** Use derive() to create autoQuery cell that conditionally returns
+  LLM query or manual query
+- **Result:** Works perfectly! LLM query automatically propagates to
+  GmailImporter
 - **Commit:** Multiple commits documenting the solution
 
 ### ✅ Two-Stage LLM Workflow
+
 - Stage 1: Query generator picks brand and creates Gmail query
 - Stage 2: Extractor processes emails and extracts memberships
 - Both working independently
 
 ### ✅ Smart Brand Tracking
+
 - Tracks unsearched/searched/notfound brands
 - Prevents redundant searches
 
@@ -694,11 +776,13 @@ Agent: Found membership! finalResult({ memberships: [...] })
 ## Investigation Notes
 
 ### Gmail Importer Architecture
+
 - Location: `patterns/jkomoros/gmail-importer.tsx`
 - TODO: Read this file to understand fetch trigger mechanism
 - Question: Does it auto-fetch on query change, or require manual button click?
 
 ### Extraction Debugging
+
 - Need to inspect what email content looks like
 - Need to test LLM extraction prompt in isolation
 - Consider adding "show raw email content" debug view
@@ -708,11 +792,13 @@ Agent: Found membership! finalResult({ memberships: [...] })
 ## Session: Acceptance Testing (2025-11-27)
 
 ### Goal
+
 Run acceptance testing on hotel-membership-extractor and identify next steps.
 
 ### Test Results
 
 **Agent Performance: EXCELLENT** ✅
+
 - Agent successfully authenticated via wish system (Gmail Auth charm)
 - Searched ALL 5 hotel brands (Marriott, Hilton, Hyatt, IHG, Accor)
 - Performed 14+ different search queries:
@@ -741,15 +827,18 @@ Run acceptance testing on hotel-membership-extractor and identify next steps.
    - Added debug logging to diagnose
 
 ### Changes Made
+
 - Fixed save handler to not spread objects
 - Added getValue() helper for cell/link dereferencing
 - Added comprehensive debug logging
 - Improved UI fallbacks for empty values
 
 ### Branch
+
 `hotel-membership-extractor-testing`
 
 ### Next Steps
+
 1. Deploy with debug logging to see raw agent result structure
 2. Fix data extraction based on actual result format
 3. Test save → display flow works correctly
@@ -761,16 +850,20 @@ Run acceptance testing on hotel-membership-extractor and identify next steps.
 
 ### Overview
 
-The current extraction model requires a manual "Save Results" button click after extraction completes. This is suboptimal UX. The ideal flow:
+The current extraction model requires a manual "Save Results" button click after
+extraction completes. This is suboptimal UX. The ideal flow:
 
-1. **First Scan:** Comprehensive search across all hotel brands to find ALL membership numbers
-2. **Ongoing Scan:** Periodic/triggered scan of RECENT emails only, looking for NEW memberships
+1. **First Scan:** Comprehensive search across all hotel brands to find ALL
+   membership numbers
+2. **Ongoing Scan:** Periodic/triggered scan of RECENT emails only, looking for
+   NEW memberships
 
 In both modes, results should auto-save with NO user confirmation required.
 
 ### Key Insight: Append-Only is Safe
 
 **Why no save button is needed:**
+
 - Memberships are NEVER overwritten, only appended
 - Each discovered membership has a unique (brand + number) key
 - If we find a duplicate, we simply skip it
@@ -780,17 +873,20 @@ In both modes, results should auto-save with NO user confirmation required.
 ### Data Model Changes
 
 **Current:** Simple array of memberships
+
 ```typescript
 memberships: MembershipRecord[]
 ```
 
 **Proposed:** Map keyed by (brand + number) for deduplication
+
 ```typescript
-memberships: Map<string, MembershipRecord>  // key: `${brand}:${number}`
+memberships: Map<string, MembershipRecord>; // key: `${brand}:${number}`
 // OR use array but with deduplication logic
 ```
 
 **MembershipRecord additions:**
+
 ```typescript
 interface MembershipRecord {
   hotelBrand: string;
@@ -798,10 +894,10 @@ interface MembershipRecord {
   programName: string;
   tierStatus: string;
   // NEW fields:
-  firstDiscoveredAt: number;    // When we first found this
-  lastSeenInEmailAt: number;    // Most recent email mentioning it
-  sourceEmails: string[];       // Email IDs where this was found (for debugging)
-  confidence: "high" | "medium" | "low";  // How confident we are
+  firstDiscoveredAt: number; // When we first found this
+  lastSeenInEmailAt: number; // Most recent email mentioning it
+  sourceEmails: string[]; // Email IDs where this was found (for debugging)
+  confidence: "high" | "medium" | "low"; // How confident we are
 }
 ```
 
@@ -814,7 +910,7 @@ interface MembershipRecord {
 const handleNewMemberships = (found: MembershipRecord[]) => {
   for (const m of found) {
     const key = `${m.hotelBrand}:${m.membershipNumber}`;
-    const existing = memberships.get().find(e =>
+    const existing = memberships.get().find((e) =>
       e.hotelBrand === m.hotelBrand && e.membershipNumber === m.membershipNumber
     );
 
@@ -836,12 +932,14 @@ const handleNewMemberships = (found: MembershipRecord[]) => {
 ### First Scan vs Ongoing Scan
 
 **First Scan (Comprehensive):**
+
 - Triggered on first run OR manually by user
 - Searches ALL emails for ALL brands
 - Uses broad queries: `from:marriott.com`, etc.
 - Goal: Find every membership ever mentioned
 
 **Ongoing Scan (Incremental):**
+
 - Triggered periodically OR on new email arrival
 - Searches only RECENT emails (e.g., last 7 days)
 - Only looks for brands we DON'T have memberships for yet
@@ -853,24 +951,32 @@ const handleNewMemberships = (found: MembershipRecord[]) => {
 ```typescript
 const buildOngoingScanQuery = (existingMemberships: MembershipRecord[]) => {
   // Get brands we already have memberships for
-  const knownBrands = new Set(existingMemberships.map(m => m.hotelBrand.toLowerCase()));
+  const knownBrands = new Set(
+    existingMemberships.map((m) => m.hotelBrand.toLowerCase()),
+  );
 
   // Only search brands we DON'T have yet
-  const brandsToSearch = ALL_HOTEL_BRANDS.filter(b => !knownBrands.has(b.toLowerCase()));
+  const brandsToSearch = ALL_HOTEL_BRANDS.filter((b) =>
+    !knownBrands.has(b.toLowerCase())
+  );
 
   // Date filter: last 7 days
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const dateFilter = `after:${weekAgo.toISOString().split('T')[0].replace(/-/g, '/')}`;
+  const dateFilter = `after:${
+    weekAgo.toISOString().split("T")[0].replace(/-/g, "/")
+  }`;
 
   // Build query for unknown brands only
-  const fromFilters = brandsToSearch.map(b => `from:${b.toLowerCase()}.com`).join(' OR ');
+  const fromFilters = brandsToSearch.map((b) => `from:${b.toLowerCase()}.com`)
+    .join(" OR ");
 
   return `(${fromFilters}) ${dateFilter}`;
 };
 ```
 
 **Example:**
+
 - We have: Hilton, IHG, Hyatt memberships
 - ALL_BRANDS: Marriott, Hilton, Hyatt, IHG, Accor
 - Unknown brands: Marriott, Accor
@@ -879,15 +985,18 @@ const buildOngoingScanQuery = (existingMemberships: MembershipRecord[]) => {
 ### Trigger Modes
 
 **Option A: Timer-Based**
+
 - Run ongoing scan every N hours
 - Con: Wastes resources if no new emails
 
 **Option B: Event-Based (Ideal)**
+
 - Trigger on Gmail notification of new hotel-related email
 - Requires webhook/push notification setup
 - More complex but more efficient
 
 **Option C: Manual + Auto (MVP)**
+
 - First scan: Manual "Start Scan" button
 - Auto-save results as discovered
 - Ongoing scan: Manual "Check Recent" button
@@ -896,9 +1005,11 @@ const buildOngoingScanQuery = (existingMemberships: MembershipRecord[]) => {
 ### UI Changes
 
 **Remove:**
+
 - ❌ "Save Results" button
 
 **Add:**
+
 - ✅ "Start Full Scan" button (first scan)
 - ✅ "Check Recent Emails" button (ongoing scan)
 - ✅ Real-time membership list that updates as discoveries are made
@@ -907,21 +1018,24 @@ const buildOngoingScanQuery = (existingMemberships: MembershipRecord[]) => {
 
 ### Edge Cases
 
-**Multiple Membership Numbers for Same Brand:**
-User mentioned: "if multiple loyalty numbers found for a given brand, try to help figure out what happened"
+**Multiple Membership Numbers for Same Brand:** User mentioned: "if multiple
+loyalty numbers found for a given brand, try to help figure out what happened"
 
 Scenarios:
+
 1. **Old account + new account** - User created new account, forgot old
 2. **Spouse/family account** - Joint emails, different members
 3. **Work vs personal** - Separate loyalty programs
 4. **Merged programs** - Hotel acquisition (e.g., Starwood → Marriott)
 
 **Detection heuristics:**
+
 - Same brand, different numbers, different dates → likely account change
 - Same brand, different numbers, same email thread → likely family accounts
 - Same brand, different tier levels → might indicate primary vs secondary
 
 **UI for duplicates:**
+
 ```
 ⚠️ Multiple Marriott accounts detected:
   - #123456789 (Gold, last seen 2023-01)  [likely old account]
@@ -975,19 +1089,23 @@ Which is your primary account? [#123456789] [#987654321] [Keep Both]
 ### Overview
 
 The hotel-membership-extractor should be able to:
+
 1. **Export** membership numbers so other patterns can use them
 2. **Import via wish** to avoid re-discovering known memberships
 
 ### Export Memberships
 
-**Goal:** Other patterns can wish for hotel memberships without re-scanning Gmail.
+**Goal:** Other patterns can wish for hotel memberships without re-scanning
+Gmail.
 
 **Implementation:**
+
 - Add output cell that exports memberships
 - Tag output with `#hotelMemberships` for wish discovery
 - Other patterns use `wish("#hotelMemberships")` to get the list
 
 **Output Schema:**
+
 ```typescript
 interface Output {
   memberships: MembershipRecord[];
@@ -996,6 +1114,7 @@ interface Output {
 ```
 
 **Pattern Output Comment:**
+
 ```typescript
 /** Hotel membership records. #hotelMemberships */
 interface Output {
@@ -1005,46 +1124,56 @@ interface Output {
 
 ### Import Known Memberships via Wish
 
-**Goal:** If user already has memberships stored elsewhere, import them to avoid duplicating scan work.
+**Goal:** If user already has memberships stored elsewhere, import them to avoid
+duplicating scan work.
 
 **Use Cases:**
+
 1. User has another hotel-membership charm with existing data
 2. User wants to merge memberships from multiple scans
 3. User manually entered memberships somewhere
 
 **Implementation:**
+
 ```typescript
 // In pattern input:
 interface Input {
   // ... existing fields ...
-  knownMemberships: Default<MembershipRecord[], []>;  // Direct input
+  knownMemberships: Default<MembershipRecord[], []>; // Direct input
 }
 
 // Try to wish for existing memberships
-const wishedMemberships = wish<{ memberships: MembershipRecord[] }>("#hotelMemberships");
+const wishedMemberships = wish<{ memberships: MembershipRecord[] }>(
+  "#hotelMemberships",
+);
 
 // Merge known memberships into agent context
-const agentPrompt = derive([isScanning, memberships, wishedMemberships], ([scanning, found, wished]) => {
-  const knownNumbers = new Set([
-    ...found.map(m => m.membershipNumber),
-    ...(wished?.memberships || []).map(m => m.membershipNumber),
-  ]);
+const agentPrompt = derive(
+  [isScanning, memberships, wishedMemberships],
+  ([scanning, found, wished]) => {
+    const knownNumbers = new Set([
+      ...found.map((m) => m.membershipNumber),
+      ...(wished?.memberships || []).map((m) => m.membershipNumber),
+    ]);
 
-  return `...
+    return `...
 Already known membership numbers (don't search for these):
 ${[...knownNumbers].join(", ")}
 ...`;
-});
+  },
+);
 ```
 
 **Agent Instructions Update:**
+
 - Tell agent about known memberships
 - Instruct agent to skip searching for brands we already have
 - Focus scan on unknown brands only
 
 ### Benefits
 
-1. **Avoid duplicate work** - Don't re-scan Gmail for memberships we already know
+1. **Avoid duplicate work** - Don't re-scan Gmail for memberships we already
+   know
 2. **Cross-pattern sharing** - Other patterns can use membership data
 3. **Merge multiple sources** - Combine manual entries with scanned data
 4. **Incremental scans** - Ongoing scans skip known memberships
@@ -1052,13 +1181,17 @@ ${[...knownNumbers].join(", ")}
 ### Implementation Priority
 
 1. **Phase 1: Export** - Add `#hotelMemberships` tag to output ✅ DONE
-2. **Phase 2: Import wish** - Accept wished memberships and merge ⚠️ IMPLEMENTED BUT UNTESTED
-   - Code complete: `wish<HotelMembershipOutput>({ query: "#hotelMemberships" })`
+2. **Phase 2: Import wish** - Accept wished memberships and merge ⚠️ IMPLEMENTED
+   BUT UNTESTED
+   - Code complete:
+     `wish<HotelMembershipOutput>({ query: "#hotelMemberships" })`
    - Merges with deduplication by brand+number
    - Shows "imported" badge in UI
-   - **BLOCKED**: Cannot test due to CT-1085 (favorites don't persist) and local OAuth issues
+   - **BLOCKED**: Cannot test due to CT-1085 (favorites don't persist) and local
+     OAuth issues
    - **TODO**: Test end-to-end when CT-1085 is fixed or in production
-3. **Phase 3: Agent awareness** - Update agent to skip known brands (not started)
+3. **Phase 3: Agent awareness** - Update agent to skip known brands (not
+   started)
 
 ---
 
@@ -1066,14 +1199,19 @@ ${[...knownNumbers].join(", ")}
 
 ### Overview
 
-Testing patterns that require OAuth authentication (like Gmail) can be tricky due to:
+Testing patterns that require OAuth authentication (like Gmail) can be tricky
+due to:
+
 - OAuth tokens expiring between test sessions
 - Favorites not persisting across page navigations (CT-1085)
 - Need for reproducible, quick test runs
 
 ### CT-1085 Auth Workaround
 
-**Problem:** The pattern uses `wish("#googleauth")` to get Gmail authentication, but favorites (which power wish) don't persist across page navigations. This means:
+**Problem:** The pattern uses `wish("#googleauth")` to get Gmail authentication,
+but favorites (which power wish) don't persist across page navigations. This
+means:
+
 - First page load: wish finds gmail-auth charm
 - After OAuth redirect: wish fails (favorite lost)
 - Result: 401 errors on Gmail API calls
@@ -1081,6 +1219,7 @@ Testing patterns that require OAuth authentication (like Gmail) can be tricky du
 **Solution:** Accept auth as a **direct input** that can be linked manually.
 
 **Implementation in Pattern:**
+
 ```typescript
 interface HotelMembershipInput {
   // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
@@ -1128,6 +1267,7 @@ interface HotelMembershipInput {
 **Solution:** Add `maxSearches` input parameter for quick tests.
 
 **Implementation:**
+
 ```typescript
 interface HotelMembershipInput {
   // Max number of searches to perform. 0 = unlimited (full scan)
@@ -1137,6 +1277,7 @@ interface HotelMembershipInput {
 ```
 
 **Usage:**
+
 - Default (5 searches): Quick test covering 2-3 hotel brands
 - Set to 0 or higher: Full comprehensive scan
 - UI shows: "⚡ Quick Test Mode: 5 searches max"
@@ -1167,6 +1308,7 @@ CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
 ### Test Results (2025-11-27)
 
 **With CT-1085 workaround + 5-search limit:**
+
 - Auth link working: ✅ Gmail connected (linked)
 - Quick scan found 2 memberships:
   - Hilton Honors (#650697007, Silver)
@@ -1177,7 +1319,8 @@ CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
 ### Key Lessons
 
 1. **Always deploy fresh gmail-auth** for each test session (tokens expire)
-2. **Use `charm link`** to connect auth - don't rely on wish/favorites for testing
+2. **Use `charm link`** to connect auth - don't rely on wish/favorites for
+   testing
 3. **Use maxSearches=5** for quick iteration, maxSearches=0 for full scans
 4. **Check console logs** for Gmail API errors (401 = expired token)
 5. **Debugger outputs** show what the pattern is exporting

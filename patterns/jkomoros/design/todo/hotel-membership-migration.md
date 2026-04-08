@@ -1,6 +1,7 @@
 # Hotel Membership Extractor Migration
 
 Migrate features from the old `hotel-membership-extractor.tsx` to either:
+
 - `gmail-agentic-search.tsx` (base pattern - for general features)
 - `hotel-membership-gmail-agent.tsx` (hotel-specific features)
 
@@ -8,9 +9,11 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 
 ### Base Pattern (gmail-agentic-search.tsx)
 
-- [x] **1. Direct auth input (CT-1085 workaround)** - Accept auth as direct input for when wish doesn't work
+- [x] **1. Direct auth input (CT-1085 workaround)** - Accept auth as direct
+      input for when wish doesn't work
   - Status: DONE (commit b97831e)
-  - Notes: Added `auth` input prop, `authSource` output, shows "(linked)" vs "(shared)" in UI
+  - Notes: Added `auth` input prop, `authSource` output, shows "(linked)" vs
+    "(shared)" in UI
 
 - [x] **2. Auth error detection (401)** - Already in base pattern
   - Status: DONE - already exists in base (hasAuthError, authErrorMessage)
@@ -23,11 +26,13 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 
 - [x] **5. "Recent" scan mode (last 7 days)** - Added to hotel pattern
   - Status: DONE (in hotel-membership-gmail-agent.tsx)
-  - Notes: "Check Recent" button searches last 7 days, focuses on brands not yet found
+  - Notes: "Check Recent" button searches last 7 days, focuses on brands not yet
+    found
 
 ### Hotel-Specific (hotel-membership-gmail-agent.tsx)
 
-- [x] **6. Wish import from other charms** - Merge memberships from other extractors
+- [x] **6. Wish import from other charms** - Merge memberships from other
+      extractors
   - Status: DONE (commit 84046e5)
   - Notes: Uses `wish("#hotelMemberships")` to get memberships from other charms
 
@@ -44,7 +49,8 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 - 2025-12-03: Created TODO, analyzed both files
 - 2025-12-03: Features 2, 3, 4 already exist in base pattern
 - 2025-12-03: Added direct auth input to base pattern (commit b97831e)
-- 2025-12-03: Added wish import and multi-account detection to hotel pattern (commit 84046e5)
+- 2025-12-03: Added wish import and multi-account detection to hotel pattern
+  (commit 84046e5)
 - 2025-12-03: Fixed authSource type annotation (commit 297ab93)
 - 2025-12-03: Tested in Playwright - all features working
 - 2025-12-03: Ready to remove old hotel-membership-extractor.tsx
@@ -52,4 +58,5 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 
 ## Migration Complete
 
-All critical features have been migrated. The old `hotel-membership-extractor.tsx` can be deleted.
+All critical features have been migrated. The old
+`hotel-membership-extractor.tsx` can be deleted.

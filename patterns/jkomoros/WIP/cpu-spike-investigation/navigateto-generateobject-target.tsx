@@ -10,15 +10,15 @@
  * See: patterns/jkomoros/issues/ISSUE-navigateTo-generateObject-cpu-spike.md
  */
 import {
-  Writable,
   computed,
   generateObject,
   handler,
   NAME,
   pattern,
+  safeDateNow,
   toSchema,
   UI,
-  safeDateNow,
+  Writable,
 } from "commonfabric";
 
 // 14-field schema to match person.tsx (where the bug was discovered)
@@ -46,7 +46,9 @@ const triggerExtraction = handler<
   (_, { trigger, startTimeMs }) => {
     console.log("[EXTRACT-TARGET] Starting extraction...");
     startTimeMs.set(safeDateNow());
-    trigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford.\n---EXTRACT-${safeDateNow()}---`);
+    trigger.set(
+      `Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford.\n---EXTRACT-${safeDateNow()}---`,
+    );
   },
 );
 
@@ -91,16 +93,33 @@ export default pattern<Props>(({ notes }) => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Extract Target (Minimal Repro)</h1>
 
-        <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>BUG:</strong> This is fast when deployed directly, but ~90s when created via navigateTo
+        <div
+          style={{
+            backgroundColor: "#fef3c7",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>BUG:</strong>{" "}
+          This is fast when deployed directly, but ~90s when created via
+          navigateTo
         </div>
 
-        <cf-button onClick={triggerExtraction({ trigger, startTimeMs })} disabled={pending}>
+        <cf-button
+          onClick={triggerExtraction({ trigger, startTimeMs })}
+          disabled={pending}
+        >
           {pending ? "Extracting..." : "Run Extraction"}
         </cf-button>
 
         {result && (
-          <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#f0fdf4" }}>
+          <div
+            style={{
+              marginTop: "1rem",
+              padding: "0.5rem",
+              backgroundColor: "#f0fdf4",
+            }}
+          >
             <strong>Result:</strong> {JSON.stringify(result)}
           </div>
         )}

@@ -1,5 +1,13 @@
 /// <cts-enable />
-import { Writable, computed, derive, Default, NAME, pattern, UI } from "commonfabric";
+import {
+  computed,
+  Default,
+  derive,
+  NAME,
+  pattern,
+  UI,
+  Writable,
+} from "commonfabric";
 // TODO: search-select.tsx component doesn't exist yet - create it or remove this test file
 // import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
 
@@ -39,7 +47,9 @@ export default pattern<TestInput>(({ initialSelected }) => {
   // Create the selected cell with initial values
   // Default<string[], []> already handles the default value, so we can use it directly
   // We use derive to create a cell that properly tracks the value
-  const selected = Writable.of<string[]>(derive(initialSelected, (val) => val ?? []));
+  const selected = Writable.of<string[]>(
+    derive(initialSelected, (val) => val ?? []),
+  );
 
   // Create the search-select instance
   const relationshipSelector = SearchSelect({
@@ -64,7 +74,13 @@ export default pattern<TestInput>(({ initialSelected }) => {
           <h2 style={{ margin: "0 0 16px 0" }}>Search Select Component Test</h2>
 
           <div style={{ marginBottom: "16px" }}>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#64748b" }}>
+            <h3
+              style={{
+                margin: "0 0 8px 0",
+                fontSize: "14px",
+                color: "#64748b",
+              }}
+            >
               Relationship Types
             </h3>
             {relationshipSelector}

@@ -47,7 +47,7 @@
  *
  * See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
  */
-import { Writable, handler, JSONSchema } from "commonfabric";
+import { handler, JSONSchema, Writable } from "commonfabric";
 
 /**
  * Config passed when binding the handler (pattern author provides this).
@@ -100,27 +100,31 @@ export function createReportHandler(inputSchema: JSONSchema) {
 
       // Generate dedup key from configured fields (DATA, not function)
       const dedupeKey = state.dedupeFields
-        .map(field => String(input[field] ?? ""))
+        .map((field) => String(input[field] ?? ""))
         .join(":")
         .toLowerCase();
 
       const existingKeys = new Set(
         currentItems.map((item: Record<string, any>) => {
           return state.dedupeFields
-            .map(field => String(item[field] ?? ""))
+            .map((field) => String(item[field] ?? ""))
             .join(":")
             .toLowerCase();
-        })
+        }),
       );
 
       let resultMessage: string;
 
       if (existingKeys.has(dedupeKey)) {
-        console.log(`[ReportHandler:${state.idPrefix}] Duplicate skipped: ${dedupeKey}`);
+        console.log(
+          `[ReportHandler:${state.idPrefix}] Duplicate skipped: ${dedupeKey}`,
+        );
         resultMessage = `Duplicate: ${dedupeKey} already saved`;
       } else {
         // Generate unique ID
-        const id = `${state.idPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const id = `${state.idPrefix}-${Date.now()}-${
+          Math.random().toString(36).slice(2, 8)
+        }`;
         const timestamp = Date.now();
 
         // Create record: spread input + add id and timestamp
@@ -146,6 +150,6 @@ export function createReportHandler(inputSchema: JSONSchema) {
       }
 
       return { success: true, message: resultMessage };
-    }
+    },
   );
 }

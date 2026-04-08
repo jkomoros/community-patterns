@@ -8,11 +8,15 @@ description: >
 
 # Claude Permissions Update
 
-**Use this skill to consolidate auto-approved permissions from all your community-patterns workspaces.**
+**Use this skill to consolidate auto-approved permissions from all your
+community-patterns workspaces.**
 
 ## Overview
 
-When you work across multiple community-patterns directories (e.g., community-patterns, community-patterns-2, etc.), you accumulate different auto-approved permissions in each directory's `.claude/settings.local.json`. This skill helps you:
+When you work across multiple community-patterns directories (e.g.,
+community-patterns, community-patterns-2, etc.), you accumulate different
+auto-approved permissions in each directory's `.claude/settings.local.json`.
+This skill helps you:
 
 1. Find all community-patterns directories
 2. Gather all auto-approved permissions
@@ -23,7 +27,9 @@ When you work across multiple community-patterns directories (e.g., community-pa
 
 ## Important: Local Settings Contain Junk
 
-**WARNING:** The `settings.local.json` files often contain accidentally auto-approved garbage:
+**WARNING:** The `settings.local.json` files often contain accidentally
+auto-approved garbage:
+
 - Commit message fragments
 - Shell script fragments like `Bash(do)`, `Bash(fi)`, `Bash(then ...)`
 - Markdown content from heredocs
@@ -62,6 +68,7 @@ NEW_PERMS=$(comm -23 <(echo "$ALL_LOCAL") <(echo "$PROJECT_PERMS") | \
 **Present permissions in categories to help the user decide:**
 
 ### General Commands (with wildcards - usually worth syncing)
+
 ```bash
 echo "=== General Bash commands (worth syncing) ==="
 echo "$NEW_PERMS" | grep -E ':\*\)$' | grep -v '../community-patterns'
@@ -70,12 +77,14 @@ echo "$NEW_PERMS" | grep -E ':\*\)$' | grep -v '../community-patterns'
 These have wildcards and are NOT path-specific. Good candidates to sync.
 
 ### WebFetch Domains
+
 ```bash
 echo "=== WebFetch domains ==="
 echo "$NEW_PERMS" | grep '^WebFetch'
 ```
 
 ### Skills and MCP Tools
+
 ```bash
 echo "=== Skills ==="
 echo "$NEW_PERMS" | grep '^Skill'
@@ -85,6 +94,7 @@ echo "$NEW_PERMS" | grep '^mcp__'
 ```
 
 ### Path-Specific (SKIP these)
+
 ```bash
 echo "=== Path-specific permissions (SKIP) ==="
 echo "$NEW_PERMS" | grep '../community-patterns'
@@ -105,7 +115,8 @@ These are specific to a particular checkout and should NOT be synced.
 
 ## Step 5: Update Project Settings
 
-After user approval, edit `.claude/settings.json` to add the approved permissions to the `permissions.allow` array.
+After user approval, edit `.claude/settings.json` to add the approved
+permissions to the `permissions.allow` array.
 
 **Use the Edit tool** to add each permission as a new line in the array.
 
@@ -123,6 +134,7 @@ After user approval, edit `.claude/settings.json` to add the approved permission
 ## What to Sync vs Skip
 
 ### SYNC These (General Permissions)
+
 - `Bash(command:*)` - wildcarded commands
 - `Bash(git subcmd:*)` - git subcommands
 - `Bash(deno task:*)`, `Bash(timeout N command:*)` - tool commands
@@ -132,6 +144,7 @@ After user approval, edit `.claude/settings.json` to add the approved permission
 - `Read(//path/**)` - read patterns with wildcards
 
 ### SKIP These (Junk/Path-Specific)
+
 - `Bash(../community-patterns-N/...)` - relative paths to specific checkouts
 - `Bash(do)`, `Bash(fi)`, `Bash(then ...)` - shell fragments
 - Anything that looks like a commit message or markdown
@@ -142,5 +155,6 @@ After user approval, edit `.claude/settings.json` to add the approved permission
 - This skill does NOT modify the local settings files
 - It only adds permissions to the shared project settings
 - User must approve all additions
-- After adding to project settings, the permissions will be available across all community-patterns workspaces
+- After adding to project settings, the permissions will be available across all
+  community-patterns workspaces
 - Always verify JSON validity after editing

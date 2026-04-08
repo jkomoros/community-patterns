@@ -3,13 +3,7 @@
  * @title Person Debug Launcher
  * @description Launcher for debugging person.tsx CPU spike - whittle down approach
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import PersonDebug from "./person-debug.tsx";
 
@@ -24,9 +18,7 @@ const launchDebug = handler<void, void>(() =>
   navigateTo(PersonDebug({ notes: DEMO_NOTES }))
 );
 
-const launchDebugEmpty = handler<void, void>(() =>
-  navigateTo(PersonDebug({}))
-);
+const launchDebugEmpty = handler<void, void>(() => navigateTo(PersonDebug({})));
 
 export default pattern(() => {
   return {
@@ -35,8 +27,15 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Person Debug Launcher</h1>
 
-        <div style={{ backgroundColor: "#fee2e2", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>Strategy:</strong> Start with full person.tsx, remove chunks until FAST
+        <div
+          style={{
+            backgroundColor: "#fee2e2",
+            padding: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>Strategy:</strong>{" "}
+          Start with full person.tsx, remove chunks until FAST
         </div>
 
         <h2>person-debug.tsx (copy of person.tsx)</h2>

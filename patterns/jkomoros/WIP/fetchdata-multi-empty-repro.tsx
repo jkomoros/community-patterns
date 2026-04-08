@@ -7,7 +7,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -15,6 +14,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // Types
@@ -38,7 +38,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
@@ -48,7 +48,7 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 const toggleFetching = handler<unknown, { enableFetching: Writable<boolean> }>(
   (_, { enableFetching }) => {
     enableFetching.set(!enableFetching.get());
-  }
+  },
 );
 
 export default pattern<Input, Output>(({ ids, enableFetching }) => {
@@ -66,30 +66,48 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const userUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const ref = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && ref ? `https://jsonplaceholder.typicode.com/users/${ref.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const ref = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && ref
+          ? `https://jsonplaceholder.typicode.com/users/${ref.userId}`
+          : "";
+      },
     );
 
     // URL 2: Todos (like commitActivity)
     const todosUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const ref = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && ref ? `https://jsonplaceholder.typicode.com/todos?userId=${ref.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const ref = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && ref
+          ? `https://jsonplaceholder.typicode.com/todos?userId=${ref.userId}`
+          : "";
+      },
     );
 
     // URL 3: Posts (like another API call)
     const postsUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const ref = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && ref ? `https://jsonplaceholder.typicode.com/posts?userId=${ref.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const ref = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && ref
+          ? `https://jsonplaceholder.typicode.com/posts?userId=${ref.userId}`
+          : "";
+      },
     );
 
     // Create fetchData calls - ALL will be empty when hasAuth is false
@@ -101,10 +119,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     // These depend on userData result - so they're also empty when no auth
     const makeSlotUrl = (slotIndex: number) =>
       derive({ hasAuth, userResult: userData }, (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const u = (values.userResult as any)?.get ? (values.userResult as any).get() : values.userResult;
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const u = (values.userResult as any)?.get
+          ? (values.userResult as any).get()
+          : values.userResult;
         if (!auth || !u?.result?.id) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${(u.result.id - 1) * 10 + slotIndex + 1}`;
+        return `https://jsonplaceholder.typicode.com/todos/${
+          (u.result.id - 1) * 10 + slotIndex + 1
+        }`;
       });
 
     const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json" });
@@ -123,7 +147,18 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
       userData,
       todosData,
       postsData,
-      slots: [slot0, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8, slot9],
+      slots: [
+        slot0,
+        slot1,
+        slot2,
+        slot3,
+        slot4,
+        slot5,
+        slot6,
+        slot7,
+        slot8,
+        slot9,
+      ],
     };
   });
 
@@ -133,8 +168,15 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
       <div style={{ padding: "20px", fontFamily: "system-ui" }}>
         <h1>Multi-Empty URL Repro</h1>
 
-        <p style={{ background: "#fff3cd", padding: "10px", borderRadius: "4px" }}>
-          <strong>Hypothesis:</strong> Bug triggers with MULTIPLE fetchData all having empty URLs
+        <p
+          style={{
+            background: "#fff3cd",
+            padding: "10px",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>Hypothesis:</strong>{" "}
+          Bug triggers with MULTIPLE fetchData all having empty URLs
         </p>
 
         <div style={{ marginBottom: "20px" }}>
@@ -144,21 +186,25 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
           <button
             onClick={toggleFetching({ enableFetching })}
             style={{
-              background: derive(enableFetching, e => e ? "#28a745" : "#dc3545"),
+              background: derive(
+                enableFetching,
+                (e) => e ? "#28a745" : "#dc3545",
+              ),
               color: "white",
               border: "none",
               padding: "5px 10px",
-              borderRadius: "4px"
+              borderRadius: "4px",
             }}
           >
-            Fetching: {derive(enableFetching, e => e ? "ON" : "OFF")}
+            Fetching: {derive(enableFetching, (e) => e ? "ON" : "OFF")}
           </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
-          <strong>hasAuth:</strong> {derive(hasAuth, h => h ? "YES" : "NO")}
+          <strong>hasAuth:</strong> {derive(hasAuth, (h) => h ? "YES" : "NO")}
           {" | "}
           <strong>fetchData per item:</strong> 13 (3 main + 10 slots)
         </div>
@@ -167,30 +213,62 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
-
-              <div style={{ marginBottom: "4px" }}>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result?.name || (u?.pending ? "..." : "—"))}
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
               </div>
 
               <div style={{ marginBottom: "4px" }}>
-                <strong>Todos:</strong>{" "}
-                {derive(item.todosData, (t) => t?.result?.length ? `${t.result.length} items` : (t?.pending ? "..." : "—"))}
+                <strong>User:</strong> {derive(
+                  item.userData,
+                  (u) => u?.result?.name || (u?.pending ? "..." : "—"),
+                )}
               </div>
 
               <div style={{ marginBottom: "4px" }}>
-                <strong>Posts:</strong>{" "}
-                {derive(item.postsData, (p) => p?.result?.length ? `${p.result.length} items` : (p?.pending ? "..." : "—"))}
+                <strong>Todos:</strong> {derive(item.todosData, (t) =>
+                  t?.result?.length
+                    ? `${t.result.length} items`
+                    : (t?.pending ? "..." : "—"))}
+              </div>
+
+              <div style={{ marginBottom: "4px" }}>
+                <strong>Posts:</strong> {derive(item.postsData, (p) =>
+                  p?.result?.length
+                    ? `${p.result.length} items`
+                    : (p?.pending ? "..." : "—"))}
               </div>
 
               <div>
                 <strong>10 Slots:</strong>
-                <div style={{ fontSize: "11px", display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "3px",
+                    marginTop: "4px",
+                  }}
+                >
                   {item.slots.map((s, i) => (
-                    <span style={{ padding: "2px 4px", background: "#eee", borderRadius: "2px" }}>
-                      #{i}: {derive(s, (r) => r?.result?.id || (r?.pending ? "..." : "—"))}
+                    <span
+                      style={{
+                        padding: "2px 4px",
+                        background: "#eee",
+                        borderRadius: "2px",
+                      }}
+                    >
+                      #{i}: {derive(
+                        s,
+                        (r) => r?.result?.id || (r?.pending ? "..." : "—"),
+                      )}
                     </span>
                   ))}
                 </div>
@@ -199,7 +277,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#f8d7da", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#f8d7da",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Steps:</strong>
           <ol>
             <li>Keep "Fetching: OFF" (ALL 13 URLs per item will be empty)</li>

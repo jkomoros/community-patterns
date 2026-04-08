@@ -1,15 +1,18 @@
 # Framework Issue: `$checked` binding silently fails inside Cell.map()
 
-**Date:** 2025-12-15
-**Component:** Cell.map() + bidirectional bindings
-**Type:** Design Limitation / Silent Failure
-**Severity:** High (causes confusing UI thrashing and errors)
+**Date:** 2025-12-15 **Component:** Cell.map() + bidirectional bindings
+**Type:** Design Limitation / Silent Failure **Severity:** High (causes
+confusing UI thrashing and errors)
 
 ## Summary
 
-Using `$checked={item.property}` (or any `$` bidirectional binding) inside `Cell.map()` **silently fails** because OpaqueRef proxies return values, not Cells, and `CellController.setValue()` ignores non-Cell targets.
+Using `$checked={item.property}` (or any `$` bidirectional binding) inside
+`Cell.map()` **silently fails** because OpaqueRef proxies return values, not
+Cells, and `CellController.setValue()` ignores non-Cell targets.
 
-The type system allows this pattern but it doesn't work at runtime. This creates confusing UI thrashing and "unexpected object when value was expected" console errors.
+The type system allows this pattern but it doesn't work at runtime. This creates
+confusing UI thrashing and "unexpected object when value was expected" console
+errors.
 
 ---
 
@@ -20,7 +23,7 @@ The type system allows this pattern but it doesn't work at runtime. This creates
 ```typescript
 interface Item {
   name: string;
-  selected: boolean;  // or Default<boolean, true>
+  selected: boolean; // or Default<boolean, true>
 }
 
 export default pattern<{ items: Cell<Item[]> }>(({ items }) => {
@@ -45,7 +48,8 @@ export default pattern<{ items: Cell<Item[]> }>(({ items }) => {
 1. User clicks checkbox
 2. `ct-checkbox.setChecked(true)` is called
 3. `CellController.setValue(newValue)` runs
-4. `defaultSetValue()` checks `isCell(value)` → **FALSE** (it's a boolean from OpaqueRef)
+4. `defaultSetValue()` checks `isCell(value)` → **FALSE** (it's a boolean from
+   OpaqueRef)
 5. The else branch does nothing → **write is silently dropped**
 6. Component re-renders with OLD value
 7. Checkbox reverts, UI thrashes
@@ -71,6 +75,7 @@ map<S>(
 ```
 
 When you access `item.selected` inside the callback:
+
 - `item` is an OpaqueRef proxy
 - `item.selected` returns the **VALUE** (boolean), not a Cell reference
 - The proxy auto-unwraps for reading, but provides no write semantics
@@ -92,7 +97,8 @@ private defaultSetValue(value: Cell<T> | T, newValue: T, _oldValue: T): void {
 }
 ```
 
-When the checkbox binding receives a raw boolean (from `item.selected` via OpaqueRef), the write is simply dropped.
+When the checkbox binding receives a raw boolean (from `item.selected` via
+OpaqueRef), the write is simply dropped.
 
 ### Finding 3: The Thrashing Cycle
 
@@ -119,6 +125,7 @@ render.ts:271 unexpected object when value was expected Object
 ```
 
 From `render.ts` lines 264-278:
+
 ```typescript
 } else {
   if (
@@ -138,11 +145,14 @@ From `render.ts` lines 264-278:
 
 ## Expected Behavior
 
-**Option A (Preferred):** OpaqueRef should provide write semantics for `$` bindings
+**Option A (Preferred):** OpaqueRef should provide write semantics for `$`
+bindings
+
 - When `$checked={item.selected}` is used inside Cell.map()
 - The framework should know how to write back to `items[idx].selected`
 
 **Option B:** Emit a clear error at binding time
+
 - "Cannot use $checked on non-Cell value inside Cell.map()"
 - This would prevent developers from wasting time debugging silent failures
 
@@ -152,7 +162,8 @@ From `render.ts` lines 264-278:
 
 ## Workaround
 
-Use explicit `onClick` handler with the `handler` pattern to pass Cell references:
+Use explicit `onClick` handler with the `handler` pattern to pass Cell
+references:
 
 ### Working Code
 
@@ -198,7 +209,8 @@ export default pattern<{ items: Cell<Item[]> }>(({ items }) => {
 1. **Handler receives Cell via state object** - not through closure
 2. **Handler can call `.get()` and `.set()` on the Cell** properly
 3. **No reliance on OpaqueRef providing write semantics**
-4. **Follows same pattern as other array mutation handlers** (like `toggleStatus`)
+4. **Follows same pattern as other array mutation handlers** (like
+   `toggleStatus`)
 
 ---
 
@@ -211,28 +223,32 @@ The TypeScript types allow `$checked={item.selected}` inside Cell.map() because:
 3. `$checked` accepts `Cell<boolean> | boolean`
 4. No type error is raised
 
-But at runtime, the binding doesn't work because the CellController needs a Cell reference to write to.
+But at runtime, the binding doesn't work because the CellController needs a Cell
+reference to write to.
 
 ---
 
 ## Files Referenced
 
-| File | Relevance |
-|------|-----------|
-| `labs/packages/common/src/cell.ts` | Cell.map() returns OpaqueRef |
-| `labs/packages/ui/src/v2/core/cell-controller.ts` | defaultSetValue() silently ignores non-Cells |
-| `labs/packages/ui/src/v2/components/ct-checkbox/ct-checkbox.ts` | Uses CellController for $checked |
-| `labs/packages/html/src/render.ts:271` | Where "unexpected object" warning originates |
+| File                                                            | Relevance                                    |
+| --------------------------------------------------------------- | -------------------------------------------- |
+| `labs/packages/common/src/cell.ts`                              | Cell.map() returns OpaqueRef                 |
+| `labs/packages/ui/src/v2/core/cell-controller.ts`               | defaultSetValue() silently ignores non-Cells |
+| `labs/packages/ui/src/v2/components/ct-checkbox/ct-checkbox.ts` | Uses CellController for $checked             |
+| `labs/packages/html/src/render.ts:271`                          | Where "unexpected object" warning originates |
 
 ---
 
 ## Suggested Fix Location
 
 In `cell-controller.ts`, the `defaultSetValue()` method should either:
+
 1. Support writing through OpaqueRef paths
-2. Throw an error when `isCell(value)` is false and value appears to be from an OpaqueRef context
+2. Throw an error when `isCell(value)` is false and value appears to be from an
+   OpaqueRef context
 
 Example improvement:
+
 ```typescript
 private defaultSetValue(value: Cell<T> | T, newValue: T, _oldValue: T): void {
   if (isCell(value)) {
@@ -255,5 +271,7 @@ private defaultSetValue(value: Cell<T> | T, newValue: T, _oldValue: T): void {
 ## Related Issues
 
 - WORKAROUND comments in `extracurricular-v2.tsx` referencing this issue
-- `community-docs/folk_wisdom/2025-12-15-checkbox-binding-patterns.md` (documents same limitation)
-- `community-docs/folk_wisdom/2025-12-14-checkbox-toggle-in-computed-map.md` (related workaround)
+- `community-docs/folk_wisdom/2025-12-15-checkbox-binding-patterns.md`
+  (documents same limitation)
+- `community-docs/folk_wisdom/2025-12-14-checkbox-toggle-in-computed-map.md`
+  (related workaround)

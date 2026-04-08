@@ -9,11 +9,11 @@ import {
   navigateTo,
   OpaqueRef,
   pattern,
+  safeDateNow,
   str,
   UI,
   wish,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 import FoodRecipe from "./food-recipe.tsx";
@@ -22,7 +22,7 @@ import PreparedFood from "./prepared-food.tsx";
 // Oven configuration
 interface OvenConfig {
   rackPositions: number; // 3-7 vertical positions
-  physicalRacks: number;  // 2-3 actual racks owned
+  physicalRacks: number; // 2-3 actual racks owned
 }
 
 // Guest dietary requirements
@@ -89,8 +89,8 @@ interface MealOrchestratorInput {
 
   // Equipment
   ovens?: Default<OvenConfig[], [{
-    rackPositions: 5,
-    physicalRacks: 2
+    rackPositions: 5;
+    physicalRacks: 2;
   }]>;
   stovetopBurners?: Default<number, 4>;
 
@@ -98,7 +98,7 @@ interface MealOrchestratorInput {
   dietaryProfiles?: Default<GuestDietaryProfile[], []>;
 
   // Rough Planning (for early-stage brainstorming)
-  planningNotes?: Default<string, "">;  // Free-form text for rough ideas
+  planningNotes?: Default<string, "">; // Free-form text for rough ideas
 
   // Recipes (@ references)
   recipes?: Default<OpaqueRef<FoodRecipe>[], []>;
@@ -248,26 +248,43 @@ const triggerRecipeLinking = handler<
     linkingAnalysisTrigger: Writable<string>;
   }
 >(
-  (_event, { planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
+  (
+    _event,
+    {
+      planningNotes,
+      mentionable,
+      recipeMentioned,
+      preparedFoodMentioned,
+      linkingAnalysisTrigger,
+    },
+  ) => {
     const notes = planningNotes.get();
     if (!notes || notes.trim() === "") {
       return; // Nothing to analyze
     }
 
     // Filter mentionables by emoji prefix
-    const recipes = mentionable.filter((m: any) => m[NAME]?.startsWith('🍳'));
-    const preparedFoods = mentionable.filter((m: any) => m[NAME]?.startsWith('🛒'));
+    const recipes = mentionable.filter((m: any) => m[NAME]?.startsWith("🍳"));
+    const preparedFoods = mentionable.filter((m: any) =>
+      m[NAME]?.startsWith("🛒")
+    );
 
     // Get currently mentioned items to avoid duplicates
     // Filter out any undefined values that might have been stored improperly
-    const currentRecipes = recipeMentioned.get().filter((r: any) => r != null).map((r: any) => r.name);
-    const currentPrepared = preparedFoodMentioned.get().filter((p: any) => p != null).map((p: any) => p.name);
+    const currentRecipes = recipeMentioned.get().filter((r: any) => r != null)
+      .map((r: any) => r.name);
+    const currentPrepared = preparedFoodMentioned.get().filter((p: any) =>
+      p != null
+    ).map((p: any) => p.name);
 
     // Build context for LLM as natural language prompt
-    const existingRecipesList = recipes.map((r: any) => r[NAME]?.replace('🍳 ', '')).join(', ') || 'none';
-    const existingPreparedList = preparedFoods.map((p: any) => p[NAME]?.replace('🛒 ', '')).join(', ') || 'none';
-    const currentRecipesList = currentRecipes.join(', ') || 'none';
-    const currentPreparedList = currentPrepared.join(', ') || 'none';
+    const existingRecipesList =
+      recipes.map((r: any) => r[NAME]?.replace("🍳 ", "")).join(", ") || "none";
+    const existingPreparedList =
+      preparedFoods.map((p: any) => p[NAME]?.replace("🛒 ", "")).join(", ") ||
+      "none";
+    const currentRecipesList = currentRecipes.join(", ") || "none";
+    const currentPreparedList = currentPrepared.join(", ") || "none";
 
     const prompt = `Planning Notes:
 ${notes}
@@ -284,7 +301,7 @@ Please analyze the planning notes and extract all food items, matching them to e
 
     // Trigger LLM analysis
     linkingAnalysisTrigger.set(prompt);
-  }
+  },
 );
 
 // Handler to cancel analysis
@@ -307,12 +324,22 @@ const applyLinking = handler<
     preparedFoodMentioned: Writable<any[]>;
     linkingAnalysisTrigger: Writable<string>;
   }
->((_event, { linkingResult, mentionable, createdCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
+>((
+  _event,
+  {
+    linkingResult,
+    mentionable,
+    createdCharms,
+    recipeMentioned,
+    preparedFoodMentioned,
+    linkingAnalysisTrigger,
+  },
+) => {
   if (!linkingResult || !linkingResult.matches) return;
 
   // Filter for selected items
   const selectedItems = linkingResult.matches.filter(
-    (matchResult) => matchResult.selected
+    (matchResult) => matchResult.selected,
   );
 
   if (selectedItems.length === 0) {
@@ -330,7 +357,7 @@ const applyLinking = handler<
     if (match) {
       // This item matches an existing charm - find and add it
       const charm = mentionable.find((m: any) => {
-        const charmName = m[NAME]?.replace(/^[🍳🛒]\s*/, ''); // Remove emoji prefix
+        const charmName = m[NAME]?.replace(/^[🍳🛒]\s*/, ""); // Remove emoji prefix
         return charmName === match.existingCharmName;
       });
 
@@ -345,34 +372,34 @@ const applyLinking = handler<
       // No match - create a new charm with LLM-extracted data
       const newCharm = item.type === "recipe"
         ? FoodRecipe({
-            name: item.normalizedName,
-            cuisine: "",
-            servings: item.servings || 4,
-            yield: "",
-            difficulty: "medium" as const,
-            prepTime: 0,
-            cookTime: 0,
-            restTime: 0,
-            holdTime: 0,
-            category: (item.category as any) || "other",
-            ingredients: [],
-            stepGroups: [],
-            tags: [],
-            notes: item.description || "",
-            source: item.source || "",
-          })
+          name: item.normalizedName,
+          cuisine: "",
+          servings: item.servings || 4,
+          yield: "",
+          difficulty: "medium" as const,
+          prepTime: 0,
+          cookTime: 0,
+          restTime: 0,
+          holdTime: 0,
+          category: (item.category as any) || "other",
+          ingredients: [],
+          stepGroups: [],
+          tags: [],
+          notes: item.description || "",
+          source: item.source || "",
+        })
         : PreparedFood({
-            name: item.normalizedName,
-            servings: item.servings || 4,
-            category: (item.category as any) || "other",
-            dietaryTags: [],
-            primaryIngredients: [],
-            description: item.description || "",
-            source: item.source || "",
-            prepTime: 0,
-            requiresReheating: false,
-            tags: [],
-          });
+          name: item.normalizedName,
+          servings: item.servings || 4,
+          category: (item.category as any) || "other",
+          dietaryTags: [],
+          primaryIngredients: [],
+          description: item.description || "",
+          source: item.source || "",
+          prepTime: 0,
+          requiresReheating: false,
+          tags: [],
+        });
 
       // Add to createdCharms so it becomes mentionable via this charm's export
       createdCharms.push(newCharm);
@@ -437,7 +464,8 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 
     // LLM Analysis of Planning Notes
     const { result: linkingResult, pending: linkingPending } = generateObject({
-      system: `You are a meal planning assistant. Extract food items from planning notes and match them to existing recipes and prepared foods.
+      system:
+        `You are a meal planning assistant. Extract food items from planning notes and match them to existing recipes and prepared foods.
 
 Your task:
 1. Parse the planning notes to identify all food items mentioned
@@ -472,39 +500,95 @@ Return all items found in the planning notes, matched or unmatched.`,
                 item: {
                   type: "object",
                   properties: {
-                    originalText: { type: "string", description: "Raw text from planning notes" },
-                    normalizedName: { type: "string", description: "Cleaned name for the item" },
-                    type: { type: "string", enum: ["recipe", "prepared"], description: "Item classification" },
-                    contextSnippet: { type: "string", description: "Surrounding context from notes" },
-                    servings: { type: "number", description: "Extracted serving size if found" },
+                    originalText: {
+                      type: "string",
+                      description: "Raw text from planning notes",
+                    },
+                    normalizedName: {
+                      type: "string",
+                      description: "Cleaned name for the item",
+                    },
+                    type: {
+                      type: "string",
+                      enum: ["recipe", "prepared"],
+                      description: "Item classification",
+                    },
+                    contextSnippet: {
+                      type: "string",
+                      description: "Surrounding context from notes",
+                    },
+                    servings: {
+                      type: "number",
+                      description: "Extracted serving size if found",
+                    },
                     category: {
                       type: "string",
-                      enum: ["appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", "other"],
-                      description: "Inferred category"
+                      enum: [
+                        "appetizer",
+                        "main",
+                        "side",
+                        "starch",
+                        "vegetable",
+                        "dessert",
+                        "bread",
+                        "other",
+                      ],
+                      description: "Inferred category",
                     },
-                    description: { type: "string", description: "Brief description from notes" },
-                    source: { type: "string", description: "Source (for prepared foods)" },
+                    description: {
+                      type: "string",
+                      description: "Brief description from notes",
+                    },
+                    source: {
+                      type: "string",
+                      description: "Source (for prepared foods)",
+                    },
                   },
-                  required: ["originalText", "normalizedName", "type", "contextSnippet"],
+                  required: [
+                    "originalText",
+                    "normalizedName",
+                    "type",
+                    "contextSnippet",
+                  ],
                 },
                 match: {
                   oneOf: [
                     {
                       type: "object",
                       properties: {
-                        existingCharmName: { type: "string", description: "Name of matched charm" },
-                        matchType: { type: "string", enum: ["exact", "fuzzy"], description: "Type of match" },
-                        confidence: { type: "number", description: "Match confidence 0-1", minimum: 0, maximum: 1 },
+                        existingCharmName: {
+                          type: "string",
+                          description: "Name of matched charm",
+                        },
+                        matchType: {
+                          type: "string",
+                          enum: ["exact", "fuzzy"],
+                          description: "Type of match",
+                        },
+                        confidence: {
+                          type: "number",
+                          description: "Match confidence 0-1",
+                          minimum: 0,
+                          maximum: 1,
+                        },
                       },
-                      required: ["existingCharmName", "matchType", "confidence"],
+                      required: [
+                        "existingCharmName",
+                        "matchType",
+                        "confidence",
+                      ],
                     },
                     {
                       type: "null",
                     },
                   ],
-                  description: "Match to existing charm, null if no match"
+                  description: "Match to existing charm, null if no match",
                 },
-                selected: { type: "boolean", description: "Default to true for user approval", default: true },
+                selected: {
+                  type: "boolean",
+                  description: "Default to true for user approval",
+                  default: true,
+                },
               },
               required: ["item", "selected"],
             },
@@ -516,7 +600,9 @@ Return all items found in the planning notes, matched or unmatched.`,
 
     // Derive a flag for showing the modal
     const hasLinkingResult = computed(
-      () => linkingResult && linkingResult.matches && linkingResult.matches.length > 0,
+      () =>
+        linkingResult && linkingResult.matches &&
+        linkingResult.matches.length > 0,
     );
 
     const displayName = computed(
@@ -526,7 +612,9 @@ Return all items found in the planning notes, matched or unmatched.`,
     const ovenCount = computed(() => ovens.length);
     const profileCount = computed(() => dietaryProfiles.length);
     const recipeCount = computed(() => recipeMentioned.get().length);
-    const preparedFoodCount = computed(() => preparedFoodMentioned.get().length);
+    const preparedFoodCount = computed(() =>
+      preparedFoodMentioned.get().length
+    );
 
     // Meal Balance Analysis
     const analysisPrompt = computed(
@@ -536,25 +624,36 @@ Return all items found in the planning notes, matched or unmatched.`,
         const recipeList = recipeMentioned.get();
         const preparedList = preparedFoodMentioned.get();
 
-      if ((!recipeList || recipeList.length === 0) && (!preparedList || preparedList.length === 0)) {
-        return "No items to analyze";
-      }
+        if (
+          (!recipeList || recipeList.length === 0) &&
+          (!preparedList || preparedList.length === 0)
+        ) {
+          return "No items to analyze";
+        }
 
-      const recipesSummary = (recipeList || [])
-        .filter((r: any) => r != null)
-        .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
-        .join("\n");
+        const recipesSummary = (recipeList || [])
+          .filter((r: any) => r != null)
+          .map((r: any) =>
+            `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`
+          )
+          .join("\n");
 
-      const preparedSummary = (preparedList || [])
-        .filter((p: any) => p != null)
-        .map((p: any) => `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`)
-        .join("\n");
+        const preparedSummary = (preparedList || [])
+          .filter((p: any) => p != null)
+          .map((p: any) =>
+            `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`
+          )
+          .join("\n");
 
-      const allItems = [recipesSummary, preparedSummary].filter(Boolean).join("\n");
+        const allItems = [recipesSummary, preparedSummary].filter(Boolean).join(
+          "\n",
+        );
 
-      const dietaryRequirements = profiles
-        .flatMap((p: any) => p.requirements)
-        .filter((req: any, idx: number, arr: any[]) => arr.indexOf(req) === idx); // unique
+        const dietaryRequirements = profiles
+          .flatMap((p: any) => p.requirements)
+          .filter((req: any, idx: number, arr: any[]) =>
+            arr.indexOf(req) === idx
+          ); // unique
 
         return `Analyze this meal menu for balance and dietary compatibility:
 
@@ -573,7 +672,8 @@ Provide:
     );
 
     const { result: mealAnalysis, pending: analysisPending } = generateObject({
-      system: `You are a meal planning expert. Analyze menus for balance, portion sizing, and dietary compatibility.
+      system:
+        `You are a meal planning expert. Analyze menus for balance, portion sizing, and dietary compatibility.
 
 When analyzing:
 - Consider standard meal structure (appetizer, main, sides, dessert)
@@ -590,7 +690,8 @@ Be concise and practical in your analysis.`,
           categoryBreakdown: {
             type: "object",
             additionalProperties: { type: "number" },
-            description: "Count of dishes per category (main, side, dessert, etc.)",
+            description:
+              "Count of dishes per category (main, side, dessert, etc.)",
           },
           servingsAnalysis: {
             type: "string",
@@ -641,65 +742,68 @@ Be concise and practical in your analysis.`,
       recipeList.forEach((recipe: any) => {
         if (recipe.stepGroups) {
           recipe.stepGroups.forEach((stepGroup: any) => {
-              if (stepGroup.requiresOven) {
-                const startMinutes = stepGroup.minutesBeforeServing || 0;
-                const duration = stepGroup.requiresOven.duration || 0;
-                const endMinutes = startMinutes - duration; // Earlier time (more minutes before)
+            if (stepGroup.requiresOven) {
+              const startMinutes = stepGroup.minutesBeforeServing || 0;
+              const duration = stepGroup.requiresOven.duration || 0;
+              const endMinutes = startMinutes - duration; // Earlier time (more minutes before)
 
-                events.push({
-                  recipeName: recipe.name,
-                  stepGroupName: stepGroup.name,
-                  startMinutesBeforeServing: startMinutes,
-                  endMinutesBeforeServing: endMinutes,
-                  temperature: stepGroup.requiresOven.temperature,
-                  racksNeeded: stepGroup.requiresOven.racksNeeded || {
-                    heightSlots: 1,
-                    width: "full",
-                  },
-                });
-              }
-            });
-          }
-        });
-
-        // Sort events by start time (descending - furthest from serving time first)
-        events.sort((a, b) => b.startMinutesBeforeServing - a.startMinutesBeforeServing);
-
-        // Detect conflicts
-        interface Conflict {
-          time: number;
-          reason: string;
-          affectedRecipes: string[];
+              events.push({
+                recipeName: recipe.name,
+                stepGroupName: stepGroup.name,
+                startMinutesBeforeServing: startMinutes,
+                endMinutesBeforeServing: endMinutes,
+                temperature: stepGroup.requiresOven.temperature,
+                racksNeeded: stepGroup.requiresOven.racksNeeded || {
+                  heightSlots: 1,
+                  width: "full",
+                },
+              });
+            }
+          });
         }
-        const conflicts: Conflict[] = [];
+      });
 
-        // Check for time overlaps
-        for (let i = 0; i < events.length; i++) {
-          for (let j = i + 1; j < events.length; j++) {
-            const eventA = events[i];
-            const eventB = events[j];
+      // Sort events by start time (descending - furthest from serving time first)
+      events.sort((a, b) =>
+        b.startMinutesBeforeServing - a.startMinutesBeforeServing
+      );
 
-            // Check if time ranges overlap
-            const aStart = eventA.startMinutesBeforeServing;
-            const aEnd = eventA.endMinutesBeforeServing;
-            const bStart = eventB.startMinutesBeforeServing;
-            const bEnd = eventB.endMinutesBeforeServing;
+      // Detect conflicts
+      interface Conflict {
+        time: number;
+        reason: string;
+        affectedRecipes: string[];
+      }
+      const conflicts: Conflict[] = [];
 
-            const overlaps = (aStart >= bEnd && aEnd <= bStart);
+      // Check for time overlaps
+      for (let i = 0; i < events.length; i++) {
+        for (let j = i + 1; j < events.length; j++) {
+          const eventA = events[i];
+          const eventB = events[j];
 
-            if (overlaps) {
-              // Check if temperatures are compatible (within 25°F)
-              const tempDiff = Math.abs(eventA.temperature - eventB.temperature);
-              if (tempDiff > 25) {
-                conflicts.push({
-                  time: Math.max(aStart, bStart),
-                  reason: `Temperature conflict: ${eventA.temperature}°F vs ${eventB.temperature}°F`,
-                  affectedRecipes: [eventA.recipeName, eventB.recipeName],
-                });
-              }
+          // Check if time ranges overlap
+          const aStart = eventA.startMinutesBeforeServing;
+          const aEnd = eventA.endMinutesBeforeServing;
+          const bStart = eventB.startMinutesBeforeServing;
+          const bEnd = eventB.endMinutesBeforeServing;
+
+          const overlaps = aStart >= bEnd && aEnd <= bStart;
+
+          if (overlaps) {
+            // Check if temperatures are compatible (within 25°F)
+            const tempDiff = Math.abs(eventA.temperature - eventB.temperature);
+            if (tempDiff > 25) {
+              conflicts.push({
+                time: Math.max(aStart, bStart),
+                reason:
+                  `Temperature conflict: ${eventA.temperature}°F vs ${eventB.temperature}°F`,
+                affectedRecipes: [eventA.recipeName, eventB.recipeName],
+              });
             }
           }
         }
+      }
 
       return {
         events,
@@ -714,24 +818,50 @@ Be concise and practical in your analysis.`,
         <cf-vstack gap={1} style="padding: 8px; max-width: 900px;">
           {/* Header */}
           <div style={{ marginBottom: "4px" }}>
-            <h1 style={{ margin: "0 0 2px 0", fontSize: "20px", fontWeight: "700" }}>
+            <h1
+              style={{
+                margin: "0 0 2px 0",
+                fontSize: "20px",
+                fontWeight: "700",
+              }}
+            >
               {displayName}
             </h1>
             <div style={{ fontSize: "13px", color: "#666" }}>
-              Plan multi-recipe meals with equipment scheduling and dietary analysis
+              Plan multi-recipe meals with equipment scheduling and dietary
+              analysis
             </div>
           </div>
 
           {/* Event Information */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Event Information
               </h3>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                }}
+              >
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Meal Name
                   </label>
                   <cf-input
@@ -741,7 +871,14 @@ Be concise and practical in your analysis.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Guest Count
                   </label>
                   <cf-input
@@ -752,7 +889,14 @@ Be concise and practical in your analysis.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Date
                   </label>
                   <cf-input
@@ -763,7 +907,14 @@ Be concise and practical in your analysis.`,
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Serving Time
                   </label>
                   <cf-input
@@ -779,8 +930,16 @@ Be concise and practical in your analysis.`,
           {/* Equipment Configuration */}
           <cf-card>
             <cf-vstack gap={1}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <h3
+                  style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}
+                >
                   Equipment ({ovenCount} ovens)
                 </h3>
                 <cf-button onClick={addOven({ ovens })}>
@@ -802,11 +961,23 @@ Be concise and practical in your analysis.`,
                       background: "#f9fafb",
                     }}
                   >
-                    <div style={{ fontWeight: "600", color: "#666", fontSize: "14px" }}>
+                    <div
+                      style={{
+                        fontWeight: "600",
+                        color: "#666",
+                        fontSize: "14px",
+                      }}
+                    >
                       Oven {index + 1}
                     </div>
                     <div>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          fontSize: "13px",
+                        }}
+                      >
                         Rack Positions
                       </label>
                       <cf-input
@@ -817,7 +988,13 @@ Be concise and practical in your analysis.`,
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>
+                      <label
+                        style={{
+                          display: "block",
+                          marginBottom: "4px",
+                          fontSize: "13px",
+                        }}
+                      >
                         Physical Racks
                       </label>
                       <cf-input
@@ -838,7 +1015,14 @@ Be concise and practical in your analysis.`,
               </cf-vstack>
 
               <div style={{ marginTop: "8px" }}>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "4px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                  }}
+                >
                   Stovetop Burners
                 </label>
                 <cf-input
@@ -855,8 +1039,16 @@ Be concise and practical in your analysis.`,
           {/* Dietary Requirements */}
           <cf-card>
             <cf-vstack gap={1}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <h3
+                  style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}
+                >
                   Dietary Requirements ({profileCount} guests)
                 </h3>
                 <cf-button onClick={addDietaryProfile({ dietaryProfiles })}>
@@ -868,14 +1060,23 @@ Be concise and practical in your analysis.`,
                 {dietaryProfiles.map((profile, index) => (
                   <cf-card style={{ background: "#f9fafb" }}>
                     <cf-vstack gap={1}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
                         <cf-input
                           $value={profile.guestName}
                           placeholder={`Guest ${index + 1} (optional name)`}
                           style="flex: 1; marginRight: 8px;"
                         />
                         <cf-button
-                          onClick={removeDietaryProfile({ dietaryProfiles, profile })}
+                          onClick={removeDietaryProfile({
+                            dietaryProfiles,
+                            profile,
+                          })}
                           style={{ padding: "4px 8px", fontSize: "18px" }}
                         >
                           ×
@@ -883,10 +1084,23 @@ Be concise and practical in your analysis.`,
                       </div>
 
                       <div>
-                        <div style={{ fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: "500",
+                            marginBottom: "6px",
+                          }}
+                        >
                           Requirements:
                         </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "6px",
+                            marginBottom: "8px",
+                          }}
+                        >
                           {profile.requirements.map((req) => (
                             <div
                               style={{
@@ -901,7 +1115,10 @@ Be concise and practical in your analysis.`,
                             >
                               <span>{req}</span>
                               <button
-                                onClick={removeDietaryRequirement({ profile, requirement: req })}
+                                onClick={removeDietaryRequirement({
+                                  profile,
+                                  requirement: req,
+                                })}
                                 style={{
                                   background: "none",
                                   border: "none",
@@ -931,25 +1148,47 @@ Be concise and practical in your analysis.`,
           {/* Planning Notes Section */}
           <cf-card>
             <cf-vstack gap={1}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <h3
+                  style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}
+                >
                   📝 Planning Notes
                 </h3>
                 <cf-button
-                  onClick={triggerRecipeLinking({ planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
+                  onClick={triggerRecipeLinking({
+                    planningNotes,
+                    mentionable,
+                    recipeMentioned,
+                    preparedFoodMentioned,
+                    linkingAnalysisTrigger,
+                  })}
                   disabled={linkingPending}
                 >
                   {ifElse(
                     linkingPending,
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
                       <cf-loader size="sm" show-elapsed></cf-loader>
                       Analyzing...
                     </span>,
-                    "🔗 Link Recipes"
+                    "🔗 Link Recipes",
                   )}
                 </cf-button>
               </div>
-              <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+              <div
+                style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}
+              >
                 Free-form brainstorming space for rough ideas and menu thoughts.
               </div>
               <cf-input
@@ -963,7 +1202,13 @@ Be concise and practical in your analysis.`,
           {/* Recipes Section */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Recipes ({recipeCount})
               </h3>
 
@@ -981,7 +1226,9 @@ Be concise and practical in your analysis.`,
 
               {/* List of added recipes */}
               {ifElse(
-                computed(() => recipeMentioned.get().filter(Boolean).length > 0),
+                computed(() =>
+                  recipeMentioned.get().filter(Boolean).length > 0
+                ),
                 <cf-vstack gap={1} style="margin-top: 8px;">
                   {recipeMentioned.map((itemCell: any, index: number) => (
                     <div
@@ -999,16 +1246,23 @@ Be concise and practical in your analysis.`,
                       <div>
                         {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {computed(() => itemCell?.name || itemCell?.[NAME] || "Untitled Recipe")}
+                          {computed(() => itemCell?.name || itemCell?.[NAME] ||
+                            "Untitled Recipe"
+                          )}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
                           {computed(() =>
-                            itemCell?.category ? `${itemCell.category} • ${itemCell.servings} servings` : "Recipe"
+                            itemCell?.category
+                              ? `${itemCell.category} • ${itemCell.servings} servings`
+                              : "Recipe"
                           )}
                         </div>
                       </div>
                       <cf-button
-                        onClick={removeRecipe({ recipes: recipeMentioned, recipe: itemCell })}
+                        onClick={removeRecipe({
+                          recipes: recipeMentioned,
+                          recipe: itemCell,
+                        })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
@@ -1024,7 +1278,13 @@ Be concise and practical in your analysis.`,
           {/* Prepared Foods Section */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 🛒 Prepared/Store-Bought ({preparedFoodCount})
               </h3>
 
@@ -1042,7 +1302,9 @@ Be concise and practical in your analysis.`,
 
               {/* List of added prepared foods */}
               {ifElse(
-                computed(() => preparedFoodMentioned.get().filter(Boolean).length > 0),
+                computed(() =>
+                  preparedFoodMentioned.get().filter(Boolean).length > 0
+                ),
                 <cf-vstack gap={1} style="margin-top: 8px;">
                   {preparedFoodMentioned.map((itemCell: any, index: number) => (
                     <div
@@ -1060,18 +1322,26 @@ Be concise and practical in your analysis.`,
                       <div>
                         {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {computed(() => itemCell?.name || itemCell?.[NAME] || "Untitled Item")}
+                          {computed(() =>
+                            itemCell?.name || itemCell?.[NAME] ||
+                            "Untitled Item"
+                          )}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
                           {computed(() =>
                             itemCell?.category
-                              ? `${itemCell.category} • ${itemCell.servings} servings${itemCell.source ? ` • ${itemCell.source}` : ""}`
+                              ? `${itemCell.category} • ${itemCell.servings} servings${
+                                itemCell.source ? ` • ${itemCell.source}` : ""
+                              }`
                               : "Prepared Food"
                           )}
                         </div>
                       </div>
                       <cf-button
-                        onClick={removePreparedFood({ preparedFoods: preparedFoodMentioned, preparedFood: itemCell })}
+                        onClick={removePreparedFood({
+                          preparedFoods: preparedFoodMentioned,
+                          preparedFood: itemCell,
+                        })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
@@ -1089,25 +1359,54 @@ Be concise and practical in your analysis.`,
             computed(() => (recipes.length + preparedFoods.length) > 0),
             <cf-card>
               <cf-vstack gap={1}>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+                <h3
+                  style={{
+                    margin: "0 0 4px 0",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                  }}
+                >
                   📊 Meal Balance Analysis
                 </h3>
 
                 {ifElse(
                   analysisPending,
-                  <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#666",
+                      fontStyle: "italic",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
                     <cf-loader size="sm" show-elapsed></cf-loader>
                     Analyzing menu...
                   </div>,
                   <cf-vstack gap={1}>
                     {/* Category Breakdown */}
                     <div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          marginBottom: "6px",
+                        }}
+                      >
                         Categories:
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "8px",
+                        }}
+                      >
                         {computed(() => {
-                          return Object.entries(analysisResult.categoryBreakdown).map(([category, count]) => (
+                          return Object.entries(
+                            analysisResult.categoryBreakdown,
+                          ).map(([category, count]) => (
                             <div
                               style={{
                                 padding: "4px 10px",
@@ -1125,7 +1424,13 @@ Be concise and practical in your analysis.`,
 
                     {/* Servings Analysis */}
                     <div>
-                      <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          marginBottom: "6px",
+                        }}
+                      >
                         Portions:
                       </div>
                       <div style={{ fontSize: "14px", color: "#444" }}>
@@ -1136,17 +1441,30 @@ Be concise and practical in your analysis.`,
                     {/* Dietary Warnings */}
                     {ifElse(
                       computed(
-                        () => analysisResult.dietaryWarnings && analysisResult.dietaryWarnings.length > 0,
+                        () => analysisResult.dietaryWarnings &&
+                          analysisResult.dietaryWarnings.length > 0,
                       ),
                       <div>
-                        <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px", color: "#dc2626" }}>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            marginBottom: "6px",
+                            color: "#dc2626",
+                          }}
+                        >
                           ⚠️ Dietary Warnings:
                         </div>
-                        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#dc2626" }}>
+                        <ul
+                          style={{
+                            margin: "0",
+                            paddingLeft: "20px",
+                            fontSize: "13px",
+                            color: "#dc2626",
+                          }}
+                        >
                           {computed(() => analysisResult.dietaryWarnings).map(
-                            (warning: string) => (
-                              <li>{warning}</li>
-                            ),
+                            (warning: string) => <li>{warning}</li>,
                           )}
                         </ul>
                       </div>,
@@ -1156,17 +1474,31 @@ Be concise and practical in your analysis.`,
                     {/* Suggestions */}
                     {ifElse(
                       computed(
-                        () => analysisResult.suggestions && analysisResult.suggestions.length > 0,
+                        () =>
+                          analysisResult.suggestions &&
+                          analysisResult.suggestions.length > 0,
                       ),
                       <div>
-                        <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px", color: "#059669" }}>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            marginBottom: "6px",
+                            color: "#059669",
+                          }}
+                        >
                           💡 Suggestions:
                         </div>
-                        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#059669" }}>
+                        <ul
+                          style={{
+                            margin: "0",
+                            paddingLeft: "20px",
+                            fontSize: "13px",
+                            color: "#059669",
+                          }}
+                        >
                           {computed(() => analysisResult.suggestions).map(
-                            (suggestion: string) => (
-                              <li>{suggestion}</li>
-                            ),
+                            (suggestion: string) => <li>{suggestion}</li>,
                           )}
                         </ul>
                       </div>,
@@ -1184,7 +1516,13 @@ Be concise and practical in your analysis.`,
             computed(() => ovenTimeline.hasData),
             <cf-card>
               <cf-vstack gap={1}>
-                <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+                <h3
+                  style={{
+                    margin: "0 0 4px 0",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                  }}
+                >
                   🔥 Oven Timeline
                 </h3>
 
@@ -1200,14 +1538,29 @@ Be concise and practical in your analysis.`,
                       marginBottom: "8px",
                     }}
                   >
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        color: "#dc2626",
+                        marginBottom: "4px",
+                      }}
+                    >
                       ⚠️ Conflicts Detected
                     </div>
-                    <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "12px", color: "#dc2626" }}>
+                    <ul
+                      style={{
+                        margin: "0",
+                        paddingLeft: "20px",
+                        fontSize: "12px",
+                        color: "#dc2626",
+                      }}
+                    >
                       {computed(() => ovenTimeline.conflicts).map(
                         (conflict: any) => (
                           <li>
-                            {conflict.reason} ({conflict.affectedRecipes.join(", ")})
+                            {conflict.reason}{" "}
+                            ({conflict.affectedRecipes.join(", ")})
                           </li>
                         ),
                       )}
@@ -1225,10 +1578,14 @@ Be concise and practical in your analysis.`,
 
                     // Find the time range
                     const maxMinutes = Math.max(
-                      ...timeline.events.map((e: OvenTimelineEvent) => e.startMinutesBeforeServing),
+                      ...timeline.events.map((e: OvenTimelineEvent) =>
+                        e.startMinutesBeforeServing
+                      ),
                     );
                     const minMinutes = Math.min(
-                      ...timeline.events.map((e: OvenTimelineEvent) => e.endMinutesBeforeServing),
+                      ...timeline.events.map((e: OvenTimelineEvent) =>
+                        e.endMinutesBeforeServing
+                      ),
                     );
 
                     const timeRange = maxMinutes - minMinutes;
@@ -1257,82 +1614,92 @@ Be concise and practical in your analysis.`,
                           }}
                         >
                           <span>{formatTime(maxMinutes)}</span>
-                          <span>{formatTime(Math.floor((maxMinutes + minMinutes) / 2))}</span>
+                          <span>
+                            {formatTime(
+                              Math.floor((maxMinutes + minMinutes) / 2),
+                            )}
+                          </span>
                           <span>{formatTime(minMinutes)}</span>
                         </div>
 
                         {/* Events */}
-                        {timeline.events.map((event: OvenTimelineEvent, index: number) => {
-                          const startPos = ((maxMinutes - event.startMinutesBeforeServing) / timeRange) * pixelWidth;
-                          const duration = event.startMinutesBeforeServing - event.endMinutesBeforeServing;
-                          const width = (duration / timeRange) * pixelWidth;
+                        {timeline.events.map(
+                          (event: OvenTimelineEvent, index: number) => {
+                            const startPos =
+                              ((maxMinutes - event.startMinutesBeforeServing) /
+                                timeRange) * pixelWidth;
+                            const duration = event.startMinutesBeforeServing -
+                              event.endMinutesBeforeServing;
+                            const width = (duration / timeRange) * pixelWidth;
 
-                          // Check if this event has conflicts
-                          const hasConflict = timeline.conflicts.some(
-                            (c: any) => c.affectedRecipes.includes(event.recipeName),
-                          );
+                            // Check if this event has conflicts
+                            const hasConflict = timeline.conflicts.some(
+                              (c: any) =>
+                                c.affectedRecipes.includes(event.recipeName),
+                            );
 
-                          return (
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                marginBottom: "2px",
-                              }}
-                            >
-                              {/* Recipe label */}
+                            return (
                               <div
                                 style={{
-                                  width: "140px",
-                                  fontSize: "12px",
-                                  fontWeight: "500",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                                title={`${event.recipeName} - ${event.stepGroupName}`}
-                              >
-                                {event.recipeName}
-                              </div>
-
-                              {/* Timeline bar container */}
-                              <div
-                                style={{
-                                  position: "relative",
-                                  height: "28px",
-                                  width: `${pixelWidth}px`,
-                                  background: "#f3f4f6",
-                                  borderRadius: "2px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  marginBottom: "2px",
                                 }}
                               >
-                                {/* Event bar */}
+                                {/* Recipe label */}
                                 <div
                                   style={{
-                                    position: "absolute",
-                                    left: `${startPos}px`,
-                                    width: `${width}px`,
-                                    height: "100%",
-                                    background: hasConflict
-                                      ? "linear-gradient(90deg, #fca5a5, #f87171)"
-                                      : "linear-gradient(90deg, #93c5fd, #60a5fa)",
-                                    borderRadius: "2px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontSize: "11px",
-                                    fontWeight: "600",
-                                    color: "#fff",
-                                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                    width: "140px",
+                                    fontSize: "12px",
+                                    fontWeight: "500",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
                                   }}
-                                  title={`${event.stepGroupName}: ${event.temperature}°F for ${duration} min`}
+                                  title={`${event.recipeName} - ${event.stepGroupName}`}
                                 >
-                                  {event.temperature}°F
+                                  {event.recipeName}
+                                </div>
+
+                                {/* Timeline bar container */}
+                                <div
+                                  style={{
+                                    position: "relative",
+                                    height: "28px",
+                                    width: `${pixelWidth}px`,
+                                    background: "#f3f4f6",
+                                    borderRadius: "2px",
+                                  }}
+                                >
+                                  {/* Event bar */}
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      left: `${startPos}px`,
+                                      width: `${width}px`,
+                                      height: "100%",
+                                      background: hasConflict
+                                        ? "linear-gradient(90deg, #fca5a5, #f87171)"
+                                        : "linear-gradient(90deg, #93c5fd, #60a5fa)",
+                                      borderRadius: "2px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: "11px",
+                                      fontWeight: "600",
+                                      color: "#fff",
+                                      boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                    }}
+                                    title={`${event.stepGroupName}: ${event.temperature}°F for ${duration} min`}
+                                  >
+                                    {event.temperature}°F
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          },
+                        )}
 
                         {/* Legend */}
                         <div
@@ -1345,27 +1712,43 @@ Be concise and practical in your analysis.`,
                             color: "#666",
                           }}
                         >
-                          <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                          <div
+                            style={{ fontWeight: "600", marginBottom: "4px" }}
+                          >
                             Timeline shows when each recipe uses the oven
                           </div>
                           <div style={{ display: "flex", gap: "16px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
                               <div
                                 style={{
                                   width: "16px",
                                   height: "16px",
-                                  background: "linear-gradient(90deg, #93c5fd, #60a5fa)",
+                                  background:
+                                    "linear-gradient(90deg, #93c5fd, #60a5fa)",
                                   borderRadius: "2px",
                                 }}
                               />
                               <span>Normal</span>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
                               <div
                                 style={{
                                   width: "16px",
                                   height: "16px",
-                                  background: "linear-gradient(90deg, #fca5a5, #f87171)",
+                                  background:
+                                    "linear-gradient(90deg, #fca5a5, #f87171)",
                                   borderRadius: "2px",
                                 }}
                               />
@@ -1385,7 +1768,13 @@ Be concise and practical in your analysis.`,
           {/* Notes */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Notes
               </h3>
               <cf-input
@@ -1397,13 +1786,31 @@ Be concise and practical in your analysis.`,
           </cf-card>
 
           {/* Placeholder sections for future features */}
-          <cf-card style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
+          <cf-card
+            style={{ background: "#f0fdf4", border: "1px solid #86efac" }}
+          >
             <div style={{ padding: "8px" }}>
-              <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px", color: "#166534" }}>
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  marginBottom: "4px",
+                  color: "#166534",
+                }}
+              >
                 Coming Soon:
               </div>
-              <ul style={{ margin: "0", paddingLeft: "16px", fontSize: "12px", color: "#166534" }}>
-                <li>Production schedule generator (detailed step-by-step timeline)</li>
+              <ul
+                style={{
+                  margin: "0",
+                  paddingLeft: "16px",
+                  fontSize: "12px",
+                  color: "#166534",
+                }}
+              >
+                <li>
+                  Production schedule generator (detailed step-by-step timeline)
+                </li>
                 <li>Smart conflict resolution suggestions</li>
                 <li>Stovetop burner timeline</li>
               </ul>
@@ -1413,24 +1820,40 @@ Be concise and practical in your analysis.`,
           {/* Recipe Linking Results Modal */}
           {ifElse(
             hasLinkingResult,
-            <cf-card style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "700px",
-              maxWidth: "90vw",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              zIndex: "1000",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
-            }}>
+            <cf-card
+              style={{
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "700px",
+                maxWidth: "90vw",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                zIndex: "1000",
+                boxShadow:
+                  "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+              }}
+            >
               <cf-vstack gap={1} style="padding: 16px;">
-                <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+                <h3
+                  style={{
+                    margin: "0 0 8px 0",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                  }}
+                >
                   Review Recipe Links
                 </h3>
-                <div style={{ fontSize: "13px", color: "#666", marginBottom: "12px" }}>
-                  The following items were found in your planning notes. Check the items you want to add to your meal.
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#666",
+                    marginBottom: "12px",
+                  }}
+                >
+                  The following items were found in your planning notes. Check
+                  the items you want to add to your meal.
                 </div>
 
                 {/* Display each match with checkbox */}
@@ -1438,94 +1861,161 @@ Be concise and practical in your analysis.`,
                   {computed(() => {
                     const result = linkingResult;
                     if (!result || !result.matches) return [];
-                    return result.matches.map((matchResult: MatchResult, index: number) => {
-                      const item = matchResult.item;
-                      const match = matchResult.match;
+                    return result.matches.map(
+                      (matchResult: MatchResult, index: number) => {
+                        const item = matchResult.item;
+                        const match = matchResult.match;
 
-                      return (
-                        <div
-                          style={{
-                            padding: "12px",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: "4px",
-                            background: "#f9fafb",
-                          }}
-                        >
-                          <div style={{ display: "flex", gap: "12px", alignItems: "start" }}>
-                            {/* Checkbox */}
-                            <div style={{ paddingTop: "2px" }}>
-                              <cf-checkbox checked={matchResult.selected} />
-                            </div>
-
-                            <div style={{ flex: 1 }}>
-                              {/* Item name and type */}
-                              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                                <span style={{ fontSize: "14px", fontWeight: "600" }}>
-                                  {item.normalizedName}
-                                </span>
-                                <span style={{
-                                  padding: "2px 6px",
-                                  background: item.type === "recipe" ? "#dbeafe" : "#fef3c7",
-                                  borderRadius: "8px",
-                                  fontSize: "11px",
-                                  fontWeight: "500",
-                                }}>
-                                  {item.type === "recipe" ? "🍳 Recipe" : "🛒 Prepared"}
-                                </span>
+                        return (
+                          <div
+                            style={{
+                              padding: "12px",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "4px",
+                              background: "#f9fafb",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "12px",
+                                alignItems: "start",
+                              }}
+                            >
+                              {/* Checkbox */}
+                              <div style={{ paddingTop: "2px" }}>
+                                <cf-checkbox checked={matchResult.selected} />
                               </div>
 
-                              {/* Match status */}
-                              {match ? (
-                                <div style={{ fontSize: "12px", color: "#059669", marginBottom: "4px" }}>
-                                  ✓ Match found: <strong>{match.existingCharmName}</strong>
-                                  {match.matchType === "fuzzy" && (
-                                    <span style={{ color: "#666", fontStyle: "italic" }}>
-                                      {" "}(fuzzy match, {Math.round(match.confidence * 100)}% confidence)
-                                    </span>
+                              <div style={{ flex: 1 }}>
+                                {/* Item name and type */}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: "14px",
+                                      fontWeight: "600",
+                                    }}
+                                  >
+                                    {item.normalizedName}
+                                  </span>
+                                  <span
+                                    style={{
+                                      padding: "2px 6px",
+                                      background: item.type === "recipe"
+                                        ? "#dbeafe"
+                                        : "#fef3c7",
+                                      borderRadius: "8px",
+                                      fontSize: "11px",
+                                      fontWeight: "500",
+                                    }}
+                                  >
+                                    {item.type === "recipe"
+                                      ? "🍳 Recipe"
+                                      : "🛒 Prepared"}
+                                  </span>
+                                </div>
+
+                                {/* Match status */}
+                                {match
+                                  ? (
+                                    <div
+                                      style={{
+                                        fontSize: "12px",
+                                        color: "#059669",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      ✓ Match found:{" "}
+                                      <strong>{match.existingCharmName}</strong>
+                                      {match.matchType === "fuzzy" && (
+                                        <span
+                                          style={{
+                                            color: "#666",
+                                            fontStyle: "italic",
+                                          }}
+                                        >
+                                          {" "}(fuzzy match,{" "}
+                                          {Math.round(match.confidence * 100)}%
+                                          confidence)
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                  : (
+                                    <div
+                                      style={{
+                                        fontSize: "12px",
+                                        color: "#10b981",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      ✨ Will create new {item.type === "recipe"
+                                        ? "recipe"
+                                        : "prepared food"} charm
+                                    </div>
                                   )}
-                                </div>
-                              ) : (
-                                <div style={{ fontSize: "12px", color: "#10b981", marginBottom: "4px" }}>
-                                  ✨ Will create new {item.type === "recipe" ? "recipe" : "prepared food"} charm
-                                </div>
-                              )}
 
-                              {/* Extracted details */}
-                              <div style={{ fontSize: "12px", color: "#666", display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                                {item.servings && (
-                                  <span>• {item.servings} servings</span>
-                                )}
-                                {item.category && (
-                                  <span>• {item.category}</span>
-                                )}
-                                {item.source && (
-                                  <span>• {item.source}</span>
+                                {/* Extracted details */}
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "#666",
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: "8px",
+                                  }}
+                                >
+                                  {item.servings && (
+                                    <span>• {item.servings} servings</span>
+                                  )}
+                                  {item.category && (
+                                    <span>• {item.category}</span>
+                                  )}
+                                  {item.source && <span>• {item.source}</span>}
+                                </div>
+
+                                {/* Context snippet */}
+                                {item.contextSnippet && (
+                                  <div
+                                    style={{
+                                      fontSize: "11px",
+                                      color: "#666",
+                                      fontStyle: "italic",
+                                      marginTop: "6px",
+                                      paddingTop: "6px",
+                                      borderTop: "1px solid #e5e7eb",
+                                    }}
+                                  >
+                                    "{item.contextSnippet}"
+                                  </div>
                                 )}
                               </div>
-
-                              {/* Context snippet */}
-                              {item.contextSnippet && (
-                                <div style={{
-                                  fontSize: "11px",
-                                  color: "#666",
-                                  fontStyle: "italic",
-                                  marginTop: "6px",
-                                  paddingTop: "6px",
-                                  borderTop: "1px solid #e5e7eb",
-                                }}>
-                                  "{item.contextSnippet}"
-                                </div>
-                              )}
                             </div>
                           </div>
-                        </div>
-                      );
-                    });
+                        );
+                      },
+                    );
                   })}
                 </cf-vstack>
 
                 {/* Action buttons */}
-                <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    justifyContent: "flex-end",
+                    marginTop: "16px",
+                    paddingTop: "16px",
+                    borderTop: "1px solid #e5e7eb",
+                  }}
+                >
                   <cf-button
                     onClick={cancelLinking({ linkingAnalysisTrigger })}
                     style={{ padding: "8px 16px" }}
@@ -1533,7 +2023,14 @@ Be concise and practical in your analysis.`,
                     Cancel
                   </cf-button>
                   <cf-button
-                    onClick={applyLinking({ linkingResult, mentionable, createdCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
+                    onClick={applyLinking({
+                      linkingResult,
+                      mentionable,
+                      createdCharms,
+                      recipeMentioned,
+                      preparedFoodMentioned,
+                      linkingAnalysisTrigger,
+                    })}
                     style={{
                       padding: "8px 16px",
                       backgroundColor: "#2563eb",
@@ -1545,7 +2042,7 @@ Be concise and practical in your analysis.`,
                 </div>
               </cf-vstack>
             </cf-card>,
-            <div />
+            <div />,
           )}
         </cf-vstack>
       ),

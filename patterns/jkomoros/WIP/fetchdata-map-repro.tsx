@@ -7,7 +7,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -15,6 +14,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // Types
@@ -39,7 +39,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 // Handler to clear all
@@ -51,7 +51,7 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 const toggleFlag = handler<unknown, { externalFlag: Writable<boolean> }>(
   (_, { externalFlag }) => {
     externalFlag.set(!externalFlag.get());
-  }
+  },
 );
 
 export default pattern<Input, Output>(({ ids, externalFlag }) => {
@@ -69,10 +69,16 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
       { hasFlag, ref },
       (values) => {
         // This casting pattern is used in github-momentum-tracker
-        const flag = (values.hasFlag as any)?.get ? (values.hasFlag as any).get() : values.hasFlag;
-        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
-        return (flag && r) ? `https://jsonplaceholder.typicode.com/users/${r.userId}` : "";
-      }
+        const flag = (values.hasFlag as any)?.get
+          ? (values.hasFlag as any).get()
+          : values.hasFlag;
+        const r = (values.ref as any)?.get
+          ? (values.ref as any).get()
+          : values.ref;
+        return (flag && r)
+          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+          : "";
+      },
     );
 
     // First fetch with conditional URL
@@ -82,9 +88,15 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
     const samplePages = derive(
       { hasFlag, parsedRef: ref, userData },
       (values) => {
-        const flag = (values.hasFlag as any)?.get ? (values.hasFlag as any).get() : values.hasFlag;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        const u = (values.userData as any)?.get ? (values.userData as any).get() : values.userData;
+        const flag = (values.hasFlag as any)?.get
+          ? (values.hasFlag as any).get()
+          : values.hasFlag;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        const u = (values.userData as any)?.get
+          ? (values.userData as any).get()
+          : values.userData;
 
         if (!flag || !r || !u?.result?.id) {
           return { userId: 0, pages: [] as number[] };
@@ -92,16 +104,18 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
 
         return {
           userId: u.result.id,
-          pages: [1, 2, 3, 4, 5].map(i => (u.result.id - 1) * 5 + i),
+          pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
         };
-      }
+      },
     );
 
     // Create slot URL factory (like makeSlotUrl in github-momentum-tracker)
     const makeSlotUrl = (slotIndex: number) =>
       derive(samplePages, (sp) => {
         if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[slotIndex]}`;
+        return `https://jsonplaceholder.typicode.com/todos/${
+          sp.pages[slotIndex]
+        }`;
       });
 
     // Create 5 fetchData slots (like starSample0-9 in github-momentum-tracker)
@@ -139,7 +153,8 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
           <strong>Flag:</strong> {derive(externalFlag, (f) => f ? "ON" : "OFF")}
         </div>
@@ -148,20 +163,47 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
+              </div>
 
               <div style={{ marginBottom: "8px" }}>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result ? u.result.name : u?.pending ? "..." : "✗")}
+                <strong>User:</strong> {derive(
+                  item.userData,
+                  (u) => u?.result ? u.result.name : u?.pending ? "..." : "✗",
+                )}
               </div>
 
               <div>
                 <strong>Dependent slots:</strong>
-                <div style={{ fontSize: "12px", display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "4px",
+                    marginTop: "4px",
+                  }}
+                >
                   {item.slots.map((s, i) => (
-                    <span style={{ padding: "2px 6px", background: "#eee", borderRadius: "3px" }}>
-                      #{i}: {derive(s, (r) => r?.result?.title?.substring(0, 8) || (r?.pending ? "..." : "✗"))}
+                    <span
+                      style={{
+                        padding: "2px 6px",
+                        background: "#eee",
+                        borderRadius: "3px",
+                      }}
+                    >
+                      #{i}: {derive(s, (r) =>
+                        r?.result?.title?.substring(0, 8) ||
+                        (r?.pending ? "..." : "✗"))}
                     </span>
                   ))}
                 </div>
@@ -170,8 +212,16 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#fff3cd", borderRadius: "4px" }}>
-          <strong>Test:</strong> Does the .get() casting pattern trigger Frame mismatch?
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#fff3cd",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>Test:</strong>{" "}
+          Does the .get() casting pattern trigger Frame mismatch?
         </div>
       </div>
     ),

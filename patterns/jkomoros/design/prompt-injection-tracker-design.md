@@ -3,10 +3,17 @@
 ## Product Requirements Document (PRD)
 
 ### Overview
-Automate the daily workflow of monitoring Google Alerts for "prompt injection" to identify and track genuinely new security reports while filtering out low-quality reposts and duplicates.
+
+Automate the daily workflow of monitoring Google Alerts for "prompt injection"
+to identify and track genuinely new security reports while filtering out
+low-quality reposts and duplicates.
 
 ### User Story
-As a security researcher tracking prompt injection vulnerabilities, I receive 5-20 Google Alert emails daily. Most (90%+) are low-quality blog reposts linking back to the same original reports. Currently, I manually:
+
+As a security researcher tracking prompt injection vulnerabilities, I receive
+5-20 Google Alert emails daily. Most (90%+) are low-quality blog reposts linking
+back to the same original reports. Currently, I manually:
+
 1. Skim email title, description, and source domain
 2. Decide if it might be new
 3. Click through to article
@@ -15,38 +22,51 @@ As a security researcher tracking prompt injection vulnerabilities, I receive 5-
 6. Determine if it's genuinely new
 7. If new, manually log it with summary
 
-**Goal**: Automate this entire workflow, presenting only genuinely new reports with structured summaries.
+**Goal**: Automate this entire workflow, presenting only genuinely new reports
+with structured summaries.
 
 ### Core Features
 
 #### 1. Email Ingestion & Processing
-- **Manual Trigger**: User clicks "Process New Alerts" button (no CRON/automated scheduling)
-- **Gmail Integration**: Fetch recent emails from Gmail with query matching Google Alerts for "prompt injection"
+
+- **Manual Trigger**: User clicks "Process New Alerts" button (no CRON/automated
+  scheduling)
+- **Gmail Integration**: Fetch recent emails from Gmail with query matching
+  Google Alerts for "prompt injection"
 - **Deduplication**: Track processed email IDs to avoid reprocessing
 - **Batch Processing**: Process multiple emails in one run
 - **Progress Indication**: Show "Processing X of Y emails..." status
 
 #### 2. Intelligent Content Analysis
+
 - **Link Extraction**: Extract all URLs from each Google Alert email body
-- **Web Content Retrieval**: Fetch and read the actual article content from each link
+- **Web Content Retrieval**: Fetch and read the actual article content from each
+  link
 - **Repost Detection**: LLM analyzes if article is:
   - Original security research/report
   - Blog post discussing someone else's research (with link to original)
   - News article referencing original research (with link)
   - Low-quality repost with no new information
-- **Original Source Tracking**: If article is a repost, extract and follow link to original security report
+- **Original Source Tracking**: If article is a repost, extract and follow link
+  to original security report
 - **Multi-hop Following**: Follow up to 2-3 links to find the original source
 
 #### 3. Novelty Detection
-- **URL-Based Deduplication**: Check if original report URL matches any existing tracked reports
-- **URL Normalization**: Strip tracking parameters, fragments, and normalize for comparison
-- **Deduplication Logic**: Same original source URL = not new (regardless of which blog reposted it)
+
+- **URL-Based Deduplication**: Check if original report URL matches any existing
+  tracked reports
+- **URL Normalization**: Strip tracking parameters, fragments, and normalize for
+  comparison
+- **Deduplication Logic**: Same original source URL = not new (regardless of
+  which blog reposted it)
 - **Novel Report Identification**: A report is new if:
   - The normalized original source URL is not in our database
   - This is the first time we've seen this specific security report/disclosure
 
 #### 4. Structured Report Generation
+
 For each new report identified, automatically capture:
+
 - **Title**: Name of the vulnerability/attack
 - **Source URL**: Link to original security report
 - **Discovery Date**: When it was reported
@@ -59,11 +79,13 @@ For each new report identified, automatically capture:
 #### 5. User Interface
 
 **Main View**:
+
 - Button: "Process New Alerts" (with count of unprocessed emails if available)
 - Processing status: "Processing 3 of 12 emails..." with spinner
 - Count: "X new reports found today, Y total reports tracked"
 
 **Reports List**:
+
 - Sortable list of all tracked reports (newest first)
 - Each report shows:
   - Title (clickable to original source)
@@ -77,6 +99,7 @@ For each new report identified, automatically capture:
   - "Add Note" (append observations)
 
 **Email Log** (secondary view):
+
 - List of processed emails with results:
   - Email date/subject
   - Processing result: "New Report" | "Repost" | "Not Relevant"
@@ -84,12 +107,14 @@ For each new report identified, automatically capture:
 - Ability to "Reprocess" an email if analysis was wrong
 
 ### Success Metrics
+
 - **Time Saved**: Reduce manual review time from ~30min/day to ~5min/day
 - **Accuracy**: 95%+ precision (few false positives in "new report" list)
 - **Coverage**: 95%+ recall (don't miss genuinely new reports)
 - **Efficiency**: Process typical day's alerts (10-15 emails) in < 2 minutes
 
 ### Non-Goals (Phase 1)
+
 - Automated scheduling (user must manually trigger)
 - Real-time notifications when processing completes
 - Integration with external tracking systems (e.g., GitHub Issues, Notion)
@@ -103,9 +128,11 @@ For each new report identified, automatically capture:
 
 ### Architecture Overview
 
-**Pattern Structure**: Single self-contained pattern with Gmail integration and web fetching
+**Pattern Structure**: Single self-contained pattern with Gmail integration and
+web fetching
 
 **Key Components**:
+
 1. Gmail email fetcher (using gmail auth charm)
 2. Link extractor from email HTML
 3. Web content fetcher with redirect handling
@@ -117,30 +144,30 @@ For each new report identified, automatically capture:
 
 ```typescript
 interface ProcessedArticle {
-  articleURL: string;                  // The Google Alert article URL (normalized)
-  emailId: string;                     // Gmail message ID that linked to this
-  processedDate: string;               // When we analyzed it
-  originalReportURLs: string[];        // Original report URLs found in this article
-  classification: 'has-reports' | 'no-reports' | 'error';
-  notes?: string;                      // Error messages or processing notes
+  articleURL: string; // The Google Alert article URL (normalized)
+  emailId: string; // Gmail message ID that linked to this
+  processedDate: string; // When we analyzed it
+  originalReportURLs: string[]; // Original report URLs found in this article
+  classification: "has-reports" | "no-reports" | "error";
+  notes?: string; // Error messages or processing notes
 }
 
 interface PromptInjectionReport {
-  id: string;                    // Generated UUID
-  title: string;                 // Vulnerability/attack name
-  sourceUrl: string;             // Original security report URL
-  discoveryDate: string;         // ISO date when report was published
-  summary: string;               // 2-3 sentence overview
-  attackMechanism: string;       // Technical description of how it works
-  affectedSystems: string[];     // List of vulnerable systems/products
-  noveltyFactor: string;         // What makes this new/different
-  severity?: 'low' | 'medium' | 'high' | 'critical';
-  isLLMSpecific: boolean;        // Is this an LLM-specific security issue?
-  llmClassification: string;     // Explanation of LLM-specific classification
-  originalEmailId: string;       // Link back to Google Alert email
-  addedDate: string;             // ISO date when we added to tracker
-  userNotes: string;             // User can add observations
-  tags: string[];                // User-added tags for categorization
+  id: string; // Generated UUID
+  title: string; // Vulnerability/attack name
+  sourceUrl: string; // Original security report URL
+  discoveryDate: string; // ISO date when report was published
+  summary: string; // 2-3 sentence overview
+  attackMechanism: string; // Technical description of how it works
+  affectedSystems: string[]; // List of vulnerable systems/products
+  noveltyFactor: string; // What makes this new/different
+  severity?: "low" | "medium" | "high" | "critical";
+  isLLMSpecific: boolean; // Is this an LLM-specific security issue?
+  llmClassification: string; // Explanation of LLM-specific classification
+  originalEmailId: string; // Link back to Google Alert email
+  addedDate: string; // ISO date when we added to tracker
+  userNotes: string; // User can add observations
+  tags: string[]; // User-added tags for categorization
 }
 
 interface TrackerInput {
@@ -148,21 +175,22 @@ interface TrackerInput {
 }
 
 interface TrackerOutput {
-  lastProcessedDate: string;                                  // Last time we ran
-  processedArticles: Default<ProcessedArticle[], []>;         // Google Alert articles we've analyzed
-  reports: Default<PromptInjectionReport[], []>;              // Unique original security reports
-  isProcessing: boolean;                                      // Currently running?
-  processingStatus: string;                                   // Status message during processing
+  lastProcessedDate: string; // Last time we ran
+  processedArticles: Default<ProcessedArticle[], []>; // Google Alert articles we've analyzed
+  reports: Default<PromptInjectionReport[], []>; // Unique original security reports
+  isProcessing: boolean; // Currently running?
+  processingStatus: string; // Status message during processing
 
   // Derived/computed stats
-  processedEmailCount: number;                                // How many emails analyzed
-  uniqueReportCount: number;                                  // How many unique reports found
+  processedEmailCount: number; // How many emails analyzed
+  uniqueReportCount: number; // How many unique reports found
 }
 ```
 
 ### Pattern Architecture
 
 **Self-Contained Design:**
+
 ```
 ┌──────────────────────────────────────────────────────┐
 │ Prompt Injection Alert Tracker                       │
@@ -196,6 +224,7 @@ interface TrackerOutput {
 ```
 
 **Key Components:**
+
 - **GmailAuth** (imported): Handles Google OAuth
 - **GmailImporter** (imported): Fetches/stores emails, pre-configured with query
 - **Processing Logic** (new): Parse emails, classify, deduplicate, extract
@@ -204,12 +233,15 @@ interface TrackerOutput {
 ### Reactive Data Flow Pipeline
 
 **Core Insight:** We track TWO sets of URLs:
-1. **Processed article URLs** - Google Alert articles we've read (with mapping to what they link to)
+
+1. **Processed article URLs** - Google Alert articles we've read (with mapping
+   to what they link to)
 2. **Known report URLs** - Unique original security reports (with summaries)
 
 **Complete Pipeline:**
 
 **Step 1: Fetch & Parse Google Alert Articles**
+
 ```
 FOR EACH unprocessed email:
   1. Parse JSON from email.markdownContent
@@ -222,6 +254,7 @@ FOR EACH unprocessed email:
 ```
 
 **Step 2: Fetch Article Content & Extract Links** (async handler)
+
 ```
 FOR EACH new article URL:
   1. Fetch article content (await WebFetch)
@@ -229,6 +262,7 @@ FOR EACH new article URL:
 ```
 
 **Step 3: LLM - Extract Security Report Links** (generateObject - reactive)
+
 ```
 Input: Array of {
   emailId: string,
@@ -265,6 +299,7 @@ Ignore: social media, news sites, aggregators, generic homepages"
 ```
 
 **Step 4: Deduplicate Original Report URLs** (handler)
+
 ```
 FOR EACH article result:
   FOR EACH securityReportLink in article.securityReportLinks:
@@ -284,7 +319,9 @@ FOR EACH article result:
   }
 ```
 
-**Step 5: LLM - Summarize and Classify Novel Reports** (generateObject - reactive)
+**Step 5: LLM - Summarize and Classify Novel Reports** (generateObject -
+reactive)
+
 ```
 Input: Array of {
   reportURL: string,
@@ -334,6 +371,7 @@ This allows filtering the final reports to ONLY genuine LLM security vulnerabili
 ```
 
 **Step 6: Save Reports** (handler)
+
 ```
 FOR EACH extracted report:
   Add to reports array with:
@@ -343,8 +381,9 @@ FOR EACH extracted report:
     - originalEmailId: first email that led us to this report
 ```
 
-**Total LLM Calls:** 2 batch calls (extract links from articles + summarize novel reports)
-**Article Fetches:** Every Google Alert article + every novel original report
+**Total LLM Calls:** 2 batch calls (extract links from articles + summarize
+novel reports) **Article Fetches:** Every Google Alert article + every novel
+original report
 
 ### Revised Workflow Sequence
 
@@ -441,6 +480,7 @@ FOR EACH extracted report:
 ```
 
 **Key Characteristics:**
+
 - ✅ Fetch EVERY Google Alert article (to find links within)
 - ✅ Track processed article URLs (prevent re-reading same article)
 - ✅ Extract security report links from articles with LLM
@@ -451,7 +491,8 @@ FOR EACH extracted report:
 ### Error Handling Strategy
 
 - **Gmail Auth Failed**: Show error, prompt user to re-authenticate
-- **Email Fetch Failed**: Retry once, then show error but don't block other emails
+- **Email Fetch Failed**: Retry once, then show error but don't block other
+  emails
 - **Web Fetch Failed**: Try next link in email, log the failure
 - **LLM Call Failed**: Retry with exponential backoff (max 2 retries)
 - **LLM Timeout**: After 60s, mark as "error" and move to next email
@@ -534,6 +575,7 @@ Before implementation, research these patterns for reference:
 ## Incremental Development Plan (TODOs)
 
 ### Phase 0: Research & Setup ✅ COMPLETE
+
 - [x] **Research existing patterns** (30min)
   - ✅ Studied gmail-importer, gmail-auth, gmail-charm-creator
   - ✅ Studied test-recipe-with-extraction for LLM patterns
@@ -551,6 +593,7 @@ Before implementation, research these patterns for reference:
   - ✅ COMMIT: "Add comprehensive research findings..."
 
 ### Phase 1: Basic Pattern with Embedded Gmail
+
 - [ ] **Create pattern scaffold with Gmail integration** (30min)
   - Create `prompt-injection-tracker.tsx` in WIP folder
   - Import GmailAuth and GmailImporter
@@ -569,11 +612,13 @@ Before implementation, research these patterns for reference:
   - Add `isProcessing: Cell<boolean>` for processing state
   - Add `lastProcessedDate: Cell<string>`
   - Derive unprocessedEmails by checking article URLs against processedArticles
-  - Display counts in UI: total emails, new articles to process, total reports tracked
+  - Display counts in UI: total emails, new articles to process, total reports
+    tracked
   - Add "Process New Alerts" button (placeholder, doesn't work yet)
   - COMMIT: "Add state management and article URL tracking"
 
 ### Phase 2: Email Parsing & Article Fetching
+
 - [ ] **Implement JSON parsing and URL extraction** (25min)
   - Create function to parse JSON from email.markdownContent
   - Extract article data: title, description, Google tracking URL
@@ -599,12 +644,15 @@ Before implementation, research these patterns for reference:
   - COMMIT: "Add Google Alert article fetching"
 
 ### Phase 3: Extract Security Report Links (LLM Phase 1)
+
 - [ ] **Implement link extraction with generateObject** (45min)
   - Create linkExtraction trigger cell
   - Handler sets trigger with fetched articles batch + timestamp
   - Use generateObject with schema for link extraction
-  - Schema: {articles: [{emailId, articleURL, securityReportLinks[], classification}]}
-  - LLM prompt: "Extract URLs from article that point to ORIGINAL security reports"
+  - Schema: {articles: [{emailId, articleURL, securityReportLinks[],
+    classification}]}
+  - LLM prompt: "Extract URLs from article that point to ORIGINAL security
+    reports"
   - LLM identifies Tenable blog, GitHub advisories, CVE pages, etc.
   - Display extracted links in UI for debugging
   - Test with real article content
@@ -617,6 +665,7 @@ Before implementation, research these patterns for reference:
   - COMMIT: "Add link extraction progress UI"
 
 ### Phase 4: Original Report URL Deduplication
+
 - [ ] **Implement report URL deduplication** (30min)
   - Handler processes link extraction results
   - For each article: get securityReportLinks array
@@ -628,6 +677,7 @@ Before implementation, research these patterns for reference:
   - COMMIT: "Add original report URL deduplication"
 
 ### Phase 5: Fetch & Summarize Novel Reports (LLM Phase 2)
+
 - [ ] **Fetch original security report content** (30min)
   - Handler fetches content for each novel report URL (async)
   - Use WebFetch to retrieve report HTML/text
@@ -640,18 +690,20 @@ Before implementation, research these patterns for reference:
   - Create reportExtraction trigger cell
   - Handler sets trigger with fetched reports + timestamp
   - Use generateObject with schema for report extraction
-  - Schema: {reports: [{sourceURL, title, summary, attackMechanism, affectedSystems, severity, ...}]}
+  - Schema: {reports: [{sourceURL, title, summary, attackMechanism,
+    affectedSystems, severity, ...}]}
   - LLM extracts structured vulnerability data from original report
   - Display extracted reports in UI
   - Test with real security reports
   - COMMIT: "Add LLM report summarization"
 
 ### Phase 6: Save Reports & Complete Pipeline
+
 - [ ] **Implement report saving** (30min)
   - Handler waits for report extraction to complete
   - For each extracted report:
-    * Add to reports array with normalized sourceURL
-    * Set addedDate to current timestamp
+    - Add to reports array with normalized sourceURL
+    - Set addedDate to current timestamp
   - Update lastProcessedDate
   - Set isProcessing = false
   - COMMIT: "Add report saving and pipeline completion"
@@ -665,6 +717,7 @@ Before implementation, research these patterns for reference:
   - COMMIT: "Complete end-to-end pipeline testing"
 
 ### Phase 7: UI Polish & Report Management
+
 - [ ] **Build reports list UI** (45min)
   - Display all reports sorted by date (newest first)
   - Show key fields: title, date, affected systems, severity
@@ -680,6 +733,7 @@ Before implementation, research these patterns for reference:
   - COMMIT: "Add report management actions"
 
 ### Phase 8: Refinement & Polish
+
 - [ ] **Add error handling** (30min)
   - Handle JSON parse failures gracefully
   - Handle web fetch timeouts/404s
@@ -711,6 +765,7 @@ Before implementation, research these patterns for reference:
   - COMMIT: "Add report import/export functionality"
 
 ### Phase 9: Documentation & Cleanup
+
 - [ ] **Write pattern documentation** (20min)
   - Add comments explaining key functions
   - Document the analysis pipeline stages
@@ -739,10 +794,11 @@ Before implementation, research these patterns for reference:
 - **Phase 8 (Testing & Polish)**: 110 minutes
 - **Phase 9 (Documentation)**: 50 minutes
 
-**Total**: ~7 hours of focused development time
-**Realistic**: 9-11 hours spread over 2-3 days with testing and iteration
+**Total**: ~7 hours of focused development time **Realistic**: 9-11 hours spread
+over 2-3 days with testing and iteration
 
 **Architecture Benefits:**
+
 - Batch LLM processing (2 calls total, not per-email)
 - Embedded Gmail (self-contained, easier to deploy)
 - Dual deduplication (article URLs + report URLs)
@@ -753,6 +809,7 @@ Before implementation, research these patterns for reference:
 ## Open Questions & Risks
 
 ### Questions to Answer During Research
+
 1. How does Gmail authentication work in patterns? Is there a reusable charm?
 2. What web fetching capabilities exist? Can we use external APIs?
 3. How expensive will this be in terms of LLM calls per email?
@@ -760,26 +817,33 @@ Before implementation, research these patterns for reference:
 5. What's the best way to handle link redirects and shorteners?
 
 ### Known Risks
+
 1. **LLM Accuracy**: May not correctly identify reposts vs original reports
-   - Mitigation: Start with high-precision prompts, iterate based on false positives
+   - Mitigation: Start with high-precision prompts, iterate based on false
+     positives
 
 2. **Processing Time**: Could take 2-5 minutes for 15 emails
    - Mitigation: Show clear progress, allow background processing
 
-3. **Cost**: Multiple LLM calls per email (2 stages × multiple links × many emails)
-   - Mitigation: Optimize prompts, only call Stage 4 for novel reports, limit to reasonable batch size
+3. **Cost**: Multiple LLM calls per email (2 stages × multiple links × many
+   emails)
+   - Mitigation: Optimize prompts, only call Stage 4 for novel reports, limit to
+     reasonable batch size
 
 4. **Web Fetching**: Sites may block scraping or require JavaScript
    - Mitigation: Graceful degradation, work with what we can fetch
 
-5. **URL Normalization**: Different URLs might point to same report (mirrors, archives)
-   - Mitigation: Start with basic normalization, add more sophisticated matching if needed
+5. **URL Normalization**: Different URLs might point to same report (mirrors,
+   archives)
+   - Mitigation: Start with basic normalization, add more sophisticated matching
+     if needed
 
 ---
 
 ## Future Enhancements (Post-v1)
 
-- **Enhanced Progress Tracking**: Add better visibility into long-running LLM operations
+- **Enhanced Progress Tracking**: Add better visibility into long-running LLM
+  operations
   - Show elapsed time for current operation ("LLM running for 2m 15s...")
   - Add timeout warnings ("This is taking longer than expected...")
   - Show which specific step is running ("Analyzing report 1/3...")
@@ -787,14 +851,16 @@ Before implementation, research these patterns for reference:
   - Consider showing a progress bar or spinner animation
   - Log timestamps for each pipeline stage for debugging
   - Add "Last activity" timestamp to detect stuck states
-- **Verify Caching & Deduplication**: Audit that URL tracking is working correctly
+- **Verify Caching & Deduplication**: Audit that URL tracking is working
+  correctly
   - Verify processedArticles prevents re-fetching same article URLs
   - Verify reports array prevents re-tracking same report URLs
   - Test with duplicate emails to ensure we don't re-process
   - Consider adding metrics: "X articles skipped (already processed)"
   - Add logging to show deduplication in action
   - Consider caching web-read results to avoid re-fetching same URLs
-- **Article Backlinks**: For each tracked report URL, show all alert articles that mentioned it
+- **Article Backlinks**: For each tracked report URL, show all alert articles
+  that mentioned it
   - Display as expandable section under each report
   - List article titles, dates, and URLs
   - Allow clicking through to review how different sources covered it
@@ -803,8 +869,11 @@ Before implementation, research these patterns for reference:
 - **Automated Scheduling**: Run periodically without manual trigger
 - **Notifications**: Alert user when new reports are found
 - **Export**: Generate markdown reports, export to GitHub Issues
-- **Search & Filter**: Search reports by keyword, filter by severity/affected system
-- **Analytics**: Track trends over time (# new attacks per week, most affected systems)
+- **Search & Filter**: Search reports by keyword, filter by severity/affected
+  system
+- **Analytics**: Track trends over time (# new attacks per week, most affected
+  systems)
 - **Multi-source**: Support other alert sources beyond Google Alerts
 - **Collaborative**: Share tracked reports with team
-- **Threat Intelligence**: Cross-reference with CVE database, security advisories
+- **Threat Intelligence**: Cross-reference with CVE database, security
+  advisories

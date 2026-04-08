@@ -63,38 +63,46 @@ interface ComplexOutput {
   count: number;
 }
 
-const ComplexPattern = pattern<ComplexInput, ComplexOutput>(({ selectedItems }) => {
-  // Multiple computed() like GoogleAuth has
-  const count = computed(() =>
-    Object.values(selectedItems).filter(Boolean).length
-  );
+const ComplexPattern = pattern<ComplexInput, ComplexOutput>(
+  ({ selectedItems }) => {
+    // Multiple computed() like GoogleAuth has
+    const count = computed(() =>
+      Object.values(selectedItems).filter(Boolean).length
+    );
 
-  return {
-    [NAME]: "Complex Test Pattern",
-    [UI]: (
-      <div style={{ padding: "20px" }}>
-        <h2>Complex Pattern</h2>
-        <p>Selected: {count}</p>
+    return {
+      [NAME]: "Complex Test Pattern",
+      [UI]: (
+        <div style={{ padding: "20px" }}>
+          <h2>Complex Pattern</h2>
+          <p>Selected: {count}</p>
 
-        {/* This is the suspect pattern - computed() inside .map() */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {Object.entries(ITEM_DESCRIPTIONS).map(([key, description]) => (
-            <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input
-                type="checkbox"
-                checked={computed(() => selectedItems[key as keyof SelectedItems])}
-                disabled={computed(() => false)}
-              />
-              <span>{description}</span>
-            </label>
-          ))}
+          {/* This is the suspect pattern - computed() inside .map() */}
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+          >
+            {Object.entries(ITEM_DESCRIPTIONS).map(([key, description]) => (
+              <label
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={computed(() =>
+                    selectedItems[key as keyof SelectedItems]
+                  )}
+                  disabled={computed(() => false)}
+                />
+                <span>{description}</span>
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
-    ),
-    selectedItems,
-    count,
-  };
-});
+      ),
+      selectedItems,
+      count,
+    };
+  },
+);
 
 // =============================================================================
 // Types
@@ -142,14 +150,23 @@ export default pattern<Input, Output>(
           <h2>CPU Spike Whittle - Step 4</h2>
 
           <p style={{ color: "#666", marginBottom: "16px" }}>
-            <strong>computed() inside .map()</strong> - Like GoogleAuth's checkbox pattern.
+            <strong>computed() inside .map()</strong>{" "}
+            - Like GoogleAuth's checkbox pattern.
           </p>
 
           <div style={{ fontSize: "13px", marginBottom: "16px" }}>
-            <p>Step 1 (wish + GoogleAuth): <strong>40s, 595ms frame</strong></p>
-            <p>Step 2 (just GoogleAuth): <strong>19s, 749ms frame</strong></p>
-            <p>Step 3 (simple pattern): <strong>17s, 70ms frame</strong></p>
-            <p>Step 4 (computed in map): <strong>???</strong></p>
+            <p>
+              Step 1 (wish + GoogleAuth): <strong>40s, 595ms frame</strong>
+            </p>
+            <p>
+              Step 2 (just GoogleAuth): <strong>19s, 749ms frame</strong>
+            </p>
+            <p>
+              Step 3 (simple pattern): <strong>17s, 70ms frame</strong>
+            </p>
+            <p>
+              Step 4 (computed in map): <strong>???</strong>
+            </p>
           </div>
 
           <cf-button
@@ -162,5 +179,5 @@ export default pattern<Input, Output>(
       ),
       testName: "CPU Spike Whittle 4",
     };
-  }
+  },
 );

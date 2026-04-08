@@ -47,11 +47,13 @@ function formatDueDate(dateStr: string | null): string {
     dueDay.setHours(0, 0, 0, 0);
 
     const diffDays = Math.round(
-      (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      (dueDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     if (diffDays < 0) {
-      return `Overdue (${Math.abs(diffDays)} day${Math.abs(diffDays) > 1 ? "s" : ""})`;
+      return `Overdue (${Math.abs(diffDays)} day${
+        Math.abs(diffDays) > 1 ? "s" : ""
+      })`;
     } else if (diffDays === 0) {
       return "Today";
     } else if (diffDays === 1) {
@@ -109,7 +111,7 @@ function isOverdue(dateStr: string | null): boolean {
 
 // Group reminders by list
 function groupByList(
-  reminders: ReminderItem[]
+  reminders: ReminderItem[],
 ): Map<string, ReminderItem[]> {
   const byList = new Map<string, ReminderItem[]>();
   for (const r of reminders) {
@@ -144,12 +146,15 @@ export default pattern<{
 
   const reminderCount = derive(
     reminders,
-    (r: ReminderItem[]) => r?.filter((item) => item && !item.isCompleted)?.length ?? 0
+    (r: ReminderItem[]) =>
+      r?.filter((item) => item && !item.isCompleted)?.length ?? 0,
   );
 
   // Get reminders grouped by list
   const remindersByList = derive(reminders, (r: ReminderItem[]) => {
-    const byList = groupByList((r || []).filter((item) => item && !item.isCompleted));
+    const byList = groupByList(
+      (r || []).filter((item) => item && !item.isCompleted),
+    );
     const groups: Array<{ listName: string; reminders: ReminderItem[] }> = [];
 
     for (const [listName, listReminders] of byList) {
@@ -177,15 +182,16 @@ export default pattern<{
     }) => {
       if (!selectedReminderId || !reminders) return null;
       return (
-        reminders.find((r: ReminderItem) => r && r.id === selectedReminderId) || null
+        reminders.find((r: ReminderItem) => r && r.id === selectedReminderId) ||
+        null
       );
-    }
+    },
   );
 
   return {
     [NAME]: derive(
       reminderCount,
-      (count: number) => `Reminders (${count} items)`
+      (count: number) => `Reminders (${count} items)`,
     ),
     [UI]: (
       <cf-screen
@@ -220,7 +226,7 @@ export default pattern<{
             >
               Back
             </button>,
-            <span style={{ fontSize: "24px" }}>Reminders</span>
+            <span style={{ fontSize: "24px" }}>Reminders</span>,
           )}
         </div>
 
@@ -357,7 +363,9 @@ export default pattern<{
                                 marginTop: "2px",
                               }}
                             >
-                              {r.notes && r.notes.length > 50 ? r.notes.substring(0, 50) + "..." : (r.notes || "")}
+                              {r.notes && r.notes.length > 50
+                                ? r.notes.substring(0, 50) + "..."
+                                : (r.notes || "")}
                             </div>
                             <div
                               style={{
@@ -374,104 +382,110 @@ export default pattern<{
                         </div>
                       ))}
                     </div>
-                  ))
-                )}
+                  )))}
               </div>,
               // Reminder detail view
               <div style={{ padding: "20px", backgroundColor: "#fff" }}>
                 {derive(selectedReminder, (r: ReminderItem | null) =>
-                  r ? (
-                    <div>
-                      {/* List indicator */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "16px",
-                        }}
-                      >
+                  r
+                    ? (
+                      <div>
+                        {/* List indicator */}
                         <div
                           style={{
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "6px",
-                            backgroundColor: getListColor(r.listName),
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            marginBottom: "16px",
                           }}
-                        />
-                        <span style={{ color: "#666" }}>{r.listName}</span>
-                        {r.priority > 0 && (
-                          <span
+                        >
+                          <div
                             style={{
-                              fontSize: "12px",
-                              color: getPriorityColor(r.priority),
-                              fontWeight: "600",
-                              marginLeft: "auto",
+                              width: "12px",
+                              height: "12px",
+                              borderRadius: "6px",
+                              backgroundColor: getListColor(r.listName),
+                            }}
+                          />
+                          <span style={{ color: "#666" }}>{r.listName}</span>
+                          {r.priority > 0 && (
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: getPriorityColor(r.priority),
+                                fontWeight: "600",
+                                marginLeft: "auto",
+                              }}
+                            >
+                              {getPriorityLabel(r.priority)} Priority
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Title */}
+                        <div
+                          style={{
+                            margin: "0 0 16px 0",
+                            fontSize: "24px",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {r.title}
+                        </div>
+
+                        {/* Due Date */}
+                        <div style={{ marginBottom: "16px" }}>
+                          <div
+                            style={{ fontWeight: "600", marginBottom: "4px" }}
+                          >
+                            Due Date
+                          </div>
+                          <div
+                            style={{
+                              color: r.dueDate && isOverdue(r.dueDate)
+                                ? "#FF3B30"
+                                : "#666",
                             }}
                           >
-                            {getPriorityLabel(r.priority)} Priority
-                          </span>
-                        )}
-                      </div>
+                            {r.dueDate
+                              ? formatDueDate(r.dueDate)
+                              : "No due date"}
+                          </div>
+                        </div>
 
-                      {/* Title */}
-                      <div
-                        style={{
-                          margin: "0 0 16px 0",
-                          fontSize: "24px",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {r.title}
-                      </div>
+                        {/* Notes */}
+                        <div style={{ marginBottom: "16px" }}>
+                          <div
+                            style={{ fontWeight: "600", marginBottom: "4px" }}
+                          >
+                            Notes
+                          </div>
+                          <div
+                            style={{
+                              color: "#666",
+                              whiteSpace: "pre-wrap",
+                            }}
+                          >
+                            {r.notes || "No notes"}
+                          </div>
+                        </div>
 
-                      {/* Due Date */}
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Due Date
-                        </div>
-                        <div
-                          style={{
-                            color: r.dueDate && isOverdue(r.dueDate) ? "#FF3B30" : "#666",
-                          }}
-                        >
-                          {r.dueDate
-                            ? formatDueDate(r.dueDate)
-                            : "No due date"}
+                        {/* Status */}
+                        <div style={{ marginBottom: "16px" }}>
+                          <div
+                            style={{ fontWeight: "600", marginBottom: "4px" }}
+                          >
+                            Status
+                          </div>
+                          <div style={{ color: "#666" }}>
+                            {r.isCompleted ? "Completed" : "Incomplete"}
+                          </div>
                         </div>
                       </div>
-
-                      {/* Notes */}
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Notes
-                        </div>
-                        <div
-                          style={{
-                            color: "#666",
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
-                          {r.notes || "No notes"}
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Status
-                        </div>
-                        <div style={{ color: "#666" }}>
-                          {r.isCompleted ? "Completed" : "Incomplete"}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>Reminder not found</div>
-                  )
-                )}
-              </div>
-            )
+                    )
+                    : <div>Reminder not found</div>)}
+              </div>,
+            ),
           )}
         </div>
       </cf-screen>

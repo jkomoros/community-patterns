@@ -1,5 +1,18 @@
 /// <cts-enable />
-import { computed, Default, equals, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI, Writable } from "commonfabric";
+import {
+  computed,
+  Default,
+  equals,
+  handler,
+  ifElse,
+  NAME,
+  navigateTo,
+  OpaqueRef,
+  pattern,
+  str,
+  UI,
+  Writable,
+} from "commonfabric";
 import CozyPollLobby from "./cozy-poll-lobby.tsx";
 
 /**
@@ -60,10 +73,10 @@ const createViewer = handler<
 
     // Create the viewer instance with cell references
     const viewerInstance = CozyPollLobby({
-      question: question.get(),  // Pass as plain value
-      options,  // Pass as cell reference (shared)
-      votes,    // Pass as cell reference (shared)
-      voterPieces,  // Pass as cell reference (shared)
+      question: question.get(), // Pass as plain value
+      options, // Pass as cell reference (shared)
+      votes, // Pass as cell reference (shared)
+      voterPieces, // Pass as cell reference (shared)
     });
 
     console.log("Viewer created, navigating...");
@@ -92,15 +105,17 @@ const startNewSession = handler<
     const newVotes = Writable.of<Vote[]>([]);
     const newVoterPieces = Writable.of<VoterPieceRef[]>([]);
 
-    console.log(`Creating fresh lobby with ${currentOptions.length} options: "${currentQuestion}"`);
+    console.log(
+      `Creating fresh lobby with ${currentOptions.length} options: "${currentQuestion}"`,
+    );
 
     // Create a new lobby with the same question/options but no votes
     // This gives you a fresh poll session to share with a new group
     const lobbyInstance = CozyPollLobby({
       question: currentQuestion,
-      options,  // Keep the same options cell (admin can still edit)
-      votes: newVotes,  // Fresh votes
-      voterPieces: newVoterPieces,  // Fresh voter list
+      options, // Keep the same options cell (admin can still edit)
+      votes: newVotes, // Fresh votes
+      voterPieces: newVoterPieces, // Fresh voter list
     });
 
     console.log("Navigating to fresh lobby...");
@@ -112,22 +127,24 @@ const startNewSession = handler<
 
 // Utility function to get initials from a name
 function getInitials(name: string): string {
-  if (!name || typeof name !== 'string') return '?';
+  if (!name || typeof name !== "string") return "?";
   return name
     .trim()
     .split(/\s+/)
-    .map(word => word[0])
-    .join('')
+    .map((word) => word[0])
+    .join("")
     .toUpperCase()
     .slice(0, 3); // Max 3 initials
 }
 
 const CozyPoll = pattern<PollInput, PollOutput>(
   ({ question, options, votes, voterPieces, nextOptionId }) => {
-
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
-      const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
+      const organized: Record<
+        string,
+        { green: string[]; yellow: string[]; red: string[] }
+      > = {};
       const allVotes = votes.get();
 
       for (const vote of allVotes) {
@@ -145,14 +162,22 @@ const CozyPoll = pattern<PollInput, PollOutput>(
       const allVotes = votes.get();
       const allOptions = options.get();
       // Count votes for each option
-      const voteCounts = allOptions.map(option => {
-        const optionVotes = allVotes.filter(v => v.optionId === option.id);
-        const reds = optionVotes.filter(v => v.voteType === "red").length;
-        const greens = optionVotes.filter(v => v.voteType === "green").length;
-        const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
+      const voteCounts = allOptions.map((option) => {
+        const optionVotes = allVotes.filter((v) => v.optionId === option.id);
+        const reds = optionVotes.filter((v) => v.voteType === "red").length;
+        const greens = optionVotes.filter((v) => v.voteType === "green").length;
+        const yellows = optionVotes.filter((v) =>
+          v.voteType === "yellow"
+        ).length;
 
         // Extract plain values to avoid reactive proxy in render
-        return { option: { id: option.id, title: option.title }, reds, greens, yellows, totalVotes: optionVotes.length };
+        return {
+          option: { id: option.id, title: option.title },
+          reds,
+          greens,
+          yellows,
+          totalVotes: optionVotes.length,
+        };
       });
 
       // Sort: fewest reds (ascending), then most greens (descending)
@@ -169,10 +194,10 @@ const CozyPoll = pattern<PollInput, PollOutput>(
       const allVotes = votes.get();
       const allOptions = options.get();
       // Count votes for each option
-      const voteCounts = allOptions.map(option => {
-        const optionVotes = allVotes.filter(v => v.optionId === option.id);
-        const reds = optionVotes.filter(v => v.voteType === "red").length;
-        const greens = optionVotes.filter(v => v.voteType === "green").length;
+      const voteCounts = allOptions.map((option) => {
+        const optionVotes = allVotes.filter((v) => v.optionId === option.id);
+        const reds = optionVotes.filter((v) => v.voteType === "red").length;
+        const greens = optionVotes.filter((v) => v.voteType === "green").length;
 
         // Extract plain values to avoid reactive proxy in render
         return { option: { id: option.id }, reds, greens };
@@ -195,21 +220,38 @@ const CozyPoll = pattern<PollInput, PollOutput>(
       return ranks;
     });
 
-
     return {
       [NAME]: ifElse(
         computed(() => question && question.get().trim().length > 0),
         str`Poll - ${question}`,
-        str`Poll`
+        str`Poll`,
       ),
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>Cozy Poll</h2>
 
           {/* Question Input */}
-          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#fef3c7", borderRadius: "4px", border: "1px solid #fde68a" }}>
-            <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
-              Poll Question: <strong style={{ fontSize: "1rem", color: "#78350f" }}>{question || "(not set)"}</strong>
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "0.75rem",
+              backgroundColor: "#fef3c7",
+              borderRadius: "4px",
+              border: "1px solid #fde68a",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                marginBottom: "0.5rem",
+                color: "#92400e",
+              }}
+            >
+              Poll Question:{" "}
+              <strong style={{ fontSize: "1rem", color: "#78350f" }}>
+                {question || "(not set)"}
+              </strong>
             </div>
             <cf-message-input
               placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
@@ -223,12 +265,34 @@ const CozyPoll = pattern<PollInput, PollOutput>(
           </div>
 
           {/* Create Public Lobby Button */}
-          <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#dbeafe", borderRadius: "8px", border: "2px solid #3b82f6" }}>
-            <div style={{ fontSize: "1rem", fontWeight: "600", marginBottom: "0.5rem", color: "#1e40af" }}>
+          <div
+            style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "#dbeafe",
+              borderRadius: "8px",
+              border: "2px solid #3b82f6",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "1rem",
+                fontWeight: "600",
+                marginBottom: "0.5rem",
+                color: "#1e40af",
+              }}
+            >
               📢 Share Your Poll
             </div>
-            <div style={{ fontSize: "0.875rem", marginBottom: "0.75rem", color: "#1e3a8a" }}>
-              Create a public lobby page where your team can enter their names and vote. Share that URL with your team.
+            <div
+              style={{
+                fontSize: "0.875rem",
+                marginBottom: "0.75rem",
+                color: "#1e3a8a",
+              }}
+            >
+              Create a public lobby page where your team can enter their names
+              and vote. Share that URL with your team.
             </div>
             <cf-button
               onClick={createViewer({
@@ -245,28 +309,61 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
           {/* Top Choice Display */}
           {computed(() => {
-            if (!rankedOptions || rankedOptions.length === 0 || rankedOptions[0].totalVotes === 0) return null;
+            if (
+              !rankedOptions || rankedOptions.length === 0 ||
+              rankedOptions[0].totalVotes === 0
+            ) {
+              return null;
+            }
             const top = rankedOptions[0];
             const parts: string[] = [];
-            if (top.greens > 0) parts.push(`${top.greens} love it`);
-            if (top.yellows > 0) parts.push(`${top.yellows} okay with it`);
-            if (top.reds > 0) parts.push(`${top.reds} can't accept`);
+            if (top.greens > 0) {
+              parts.push(`${top.greens} love it`);
+            }
+            if (top.yellows > 0) {
+              parts.push(`${top.yellows} okay with it`);
+            }
+            if (top.reds > 0) {
+              parts.push(`${top.reds} can't accept`);
+            }
             return (
-              <div style={{
-                padding: "1rem",
-                marginBottom: "1.5rem",
-                border: "2px solid #10b981",
-                borderRadius: "8px",
-                backgroundColor: "#ecfdf5",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <div
+                style={{
+                  padding: "1rem",
+                  marginBottom: "1.5rem",
+                  border: "2px solid #10b981",
+                  borderRadius: "8px",
+                  backgroundColor: "#ecfdf5",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    marginBottom: "0.5rem",
+                  }}
+                >
                   <span style={{ fontSize: "1.5rem" }}>🏆</span>
-                  <span style={{ fontWeight: "600", fontSize: "1.125rem" }}>TOP CHOICE</span>
+                  <span style={{ fontWeight: "600", fontSize: "1.125rem" }}>
+                    TOP CHOICE
+                  </span>
                 </div>
-                <div style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "0.5rem" }}>
+                <div
+                  style={{
+                    fontSize: "1.25rem",
+                    fontWeight: "700",
+                    marginBottom: "0.5rem",
+                  }}
+                >
                   {top.option.title}
                 </div>
-                <div style={{ fontSize: "0.875rem", color: top.reds > 0 ? "#dc2626" : "#059669" }}>
+                <div
+                  style={{
+                    fontSize: "0.875rem",
+                    color: top.reds > 0 ? "#dc2626" : "#059669",
+                  }}
+                >
                   {parts.join(", ")}
                 </div>
               </div>
@@ -275,34 +372,62 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
           {/* Summary View - All Options */}
           {computed(() => {
-            if (!rankedOptions || rankedOptions.length === 0) return null;
+            if (!rankedOptions || rankedOptions.length === 0) {
+              return null;
+            }
             return (
-              <div style={{
-                marginBottom: "1.5rem",
-                padding: "1rem",
-                backgroundColor: "#f9fafb",
-                borderRadius: "8px",
-                border: "1px solid #e5e7eb"
-              }}>
-                <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#6b7280", marginBottom: "0.75rem" }}>
+              <div
+                style={{
+                  marginBottom: "1.5rem",
+                  padding: "1rem",
+                  backgroundColor: "#f9fafb",
+                  borderRadius: "8px",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    color: "#6b7280",
+                    marginBottom: "0.75rem",
+                  }}
+                >
                   ALL OPTIONS
                 </div>
                 {rankedOptions.map((item) => (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.5rem",
-                    marginBottom: "0.25rem",
-                    backgroundColor: "white",
-                    borderRadius: "4px",
-                    border: "1px solid #e5e7eb"
-                  }}>
-                    <div style={{ flex: 1, fontWeight: "500", fontSize: "0.875rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem",
+                      marginBottom: "0.25rem",
+                      backgroundColor: "white",
+                      borderRadius: "4px",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <div
+                      style={{
+                        flex: 1,
+                        fontWeight: "500",
+                        fontSize: "0.875rem",
+                      }}
+                    >
                       {item.option.title}
                     </div>
-                    <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                      {votesByOption[item.option.id]?.green?.map((voterName: string) => (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.25rem",
+                        fontSize: "0.75rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {votesByOption[item.option.id]?.green?.map((
+                        voterName: string,
+                      ) => (
                         <span
                           title={voterName}
                           style={{
@@ -311,12 +436,15 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                             padding: "0.125rem 0.375rem",
                             borderRadius: "9999px",
                             fontWeight: "600",
-                            cursor: "default"
-                          }}>
+                            cursor: "default",
+                          }}
+                        >
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votesByOption[item.option.id]?.yellow?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.yellow?.map((
+                        voterName: string,
+                      ) => (
                         <span
                           title={voterName}
                           style={{
@@ -325,12 +453,15 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                             padding: "0.125rem 0.375rem",
                             borderRadius: "9999px",
                             fontWeight: "600",
-                            cursor: "default"
-                          }}>
+                            cursor: "default",
+                          }}
+                        >
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votesByOption[item.option.id]?.red?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.red?.map((
+                        voterName: string,
+                      ) => (
                         <span
                           title={voterName}
                           style={{
@@ -339,8 +470,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                             padding: "0.125rem 0.375rem",
                             borderRadius: "9999px",
                             fontWeight: "600",
-                            cursor: "default"
-                          }}>
+                            cursor: "default",
+                          }}
+                        >
                           {getInitials(voterName)}
                         </span>
                       ))}
@@ -367,10 +499,24 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "500", marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <div
+                      style={{
+                        fontWeight: "500",
+                        marginBottom: "0.25rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
+                    >
                       <span>{option.title}</span>
                       {optionRanks[option.id] && (
-                        <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: "600" }}>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#6b7280",
+                            fontWeight: "600",
+                          }}
+                        >
                           [RANK {optionRanks[option.id]}]
                         </span>
                       )}
@@ -378,7 +524,14 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
                     {/* Vote dots display */}
                     {votesByOption[option.id] && (
-                      <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "0.25rem",
+                          fontSize: "0.75rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
                         {votesByOption[option.id]?.green?.map((voterName) => (
                           <span
                             title={voterName}
@@ -388,8 +541,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                               padding: "0.125rem 0.375rem",
                               borderRadius: "9999px",
                               fontWeight: "600",
-                              cursor: "default"
-                            }}>
+                              cursor: "default",
+                            }}
+                          >
                             {getInitials(voterName)}
                           </span>
                         ))}
@@ -402,8 +556,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                               padding: "0.125rem 0.375rem",
                               borderRadius: "9999px",
                               fontWeight: "600",
-                              cursor: "default"
-                            }}>
+                              cursor: "default",
+                            }}
+                          >
                             {getInitials(voterName)}
                           </span>
                         ))}
@@ -416,8 +571,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                               padding: "0.125rem 0.375rem",
                               borderRadius: "9999px",
                               fontWeight: "600",
-                              cursor: "default"
-                            }}>
+                              cursor: "default",
+                            }}
+                          >
                             {getInitials(voterName)}
                           </span>
                         ))}
@@ -429,7 +585,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                   <cf-button
                     onClick={() => {
                       const current = options.get();
-                      const index = current.findIndex((el) => equals(option, el));
+                      const index = current.findIndex((el) =>
+                        equals(option, el)
+                      );
                       if (index >= 0) {
                         options.set(current.toSpliced(index, 1));
                       }
@@ -460,17 +618,21 @@ const CozyPoll = pattern<PollInput, PollOutput>(
           />
 
           {/* Admin Controls */}
-          <div style={{
-            marginTop: "2rem",
-            paddingTop: "1rem",
-            borderTop: "1px solid #e5e7eb"
-          }}>
-            <div style={{
-              fontSize: "0.875rem",
-              fontWeight: "600",
-              color: "#6b7280",
-              marginBottom: "0.75rem"
-            }}>
+          <div
+            style={{
+              marginTop: "2rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid #e5e7eb",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                color: "#6b7280",
+                marginBottom: "0.75rem",
+              }}
+            >
               Admin Controls
             </div>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -495,8 +657,16 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                 Clear All Options
               </cf-button>
             </div>
-            <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.5rem" }}>
-              "Start New Session" creates a fresh lobby with the same question/options but no votes - perfect for reusing this poll with a different group.
+            <div
+              style={{
+                fontSize: "0.75rem",
+                color: "#6b7280",
+                marginTop: "0.5rem",
+              }}
+            >
+              "Start New Session" creates a fresh lobby with the same
+              question/options but no votes - perfect for reusing this poll with
+              a different group.
             </div>
           </div>
         </div>
@@ -507,7 +677,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
       voterPieces,
       nextOptionId,
     };
-  }
+  },
 );
 
 export default CozyPoll;

@@ -29,9 +29,9 @@ import {
   handler,
   NAME,
   pattern,
+  safeDateNow,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 type Item = {
@@ -46,7 +46,11 @@ const loadData = handler<
   Record<string, never>,
   { items: Writable<Item[]>; outerCount: number; innerCount: number }
 >((_, { items, outerCount, innerCount }) => {
-  console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items...`);
+  console.log(
+    `[PERF] Loading ${outerCount} × ${innerCount} = ${
+      outerCount * innerCount
+    } items...`,
+  );
   const t0 = safeDateNow();
 
   // Suddenly create many items (mimics generateObject completion)
@@ -67,7 +71,7 @@ const loadData = handler<
 const clearData = handler<Record<string, never>, { items: Writable<Item[]> }>(
   (_, { items }) => {
     items.set([]);
-  }
+  },
 );
 
 export default pattern<Props>(() => {
@@ -92,9 +96,9 @@ export default pattern<Props>(() => {
             borderRadius: "4px",
           }}
         >
-          <strong>⚠️ BUG TEST:</strong> This tests O(n²) performance during
-          DYNAMIC cell creation. Previous repros were fast because they used
-          STATIC data at startup.
+          <strong>⚠️ BUG TEST:</strong>{" "}
+          This tests O(n²) performance during DYNAMIC cell creation. Previous
+          repros were fast because they used STATIC data at startup.
         </div>
 
         <div style={{ marginBottom: "1rem" }}>

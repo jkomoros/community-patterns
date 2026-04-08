@@ -17,7 +17,6 @@
  * See: patterns/jkomoros/issues/ISSUE-Map-Style-Reactivity.md for technical details
  */
 import {
-  Writable,
   computed,
   Default,
   handler,
@@ -25,6 +24,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // =============================================================================
@@ -250,7 +250,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
           (item) =>
             item.label.toLowerCase().includes(q) ||
             item.value.toLowerCase().includes(q) ||
-            (item.group?.toLowerCase().includes(q) ?? false)
+            (item.group?.toLowerCase().includes(q) ?? false),
         )
         .slice(0, max);
     });
@@ -329,7 +329,11 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
             <cf-button
               size="sm"
               variant="secondary"
-              onClick={toggleDropdown({ isOpen, searchQuery, highlightedIndex })}
+              onClick={toggleDropdown({
+                isOpen,
+                searchQuery,
+                highlightedIndex,
+              })}
             >
               + Add
             </cf-button>
@@ -378,7 +382,11 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
               />
               {/* Invisible backdrop to catch outside clicks */}
               <div
-                onClick={closeDropdown({ isOpen, searchQuery, highlightedIndex })}
+                onClick={closeDropdown({
+                  isOpen,
+                  searchQuery,
+                  highlightedIndex,
+                })}
                 style={{
                   position: "fixed",
                   top: "0",
@@ -454,7 +462,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                           fontSize: "14px",
                           // NOTE: Visual highlight doesn't update reactively - see ISSUE file
                           // The highlightBg is pre-computed but JSX doesn't re-render
-                          background: filteredItemsWithHighlight[index]?.highlightBg ?? "transparent",
+                          background:
+                            filteredItemsWithHighlight[index]?.highlightBg ??
+                              "transparent",
                         }}
                       >
                         <span>{item.label}</span>
@@ -470,15 +480,15 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                           </span>
                         )}
                       </div>
-                    ))
+                    )),
                   )}
                 </div>
               </div>
             </>,
-            null
+            null,
           )}
         </div>
       ),
     };
-  }
+  },
 );

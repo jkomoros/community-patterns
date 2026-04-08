@@ -2,13 +2,23 @@
 
 ## Summary
 
-Native HTML `<input>` elements with `value={cell}` binding do not update the cell when inside an `ifElse()` conditional. The `<ct-input $value={cell}>` component works correctly in the same context.
+Native HTML `<input>` elements with `value={cell}` binding do not update the
+cell when inside an `ifElse()` conditional. The `<ct-input $value={cell}>`
+component works correctly in the same context.
 
 ## Minimal Repro
 
 ```tsx
 /// <cts-enable />
-import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  Cell,
+  Default,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+} from "commonfabric";
 
 interface Input {
   show: Default<boolean, true>;
@@ -21,8 +31,8 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
     const submit = handler<unknown, { native: Cell<string>; ct: Cell<string> }>(
       (_, { native, ct }) => {
         console.log("Native:", native.get()); // Always ""
-        console.log("ct-input:", ct.get());   // Correct value
-      }
+        console.log("ct-input:", ct.get()); // Correct value
+      },
     );
 
     return {
@@ -33,7 +43,11 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
             show,
             <div>
               {/* ❌ FAILS: Cell stays empty regardless of typing */}
-              <input type="text" value={nativeValue} placeholder="Native input" />
+              <input
+                type="text"
+                value={nativeValue}
+                placeholder="Native input"
+              />
 
               {/* ✅ WORKS: Cell updates correctly */}
               <ct-input $value={ctValue} placeholder="ct-input" />
@@ -42,12 +56,12 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                 Submit
               </button>
             </div>,
-            null
+            null,
           )}
         </div>
       ),
     };
-  }
+  },
 );
 ```
 
@@ -62,6 +76,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
 ## Expected Behavior
 
 Both inputs should update their bound cells:
+
 ```
 Native: "hello"
 ct-input: "hello"
@@ -70,6 +85,7 @@ ct-input: "hello"
 ## Actual Behavior
 
 Native input cell stays empty:
+
 ```
 Native: ""
 ct-input: "hello"
@@ -77,10 +93,10 @@ ct-input: "hello"
 
 ## Test Results
 
-| Input Type | Typed | `cell.get()` | Result |
-|------------|-------|--------------|--------|
-| `<input value={cell}>` | "hello" | `""` | ❌ FAIL |
-| `<ct-input $value={cell}>` | "hello" | `"hello"` | ✅ PASS |
+| Input Type                 | Typed   | `cell.get()` | Result  |
+| -------------------------- | ------- | ------------ | ------- |
+| `<input value={cell}>`     | "hello" | `""`         | ❌ FAIL |
+| `<ct-input $value={cell}>` | "hello" | `"hello"`    | ✅ PASS |
 
 ## Notes
 
@@ -90,8 +106,10 @@ ct-input: "hello"
 
 ## Workaround
 
-Use `<ct-input $value={cell}>` instead of native `<input value={cell}>` inside ifElse branches.
+Use `<ct-input $value={cell}>` instead of native `<input value={cell}>` inside
+ifElse branches.
 
 ## Full Repro Pattern
 
-See: `community-docs/superstitions/repros/2025-12-03-ifelse-binding-native-input-test.tsx`
+See:
+`community-docs/superstitions/repros/2025-12-03-ifelse-binding-native-input-test.tsx`

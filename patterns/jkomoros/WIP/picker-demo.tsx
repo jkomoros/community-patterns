@@ -31,26 +31,40 @@ export default pattern<Input>(
     return {
       [NAME]: "Picker Preview Demo",
       [UI]: (
-        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div
+          style={{
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}
+        >
           <h2 style={{ margin: 0 }}>ct-picker Preview Demo</h2>
           <p style={{ margin: 0, color: "var(--ct-color-muted)" }}>
-            The picker below should show "Preview Mode" badge (previewUI) instead of the full UI.
+            The picker below should show "Preview Mode" badge (previewUI)
+            instead of the full UI.
           </p>
 
-          <div style={{
-            padding: "16px",
-            background: "var(--ct-color-surface-container)",
-            borderRadius: "8px"
-          }}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Picker (should use previewUI)</h3>
+          <div
+            style={{
+              padding: "16px",
+              background: "var(--ct-color-surface-container)",
+              borderRadius: "8px",
+            }}
+          >
+            <h3 style={{ margin: "0 0 16px 0" }}>
+              Picker (should use previewUI)
+            </h3>
             <cf-picker $items={items as any} $selectedIndex={selectedIndex} />
           </div>
 
-          <div style={{
-            padding: "16px",
-            background: "var(--ct-color-surface-container)",
-            borderRadius: "8px"
-          }}>
+          <div
+            style={{
+              padding: "16px",
+              background: "var(--ct-color-surface-container)",
+              borderRadius: "8px",
+            }}
+          >
             <h3 style={{ margin: "0 0 8px 0" }}>Selected Index</h3>
             <p style={{ margin: 0 }}>{selectedIndex}</p>
           </div>

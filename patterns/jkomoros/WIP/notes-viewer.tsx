@@ -47,7 +47,7 @@ function formatDate(dateStr: string): string {
     noteDay.setHours(0, 0, 0, 0);
 
     const diffDays = Math.round(
-      (today.getTime() - noteDay.getTime()) / (1000 * 60 * 60 * 24)
+      (today.getTime() - noteDay.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     if (diffDays === 0) {
@@ -112,7 +112,7 @@ export default pattern<{
 
   const noteCount = derive(
     notes,
-    (n: NoteItem[]) => n?.filter((item) => item)?.length ?? 0
+    (n: NoteItem[]) => n?.filter((item) => item)?.length ?? 0,
   );
 
   // Get notes grouped by folder
@@ -145,7 +145,7 @@ export default pattern<{
     }) => {
       if (!selectedNoteId || !notes) return null;
       return notes.find((n: NoteItem) => n && n.id === selectedNoteId) || null;
-    }
+    },
   );
 
   return {
@@ -183,7 +183,7 @@ export default pattern<{
             >
               Back
             </button>,
-            <span style={{ fontSize: "24px" }}>Notes</span>
+            <span style={{ fontSize: "24px" }}>Notes</span>,
           )}
         </div>
 
@@ -204,7 +204,9 @@ export default pattern<{
                 textAlign: "center",
               }}
             >
-              <div style={{ fontSize: "48px", marginBottom: "16px" }}>Notes</div>
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                Notes
+              </div>
               <div
                 style={{
                   fontSize: "18px",
@@ -308,74 +310,73 @@ export default pattern<{
                         </div>
                       ))}
                     </div>
-                  ))
-                )}
+                  )))}
               </div>,
               // Note detail view
               <div style={{ padding: "20px", backgroundColor: "#fff" }}>
                 {derive(selectedNote, (n: NoteItem | null) =>
-                  n ? (
-                    <div>
-                      {/* Folder indicator */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "16px",
-                        }}
-                      >
+                  n
+                    ? (
+                      <div>
+                        {/* Folder indicator */}
                         <div
                           style={{
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "6px",
-                            backgroundColor: getFolderColor(n.folderName),
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            marginBottom: "16px",
                           }}
-                        />
-                        <span style={{ color: "#666" }}>{n.folderName}</span>
-                      </div>
+                        >
+                          <div
+                            style={{
+                              width: "12px",
+                              height: "12px",
+                              borderRadius: "6px",
+                              backgroundColor: getFolderColor(n.folderName),
+                            }}
+                          />
+                          <span style={{ color: "#666" }}>{n.folderName}</span>
+                        </div>
 
-                      {/* Title */}
-                      <div
-                        style={{
-                          margin: "0 0 16px 0",
-                          fontSize: "24px",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {n.title || "Untitled"}
-                      </div>
+                        {/* Title */}
+                        <div
+                          style={{
+                            margin: "0 0 16px 0",
+                            fontSize: "24px",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {n.title || "Untitled"}
+                        </div>
 
-                      {/* Dates */}
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#999",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        Modified: {formatDate(n.modificationDate)} | Created:{" "}
-                        {formatDate(n.creationDate)}
-                      </div>
+                        {/* Dates */}
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#999",
+                            marginBottom: "16px",
+                          }}
+                        >
+                          Modified: {formatDate(n.modificationDate)} | Created:
+                          {" "}
+                          {formatDate(n.creationDate)}
+                        </div>
 
-                      {/* Body */}
-                      <div
-                        style={{
-                          color: "#333",
-                          whiteSpace: "pre-wrap",
-                          lineHeight: "1.6",
-                        }}
-                      >
-                        {n.body || "No content"}
+                        {/* Body */}
+                        <div
+                          style={{
+                            color: "#333",
+                            whiteSpace: "pre-wrap",
+                            lineHeight: "1.6",
+                          }}
+                        >
+                          {n.body || "No content"}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div>Note not found</div>
-                  )
-                )}
-              </div>
-            )
+                    )
+                    : <div>Note not found</div>)}
+              </div>,
+            ),
           )}
         </div>
       </cf-screen>

@@ -157,7 +157,9 @@ function formatTime(timeStr: string): string {
   const hour = parseInt(h, 10);
   const minute = parseInt(m, 10);
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    throw new Error(`Invalid time value: "${timeStr}". Hours must be 0-23, minutes 0-59`);
+    throw new Error(
+      `Invalid time value: "${timeStr}". Hours must be 0-23, minutes 0-59`,
+    );
   }
   return `${h.padStart(2, "0")}${m.padStart(2, "0")}00`;
 }
@@ -170,7 +172,7 @@ function formatTime(timeStr: string): string {
 function formatDateTime(
   dateStr: string,
   timeStr: string,
-  timezone?: string
+  timezone?: string,
 ): string {
   const date = formatDate(dateStr);
   const time = formatTime(timeStr);
@@ -254,7 +256,7 @@ function foldLine(line: string): string {
  */
 export function generateICS(
   events: ICalEvent[],
-  options: ICSOptions = {}
+  options: ICSOptions = {},
 ): string {
   const prodId = options.prodId || DEFAULT_PRODID;
   const defaultTz = options.timezone || "America/Los_Angeles";
@@ -349,7 +351,7 @@ export function generateEventUID(
   name: string,
   day: string,
   startTime: string,
-  startDate: string
+  startDate: string,
 ): string {
   const slug = `${name}-${day}-${startTime}-${startDate}`
     .toLowerCase()
@@ -363,7 +365,10 @@ export function generateEventUID(
  * Legacy UID generator for backwards compatibility.
  * @deprecated Use generateEventUID(name, day, startTime, startDate) instead
  */
-export function generateEventUIDLegacy(name: string, index: number = 0): string {
+export function generateEventUIDLegacy(
+  name: string,
+  index: number = 0,
+): string {
   const timestamp = Date.now();
   const nameSlug = name
     .toLowerCase()
@@ -379,7 +384,7 @@ export function generateEventUIDLegacy(name: string, index: number = 0): string 
  */
 export function getFirstOccurrenceDate(
   startDate: string,
-  targetDay: DayOfWeek
+  targetDay: DayOfWeek,
 ): string {
   const dayMap: Record<DayOfWeek, number> = {
     sunday: 0,
@@ -411,9 +416,8 @@ export function getFirstOccurrenceDate(
 export function sanitizeFilename(name: string): string {
   return name
     .replace(/[/\\:*?"<>|]/g, "-") // Remove filesystem-unsafe chars
-    .replace(/\s+/g, "-")          // Replace spaces with dashes
-    .replace(/-+/g, "-")           // Collapse multiple dashes
-    .replace(/^-|-$/g, "")         // Trim leading/trailing dashes
-    .slice(0, 100);                // Limit length
+    .replace(/\s+/g, "-") // Replace spaces with dashes
+    .replace(/-+/g, "-") // Collapse multiple dashes
+    .replace(/^-|-$/g, "") // Trim leading/trailing dashes
+    .slice(0, 100); // Limit length
 }
-

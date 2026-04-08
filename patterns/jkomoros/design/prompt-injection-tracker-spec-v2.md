@@ -1,21 +1,24 @@
 # Prompt Injection Tracker V2 - Improvement Specification
 
-**Date**: November 14, 2025
-**Author**: Claude (AI Product Manager)
-**Status**: Ready for Implementation
-**Priority**: High
+**Date**: November 14, 2025 **Author**: Claude (AI Product Manager) **Status**:
+Ready for Implementation **Priority**: High
 
 ---
 
 ## Executive Summary
 
-This spec outlines improvements to transform the Prompt Injection Alert Tracker from a functional but complex prototype (60-70% complete) into a polished, production-ready tool. Based on analysis of existing code, design docs, UX feedback, and recent framework updates, we will:
+This spec outlines improvements to transform the Prompt Injection Alert Tracker
+from a functional but complex prototype (60-70% complete) into a polished,
+production-ready tool. Based on analysis of existing code, design docs, UX
+feedback, and recent framework updates, we will:
 
 1. **Remove unnecessary workarounds** now fixed in labs/
 2. **Dramatically simplify UX** with progressive disclosure
 3. **Fix critical bugs** (gmail-importer CPU pegging, article count showing 0)
-4. **Modernize to new framework patterns** (pattern() function, improved derive/map)
-5. **Add missing features** (read/unread tracking, better filtering, resilient processing)
+4. **Modernize to new framework patterns** (pattern() function, improved
+   derive/map)
+5. **Add missing features** (read/unread tracking, better filtering, resilient
+   processing)
 
 **Target**: Production-ready in 4-6 hours of focused work.
 
@@ -28,10 +31,12 @@ This spec outlines improvements to transform the Prompt Injection Alert Tracker 
 Recent labs/ commits that remove need for workarounds:
 
 1. **8e55ed865** - "don't treat inputs to patterns/recipes as OpaqueRef anymore"
-   - **Impact**: The `lift` workaround for processing importer.emails may no longer be needed
+   - **Impact**: The `lift` workaround for processing importer.emails may no
+     longer be needed
    - **Action**: Test if we can use `derive` directly on `importer.emails`
 
-2. **fcef38199** - "feat: introduce pattern() function to replace recipe() with cleaner API"
+2. **fcef38199** - "feat: introduce pattern() function to replace recipe() with
+   cleaner API"
    - **Impact**: New `pattern()` function available as alternative to `recipe()`
    - **Action**: Consider modernizing to `pattern()` if clearer
 
@@ -46,7 +51,8 @@ Recent labs/ commits that remove need for workarounds:
    - **Test**: Can we simplify to direct `.map()` on importer.emails?
 
 2. **Manual phase buttons** (avoiding auto-chaining)
-   - STATUS doc mentions: "Using derive to auto-trigger handlers causes closure errors"
+   - STATUS doc mentions: "Using derive to auto-trigger handlers causes closure
+     errors"
    - **Test**: Can we now chain handlers automatically?
 
 ### Critical Bugs
@@ -71,6 +77,7 @@ Recent labs/ commits that remove need for workarounds:
 ### UX Issues (from improvement docs)
 
 **Information Architecture Problems**:
+
 - Too much complexity visible (two-level URL tracking)
 - Gmail setup clutters main view
 - No clear "what's next" action
@@ -78,6 +85,7 @@ Recent labs/ commits that remove need for workarounds:
 - Statistics show counts but no actionable info
 
 **User Experience Problems**:
+
 - Can't tell which emails processed
 - No feedback on parse failures
 - No progress during LLM processing
@@ -92,6 +100,7 @@ Recent labs/ commits that remove need for workarounds:
 ### Core Principle: Zero-Friction Workflow
 
 **Current workflow** (8 steps, confusing):
+
 1. Land on page → see Gmail setup
 2. Click "Fetch Emails"
 3. Wait, see 35 emails
@@ -102,6 +111,7 @@ Recent labs/ commits that remove need for workarounds:
 8. Finally see results (maybe)
 
 **Target workflow** (2 steps, clear):
+
 1. Land on page → see "🆕 12 new alerts ready"
 2. Click "⚡ Process Alerts" → wait 30s → see "✅ 3 new reports tracked"
 
@@ -120,6 +130,7 @@ Recent labs/ commits that remove need for workarounds:
 ### 1. Simplified Information Architecture
 
 #### Header Status Card (Always Visible)
+
 ```
 ┌─────────────────────────────────────────────────┐
 │ ⚡ Prompt Injection Tracker                     │
@@ -131,12 +142,14 @@ Recent labs/ commits that remove need for workarounds:
 ```
 
 **States**:
+
 - ✅ Up to Date (green) - no new alerts
 - 🆕 New Alerts (blue) - X alerts ready to process
 - ⏳ Processing (yellow) - analyzing...
 - ⚠️ Needs Attention (red) - error occurred
 
 #### Progressive Disclosure
+
 - **Default view**: Status + New alerts preview + Tracked reports
 - **Hidden by default**: Gmail setup, processed articles, debug info
 - **Toggle to show**: "⚙️ Settings" → expands Gmail auth section
@@ -144,11 +157,13 @@ Recent labs/ commits that remove need for workarounds:
 ### 2. Automated Email Processing
 
 **Auto-sync on load**:
+
 - Check for new emails immediately when pattern loads
 - Show: "🔄 Checking for new alerts..." then "✅ Found 12 new"
 - Auto-parse emails as they arrive (no manual button)
 
 **Deduplication**:
+
 - Show: "ℹ️ Skipped 3 duplicate articles (already seen)"
 - Click to see list of skipped URLs
 - "🔄 Reprocess anyway" option
@@ -156,11 +171,13 @@ Recent labs/ commits that remove need for workarounds:
 ### 3. One-Click Processing Pipeline
 
 **Single "Process Alerts" button**:
+
 - Combines all phases into one async flow
 - Fetches articles → Extracts links → Dedupes → Fetches reports → Summarizes
 - Real-time progress indicator
 
 **Progress Feedback**:
+
 ```
 ⏳ Processing 12 alerts...
 
@@ -173,6 +190,7 @@ Recent labs/ commits that remove need for workarounds:
 ```
 
 **Phases** (internal, not exposed to user):
+
 1. Parse emails → article URLs
 2. Dedupe against processed
 3. Fetch article content (parallel, batch of 5)
@@ -183,6 +201,7 @@ Recent labs/ commits that remove need for workarounds:
 8. Save to reports array
 
 **Error Handling**:
+
 - If article fetch fails → log, continue with others
 - If LLM times out → show error, allow retry
 - If websocket disconnects → detect, show "Reconnecting...", auto-retry
@@ -191,6 +210,7 @@ Recent labs/ commits that remove need for workarounds:
 ### 4. Improved Reports Display
 
 **List View** (default):
+
 ```
 ┌──────────────────────────────────────────────────┐
 │ 🔥 NEW  [HIGH]  GPT-4 Vision Metadata Injection │
@@ -205,6 +225,7 @@ Recent labs/ commits that remove need for workarounds:
 ```
 
 **Unread Highlighting**:
+
 - Blue left border + background tint for unread
 - "🔥 NEW" badge
 - Counter in header: "3 unread"
@@ -212,6 +233,7 @@ Recent labs/ commits that remove need for workarounds:
 - "Mark All Read" bulk action
 
 **Filtering** (top of list):
+
 ```
 [All Reports ▾]  [Severity ▾]  [🔍 Search...]  [⚙️]
 
@@ -222,6 +244,7 @@ Filters:
 ```
 
 **Sort Options**:
+
 - Newest first (default)
 - Severity (critical → low)
 - Unread first
@@ -229,11 +252,13 @@ Filters:
 ### 5. Settings & Configuration
 
 **Collapsible Gmail Setup**:
+
 - Default: Hidden
 - Show: "⚙️ Gmail Settings" toggle
 - Contents: Auth, query, fetch button, email table
 
 **Processing Settings**:
+
 ```
 ⚙️ Settings
 
@@ -256,6 +281,7 @@ LLM Settings:
 ### 6. Export/Import (Keep Existing)
 
 **Current implementation works well**:
+
 - Export JSON (copy to clipboard)
 - Import JSON (paste, merge with deduplication)
 - Keep exactly as-is
@@ -263,12 +289,14 @@ LLM Settings:
 ### 7. Error Recovery
 
 **Timeout Handling**:
+
 - Article fetch: 30s timeout
 - LLM calls: 60s timeout
 - Show elapsed time: "⏱️ 2m 15s (this is taking longer than usual)"
 - "⏹️ Stop Processing" button
 
 **Failed Items**:
+
 ```
 ⚠️ 3 articles failed to fetch
 
@@ -280,29 +308,36 @@ LLM Settings:
 ```
 
 **Gmail Importer CPU Pegging** (Critical Bug):
-- **Detection**: Monitor processing time, if stuck >5min with no progress → alert
+
+- **Detection**: Monitor processing time, if stuck >5min with no progress →
+  alert
 - **Recovery**: "🔄 Restart Gmail Connection" button
 - **Prevention**: Add request timeout to importer
-- **Logging**: Console log for repro case: "Gmail importer stuck: [state details]"
+- **Logging**: Console log for repro case: "Gmail importer stuck: [state
+  details]"
 
 ### 8. Minimal Repro for Gmail CPU Bug
 
 **If we can create repro**:
+
 ```markdown
 ## Gmail Importer CPU Pegging Repro
 
 **Symptoms**:
+
 - Deno process hits 100% CPU
 - Pattern becomes unresponsive
 - Happens non-deterministically
 
 **Repro Steps**:
+
 1. [Document steps when found]
 2. [Include: space name, charm ID, query, email count]
 3. [Console logs before freeze]
 4. [Memory/CPU stats]
 
 **Workaround**:
+
 - Restart dev server
 - Lower email limit (100 → 50)
 - Add timeout to importer fetch
@@ -317,27 +352,30 @@ LLM Settings:
 #### 1. Test: Remove lift pattern for email parsing
 
 **Current** (lines 229-286):
+
 ```typescript
 const parsedArticles = derive(
   [emails, processedArticles] as const,
   ([emailList, processedList]: [any[], ProcessedArticle[]]) => {
     // Manual loop processing...
-  }
+  },
 );
 ```
 
 **Test if this works now**:
+
 ```typescript
-const parsedArticles = derive([emails, processedArticles] as const,
+const parsedArticles = derive(
+  [emails, processedArticles] as const,
   ([emailList, processedList]) => {
     return emailList
-      .map(email => {
+      .map((email) => {
         const article = extractArticleFromEmail(email.markdownContent);
         if (!article) return null;
         // ...
       })
       .filter(Boolean);
-  }
+  },
 );
 ```
 
@@ -345,7 +383,8 @@ const parsedArticles = derive([emails, processedArticles] as const,
 
 #### 2. Consolidate into single handler
 
-**Current**: 3 separate manual handlers (startProcessing, processLinkExtractionResults, saveReports)
+**Current**: 3 separate manual handlers (startProcessing,
+processLinkExtractionResults, saveReports)
 
 **Improved**: Single async handler with try/catch and progress updates
 
@@ -370,7 +409,10 @@ const processAllAlerts = handler<unknown, {
 
     // Phase 3: Dedupe and fetch novel reports
     updateProgress("Fetching novel security reports...");
-    const novelReports = await fetchNovelReports(linkExtractionResult, state.reports);
+    const novelReports = await fetchNovelReports(
+      linkExtractionResult,
+      state.reports,
+    );
 
     // Phase 4: LLM summarize
     updateProgress("Summarizing reports...");
@@ -382,7 +424,6 @@ const processAllAlerts = handler<unknown, {
 
     state.isProcessing.set(false);
     updateProgress(`✅ Added ${summarized.length} new reports!`);
-
   } catch (error) {
     state.isProcessing.set(false);
     updateProgress(`❌ Error: ${error.message}`);
@@ -393,19 +434,24 @@ const processAllAlerts = handler<unknown, {
 ### Modernize to pattern() (Optional)
 
 **Current**:
+
 ```typescript
-export default recipe<Input, Output>("Prompt Injection Alert Tracker", ({ emails }) => {
-  // ...
-});
+export default recipe<Input, Output>(
+  "Prompt Injection Alert Tracker",
+  ({ emails }) => {
+    // ...
+  },
+);
 ```
 
 **New pattern() syntax** (if clearer):
+
 ```typescript
 export default pattern<Input, Output>({
   name: "Prompt Injection Alert Tracker",
   implementation: ({ emails }) => {
     // ...
-  }
+  },
 });
 ```
 
@@ -441,7 +487,9 @@ const StatusBadge = ({ status, count }: { status: Status; count?: number }) => {
 ### Progress Bar Component
 
 ```typescript
-const ProgressBar = ({ percent, label }: { percent: number; label: string }) => (
+const ProgressBar = (
+  { percent, label }: { percent: number; label: string },
+) => (
   <div>
     <div style={{ fontSize: "12px", marginBottom: "4px" }}>{label}</div>
     <div style={{ background: "#e5e7eb", borderRadius: "4px", height: "8px" }}>
@@ -451,7 +499,7 @@ const ProgressBar = ({ percent, label }: { percent: number; label: string }) => 
           width: `${percent}%`,
           height: "100%",
           borderRadius: "4px",
-          transition: "width 0.3s"
+          transition: "width 0.3s",
         }}
       />
     </div>
@@ -471,7 +519,7 @@ const ReportCard = ({ report, onToggleRead }: {
       marginBottom: "12px",
       background: report.isRead ? "#ffffff" : "#dbeafe",
       borderLeft: report.isRead ? "none" : "4px solid #3b82f6",
-      cursor: "pointer"
+      cursor: "pointer",
     }}
     onClick={() => onToggleRead(report.id)}
   >
@@ -487,17 +535,20 @@ const ReportCard = ({ report, onToggleRead }: {
 ### Phase 1: Fix Critical Bugs (2 hours)
 
 **1.1 Fix article count showing 0**
+
 - [ ] Debug parsedArticles derive dependencies
 - [ ] Verify emailCount computed correctly
 - [ ] Test with real emails
 - [ ] Add console logging for debugging
 
 **1.2 Make parsing automatic**
+
 - [ ] Remove manual "Process" button for parsing
 - [ ] Auto-run parseEmailscript when emails change
 - [ ] Show "⏳ Parsing 35 emails..." indicator
 
 **1.3 Add Gmail CPU bug mitigation**
+
 - [ ] Add timeout to email fetching (5min max)
 - [ ] Detect stuck state (no progress for 2min)
 - [ ] Show "🔄 Restart Connection" button
@@ -508,12 +559,14 @@ const ReportCard = ({ report, onToggleRead }: {
 ### Phase 2: Remove Workarounds (1 hour)
 
 **2.1 Test simplified email parsing**
+
 - [ ] Try removing lift, use derive + map directly
 - [ ] Test with importer.emails (now not OpaqueRef per commit 8e55ed865)
 - [ ] If works: remove 50+ lines of manual loop code
 - [ ] If doesn't work: document why, keep current approach
 
 **2.2 Consolidate handlers**
+
 - [ ] Combine startProcessing + processLinkExtractionResults + saveReports
 - [ ] Single async handler with try/catch
 - [ ] Progress updates throughout
@@ -524,24 +577,28 @@ const ReportCard = ({ report, onToggleRead }: {
 ### Phase 3: UX Overhaul (2 hours)
 
 **3.1 Redesign header status**
+
 - [ ] Create unified status card component
 - [ ] Show state: up-to-date | new-alerts | processing | error
 - [ ] One primary action button (context-aware)
 - [ ] Stats: X new, Y tracked, Z unread
 
 **3.2 Progressive disclosure**
+
 - [ ] Hide Gmail setup by default
 - [ ] Add "⚙️ Settings" toggle
 - [ ] Collapse debug sections
 - [ ] Focus on: Status → Action → Results
 
 **3.3 Improve reports list**
+
 - [ ] Add unread highlighting (blue border + background)
 - [ ] Click anywhere to mark read
 - [ ] "Mark All Read" bulk action
 - [ ] Severity badges with colors
 
 **3.4 Add filtering**
+
 - [ ] Search box (filters by title/summary)
 - [ ] "Show only unread" checkbox
 - [ ] "LLM-specific only" checkbox
@@ -552,18 +609,21 @@ const ReportCard = ({ report, onToggleRead }: {
 ### Phase 4: Error Handling & Recovery (1 hour)
 
 **4.1 Timeout handling**
+
 - [ ] 30s timeout for article fetches
 - [ ] 60s timeout for LLM calls
 - [ ] Show elapsed time during processing
 - [ ] "⏹️ Stop Processing" button
 
 **4.2 Failed item tracking**
+
 - [ ] Show list of failed articles/reports
 - [ ] Reason for failure (404, timeout, etc.)
 - [ ] "Retry Failed" button
 - [ ] "Skip & Continue" button
 
 **4.3 Graceful degradation**
+
 - [ ] If one article fails, continue with others
 - [ ] If LLM times out, save partial results
 - [ ] If websocket disconnects, auto-reconnect
@@ -574,18 +634,21 @@ const ReportCard = ({ report, onToggleRead }: {
 ### Phase 5: Testing & Polish (30min)
 
 **5.1 End-to-end testing**
+
 - [ ] Process 20+ real emails
 - [ ] Verify deduplication works
 - [ ] Test with known duplicates
 - [ ] Test error cases (bad URLs, timeouts)
 
 **5.2 Performance testing**
+
 - [ ] Measure time to process 15 emails
 - [ ] Verify parallel fetching works
 - [ ] Check memory usage
 - [ ] Monitor for gmail CPU bug
 
 **5.3 Documentation**
+
 - [ ] Update DESIGN doc with v2 changes
 - [ ] Document removed workarounds
 - [ ] Add troubleshooting guide
@@ -598,6 +661,7 @@ const ReportCard = ({ report, onToggleRead }: {
 ## Success Metrics
 
 ### Before (Current State)
+
 - ❌ Article count shows 0
 - ❌ Manual multi-step process (confusing)
 - ❌ Gmail CPU bug can occur
@@ -607,6 +671,7 @@ const ReportCard = ({ report, onToggleRead }: {
 - ⚠️ Works but requires debugging
 
 ### After (Target State)
+
 - ✅ Auto-parses emails on load
 - ✅ One-click processing (all phases automatic)
 - ✅ Gmail timeout prevents CPU pegging
@@ -616,6 +681,7 @@ const ReportCard = ({ report, onToggleRead }: {
 - ✅ Production-ready, polished experience
 
 ### Key Metrics
+
 - **Time to value**: <30 seconds (from landing to seeing new reports)
 - **Error recovery**: 100% (never stuck, always recoverable)
 - **Processing time**: <2 minutes for 15 emails (including LLM)
@@ -627,11 +693,13 @@ const ReportCard = ({ report, onToggleRead }: {
 ## Future Enhancements (Post-V2)
 
 **P1 (Next sprint)**:
+
 - Automated scheduling (run every 15min)
 - Desktop notifications for new reports
 - Severity-based alerting (high/critical only)
 
 **P2 (Future)**:
+
 - Export to markdown/GitHub issues
 - Collaborative sharing
 - CVE database cross-reference
@@ -643,17 +711,21 @@ const ReportCard = ({ report, onToggleRead }: {
 ## Risk Analysis
 
 ### High Risk
+
 - ❌ **Gmail CPU bug** - Non-deterministic, hard to repro
   - **Mitigation**: Timeout + restart button + logging for repro
 
 ### Medium Risk
-- ⚠️ **Framework changes break existing code** - lift pattern removal might not work
+
+- ⚠️ **Framework changes break existing code** - lift pattern removal might not
+  work
   - **Mitigation**: Test incrementally, keep fallback if needed
 
 - ⚠️ **LLM timeouts on slow networks** - Could frustrate users
   - **Mitigation**: Show elapsed time, allow cancel, save partial results
 
 ### Low Risk
+
 - ℹ️ **URL normalization edge cases** - Different URLs for same report
   - **Mitigation**: Start simple, add sophisticated matching later
 
@@ -662,15 +734,18 @@ const ReportCard = ({ report, onToggleRead }: {
 ## Appendix: Key Files
 
 **Implementation**:
+
 - Main: `/recipes/alex/WIP/prompt-injection-tracker.tsx` (1179 lines)
 
 **Documentation**:
+
 - Original design: `DESIGN-prompt-injection-tracker.md`
 - Status report: `STATUS-prompt-injection-tracker.md`
 - UX issues: `PROMPT-INJECTION-UX-IMPROVEMENTS-v2.md`
 - This spec: `SPEC-prompt-injection-tracker-v2.md`
 
 **Related Patterns**:
+
 - `gmail-auth.tsx` - OAuth
 - `gmail-importer.tsx` - Email fetching (HAS CPU BUG!)
 - `test-recipe-with-extraction.tsx` - LLM extraction pattern
@@ -682,7 +757,8 @@ const ReportCard = ({ report, onToggleRead }: {
 
 Before implementation:
 
-1. **Auto-process vs manual**: Should "Process Alerts" be automatic on load, or keep as manual button?
+1. **Auto-process vs manual**: Should "Process Alerts" be automatic on load, or
+   keep as manual button?
    - Recommendation: Manual button (user control), but auto-parse emails
 
 2. **Gmail CPU bug**: Do you have any additional context on when it occurs?

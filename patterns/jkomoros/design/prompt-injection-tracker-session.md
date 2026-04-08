@@ -2,13 +2,14 @@
 
 **DELETE THIS FILE AFTER READING**
 
-**Branch:** alex-1114
-**Date:** 2025-11-14
-**Status:** Blocked on critical runtime bug
+**Branch:** alex-1114 **Date:** 2025-11-14 **Status:** Blocked on critical
+runtime bug
 
 ## Summary
 
-Attempted to improve the prompt-injection-tracker pattern's UX based on comprehensive spec from previous session. Hit critical deployment bugs that block all testing.
+Attempted to improve the prompt-injection-tracker pattern's UX based on
+comprehensive spec from previous session. Hit critical deployment bugs that
+block all testing.
 
 ## What Was Accomplished
 
@@ -16,7 +17,8 @@ Attempted to improve the prompt-injection-tracker pattern's UX based on comprehe
    - Documented `--api-url http://localhost:8000` flag for ct CLI
    - Clarified local vs remote toolshed usage
 
-2. ✅ Created comprehensive spec (SPEC-prompt-injection-tracker-v2.md - 50 pages)
+2. ✅ Created comprehensive spec (SPEC-prompt-injection-tracker-v2.md - 50
+   pages)
    - Current UI analysis
    - Proposed V2 improvements
    - Technical architecture changes
@@ -33,20 +35,24 @@ Attempted to improve the prompt-injection-tracker pattern's UX based on comprehe
 **Runtime Error:** `TypeError: emailList is not iterable`
 
 **Symptoms:**
+
 - Pattern compiles successfully with `ct dev --no-run`
 - Deployment appears to succeed (returns charm ID)
 - Runtime immediately hits infinite error loop
-- Console spam: "[PARSE] Starting parse, emails count: 0" → "TypeError: emailList is not iterable"
+- Console spam: "[PARSE] Starting parse, emails count: 0" → "TypeError:
+  emailList is not iterable"
 - Pattern completely non-functional
 - UI times out on screenshots (5000ms exceeded)
 - Page snapshot exceeds 74k tokens (error spam)
 
 **Impact:**
+
 - Blocks ALL testing of v1 AND v2
 - Both patterns hit this error
 - Cannot proceed with UX improvements until resolved
 
 **Likely Cause:**
+
 - Gmail importer output format mismatch
 - Parser expects iterable but receives something else
 - May be framework regression or deployment-specific issue
@@ -54,27 +60,35 @@ Attempted to improve the prompt-injection-tracker pattern's UX based on comprehe
 ## Files Modified This Session
 
 - `/recipes/alex/CLAUDE.md` - Added localhost deployment instructions
-- `/recipes/alex/WIP/prompt-injection-tracker-v2.tsx` - LOST (accidentally overwritten)
+- `/recipes/alex/WIP/prompt-injection-tracker-v2.tsx` - LOST (accidentally
+  overwritten)
 
 ## Files From Previous Session (Still Valid)
 
-- `/recipes/alex/WIP/SPEC-prompt-injection-tracker-v2.md` - 50-page comprehensive spec
-- `/recipes/alex/WIP/SUMMARY-prompt-injection-improvements.md` - Before/after analysis
-- `/recipes/alex/WIP/prompt-injection-tracker.tsx` - Original v1 (working before this session)
-- `/recipes/alex/WIP/prompt-injection-tracker-v2-broken.tsx` - Copy of v1 (for comparison)
+- `/recipes/alex/WIP/SPEC-prompt-injection-tracker-v2.md` - 50-page
+  comprehensive spec
+- `/recipes/alex/WIP/SUMMARY-prompt-injection-improvements.md` - Before/after
+  analysis
+- `/recipes/alex/WIP/prompt-injection-tracker.tsx` - Original v1 (working before
+  this session)
+- `/recipes/alex/WIP/prompt-injection-tracker-v2-broken.tsx` - Copy of v1 (for
+  comparison)
 
 ## Key Code Locations
 
 ### The Bug Location (prompt-injection-tracker.tsx)
 
 Lines 136-180: parseEmailsToArticles function
+
 ```typescript
 const parsedArticles = derive({ emailList, processedArticles }, ({ emailList, processedArticles }) => {
   // BUG: emailList might not be iterable at runtime
   // Parser expects array but may receive Cell or other type
 ```
 
-The error occurs when trying to iterate over `emailList` in the parser. The Gmail importer's output format may have changed or there's a type mismatch between what the importer returns and what the parser expects.
+The error occurs when trying to iterate over `emailList` in the parser. The
+Gmail importer's output format may have changed or there's a type mismatch
+between what the importer returns and what the parser expects.
 
 ## What Needs Investigation
 
@@ -179,7 +193,8 @@ Given the severity of the emailList bug:
 1. Lost v2 implementation by overwriting with v1 during testing
 2. Spent too much time trying to debug without understanding root cause
 3. Didn't check if v1 actually worked before attempting v2
-4. Should have phone-a-Berni'd earlier when hitting the "report is not defined" error
+4. Should have phone-a-Berni'd earlier when hitting the "report is not defined"
+   error
 
 ## Lessons Learned
 
@@ -187,4 +202,5 @@ Given the severity of the emailList bug:
 - Test v1 functionality BEFORE starting v2 improvements
 - Phone-a-Berni sooner when hitting framework-level issues
 - Don't thrash on deployment errors without understanding root cause
-- Runtime errors are different from compile errors - need different debugging approach
+- Runtime errors are different from compile errors - need different debugging
+  approach

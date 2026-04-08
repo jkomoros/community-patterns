@@ -11,7 +11,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -20,6 +19,7 @@ import {
   pattern,
   UI,
   wish,
+  Writable,
 } from "commonfabric";
 import AuthConfig from "./auth-config.tsx";
 
@@ -49,7 +49,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
@@ -81,7 +81,7 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
       if (passed?.token) return passed.token;
       if (inline) return inline;
       return "";
-    }
+    },
   );
 
   const hasAuth = derive(effectiveToken, (t) => !!t);
@@ -94,20 +94,32 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
     const apiUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && r ? `https://jsonplaceholder.typicode.com/users/${r.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && r
+          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+          : "";
+      },
     );
 
     // Todos URL - empty when no auth
     const todosUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        return auth && r ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}` : "";
-      }
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        return auth && r
+          ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}`
+          : "";
+      },
     );
 
     // FETCHDATA WITH OPTIONS - like metadata in momentum-tracker
@@ -134,9 +146,15 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
     const samplePages = derive(
       { hasAuth, parsedRef, userData },
       (values) => {
-        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        const m = (values.userData as any)?.get ? (values.userData as any).get() : values.userData;
+        const auth = (values.hasAuth as any)?.get
+          ? (values.hasAuth as any).get()
+          : values.hasAuth;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        const m = (values.userData as any)?.get
+          ? (values.userData as any).get()
+          : values.userData;
 
         if (!auth || !r || !m?.result?.id) {
           return { userId: 0, pages: [] as number[] };
@@ -144,35 +162,120 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
 
         return {
           userId: m.result.id,
-          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (m.result.id - 1) * 10 + i),
+          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) =>
+            (m.result.id - 1) * 10 + i
+          ),
         };
-      }
+      },
     );
 
     // STAR SAMPLE URLS - like makeSlotUrl in momentum-tracker
     const makeSlotUrl = (slotIndex: number) =>
       derive(samplePages, (sp) => {
         if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[slotIndex]}`;
+        return `https://jsonplaceholder.typicode.com/todos/${
+          sp.pages[slotIndex]
+        }`;
       });
 
     // 10 EXPLICIT FETCHDATA SLOTS - like starSample0-9
-    const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot1 = fetchData<Todo>({ url: makeSlotUrl(1), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot2 = fetchData<Todo>({ url: makeSlotUrl(2), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot3 = fetchData<Todo>({ url: makeSlotUrl(3), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot4 = fetchData<Todo>({ url: makeSlotUrl(4), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot5 = fetchData<Todo>({ url: makeSlotUrl(5), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot6 = fetchData<Todo>({ url: makeSlotUrl(6), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot7 = fetchData<Todo>({ url: makeSlotUrl(7), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot8 = fetchData<Todo>({ url: makeSlotUrl(8), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
-    const slot9 = fetchData<Todo>({ url: makeSlotUrl(9), mode: "json", options: { method: "GET", headers: derive(effectiveToken, (t) => makeHeaders(t)) } });
+    const slot0 = fetchData<Todo>({
+      url: makeSlotUrl(0),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot1 = fetchData<Todo>({
+      url: makeSlotUrl(1),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot2 = fetchData<Todo>({
+      url: makeSlotUrl(2),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot3 = fetchData<Todo>({
+      url: makeSlotUrl(3),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot4 = fetchData<Todo>({
+      url: makeSlotUrl(4),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot5 = fetchData<Todo>({
+      url: makeSlotUrl(5),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot6 = fetchData<Todo>({
+      url: makeSlotUrl(6),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot7 = fetchData<Todo>({
+      url: makeSlotUrl(7),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot8 = fetchData<Todo>({
+      url: makeSlotUrl(8),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
+    const slot9 = fetchData<Todo>({
+      url: makeSlotUrl(9),
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+      },
+    });
 
     return {
       id: idCell,
       userData,
       todosData,
-      slots: [slot0, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8, slot9],
+      slots: [
+        slot0,
+        slot1,
+        slot2,
+        slot3,
+        slot4,
+        slot5,
+        slot6,
+        slot7,
+        slot8,
+        slot9,
+      ],
     };
   });
 
@@ -182,8 +285,16 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
       <div style={{ padding: "20px", fontFamily: "system-ui" }}>
         <h1>Inline Fetch Pattern Repro</h1>
 
-        <p style={{ background: "#fff3cd", padding: "10px", borderRadius: "4px" }}>
-          <strong>Hypothesis:</strong> Bug triggered by inline pattern with fetchData + fetchData inside .map()
+        <p
+          style={{
+            background: "#fff3cd",
+            padding: "10px",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>Hypothesis:</strong>{" "}
+          Bug triggered by inline pattern with fetchData + fetchData inside
+          .map()
         </p>
 
         <div style={{ marginBottom: "20px" }}>
@@ -192,39 +303,74 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
           <button onClick={clearAll({ ids })}>Clear All</button>
         </div>
 
-        <div style={{ marginBottom: "10px", padding: "10px", backgroundColor: "#f8f9fa", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginBottom: "10px",
+            padding: "10px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Inline Auth Config:</strong>
           <div>{inlineAuth}</div>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
-          <strong>hasAuth:</strong> {derive(hasAuth, h => h ? "YES" : "NO")}
+          <strong>hasAuth:</strong> {derive(hasAuth, (h) => h ? "YES" : "NO")}
           {" | "}
-          <strong>effectiveToken:</strong> {derive(effectiveToken, t => t ? "***" : "(none)")}
+          <strong>effectiveToken:</strong>{" "}
+          {derive(effectiveToken, (t) => t ? "***" : "(none)")}
         </div>
 
         <h2>Results:</h2>
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
-              <div>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result?.name || (u?.pending ? "..." : "—"))}
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
               </div>
               <div>
-                <strong>Todos:</strong>{" "}
-                {derive(item.todosData, (t) => t?.result?.length ? `${t.result.length} items` : (t?.pending ? "..." : "—"))}
+                <strong>User:</strong> {derive(item.userData, (u) =>
+                  u?.result?.name || (u?.pending ? "..." : "—"))}
+              </div>
+              <div>
+                <strong>Todos:</strong> {derive(item.todosData, (t) =>
+                  t?.result?.length
+                    ? `${t.result.length} items`
+                    : (t?.pending ? "..." : "—"))}
               </div>
               <div>
                 <strong>10 Slots:</strong>
-                <div style={{ fontSize: "11px", display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "3px",
+                    marginTop: "4px",
+                  }}
+                >
                   {item.slots.map((s, i) => (
-                    <span style={{ padding: "2px 4px", background: "#eee", borderRadius: "2px" }}>
-                      #{i}: {derive(s, (r) => r?.result?.id || (r?.pending ? "..." : "—"))}
+                    <span
+                      style={{
+                        padding: "2px 4px",
+                        background: "#eee",
+                        borderRadius: "2px",
+                      }}
+                    >
+                      #{i}: {derive(s, (r) =>
+                        r?.result?.id || (r?.pending ? "..." : "—"))}
                     </span>
                   ))}
                 </div>
@@ -233,7 +379,14 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#f8d7da", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#f8d7da",
+            borderRadius: "4px",
+          }}
+        >
           <strong>This matches github-momentum-tracker EXACTLY:</strong>
           <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
             <li>wish() for auth discovery</li>

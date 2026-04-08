@@ -13,7 +13,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -21,6 +20,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 // Types
@@ -44,7 +44,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 // Handler to clear all
@@ -58,9 +58,11 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
   const hasConfig = derive(
     { linkedConfig },
     (values) => {
-      const c = (values.linkedConfig as any)?.get ? (values.linkedConfig as any).get() : values.linkedConfig;
+      const c = (values.linkedConfig as any)?.get
+        ? (values.linkedConfig as any).get()
+        : values.linkedConfig;
       return !!c?.multiplier;
-    }
+    },
   );
 
   // Map over ids using the EXACT PATTERN from github-momentum-tracker
@@ -72,11 +74,17 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const apiUrl = derive(
       { hasConfig, ref },
       (values) => {
-        const config = (values.hasConfig as any)?.get ? (values.hasConfig as any).get() : values.hasConfig;
-        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
+        const config = (values.hasConfig as any)?.get
+          ? (values.hasConfig as any).get()
+          : values.hasConfig;
+        const r = (values.ref as any)?.get
+          ? (values.ref as any).get()
+          : values.ref;
         // Always fetch (config doesn't gate this in test)
-        return r ? `https://jsonplaceholder.typicode.com/users/${r.userId}` : "";
-      }
+        return r
+          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+          : "";
+      },
     );
 
     // First fetch
@@ -86,8 +94,12 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const samplePages = derive(
       { hasConfig, parsedRef: ref, userData },
       (values) => {
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        const u = (values.userData as any)?.get ? (values.userData as any).get() : values.userData;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        const u = (values.userData as any)?.get
+          ? (values.userData as any).get()
+          : values.userData;
 
         if (!r || !u?.result?.id) {
           return { userId: 0, pages: [] as number[] };
@@ -95,16 +107,18 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         return {
           userId: u.result.id,
-          pages: [1, 2, 3, 4, 5].map(i => (u.result.id - 1) * 5 + i),
+          pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
         };
-      }
+      },
     );
 
     // Create slot URL factory
     const makeSlotUrl = (slotIndex: number) =>
       derive(samplePages, (sp) => {
         if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[slotIndex]}`;
+        return `https://jsonplaceholder.typicode.com/todos/${
+          sp.pages[slotIndex]
+        }`;
       });
 
     // Create 5 fetchData slots
@@ -128,8 +142,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
         <h1>fetchData + Cell&lt;object&gt; Input Repro</h1>
 
         <p>
-          Tests if optional <code>Cell&lt;object&gt;</code> input parameter
-          (like <code>authCharm?: Cell&lt;&#123; token: string &#125;&gt;</code>)
+          Tests if optional <code>Cell&lt;object&gt;</code>{" "}
+          input parameter (like{" "}
+          <code>authCharm?: Cell&lt;&#123; token: string &#125;&gt;</code>)
           interacts badly with fetchData inside <code>.map()</code>
         </p>
 
@@ -140,34 +155,63 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
           <strong>linkedConfig:</strong> {derive({ linkedConfig }, (v) => {
-            const c = (v.linkedConfig as any)?.get ? (v.linkedConfig as any).get() : v.linkedConfig;
+            const c = (v.linkedConfig as any)?.get
+              ? (v.linkedConfig as any).get()
+              : v.linkedConfig;
             return c?.multiplier ? `multiplier=${c.multiplier}` : "not linked";
           })}
           {" | "}
-          <strong>hasConfig:</strong> {derive(hasConfig, (c) => c ? "Yes" : "No")}
+          <strong>hasConfig:</strong>{" "}
+          {derive(hasConfig, (c) => c ? "Yes" : "No")}
         </div>
 
         <h2>Results (check console for errors):</h2>
 
         <div>
           {results.map((item) => (
-            <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "10px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                ID: {item.id}
+              </div>
 
               <div style={{ marginBottom: "8px" }}>
-                <strong>User:</strong>{" "}
-                {derive(item.userData, (u) => u?.result ? u.result.name : u?.pending ? "..." : "✗")}
+                <strong>User:</strong> {derive(item.userData, (u) =>
+                  u?.result ? u.result.name : u?.pending ? "..." : "✗")}
               </div>
 
               <div>
                 <strong>Dependent slots:</strong>
-                <div style={{ fontSize: "12px", display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "4px",
+                    marginTop: "4px",
+                  }}
+                >
                   {item.slots.map((s, i) => (
-                    <span style={{ padding: "2px 6px", background: "#eee", borderRadius: "3px" }}>
-                      #{i}: {derive(s, (r) => r?.result?.title?.substring(0, 8) || (r?.pending ? "..." : "✗"))}
+                    <span
+                      style={{
+                        padding: "2px 6px",
+                        background: "#eee",
+                        borderRadius: "3px",
+                      }}
+                    >
+                      #{i}: {derive(s, (r) =>
+                        r?.result?.title?.substring(0, 8) ||
+                        (r?.pending ? "..." : "✗"))}
                     </span>
                   ))}
                 </div>
@@ -176,8 +220,17 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
           ))}
         </div>
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#fff3cd", borderRadius: "4px" }}>
-          <strong>Test:</strong> Does Cell&lt;object&gt; input + fetchData inside .map() trigger Frame mismatch?
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#fff3cd",
+            borderRadius: "4px",
+          }}
+        >
+          <strong>Test:</strong>{" "}
+          Does Cell&lt;object&gt; input + fetchData inside .map() trigger Frame
+          mismatch?
         </div>
       </div>
     ),

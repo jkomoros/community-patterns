@@ -2,15 +2,22 @@
 
 ## ⚠️ WARNING: Early Development - Not Ready for Most Users
 
-**This project is in active, rapid development.** The framework underneath changes constantly, often breaking existing patterns without warning. Documentation is sparse, incomplete, and frequently outdated.
+**This project is in active, rapid development.** The framework underneath
+changes constantly, often breaking existing patterns without warning.
+Documentation is sparse, incomplete, and frequently outdated.
 
 ### What You're Getting Into
 
-- **Breaking changes daily**: APIs change, patterns stop working, no migration guides
-- **Minimal documentation**: Most learning happens by reading code and asking questions
-- **Frustrating iteration cycles**: Compile errors with unclear messages, runtime behavior that doesn't match expectations
-- **Tool instability**: Development tools are experimental and may have bugs or missing features
-- **Time investment**: Expect to spend significant time debugging issues that aren't your fault
+- **Breaking changes daily**: APIs change, patterns stop working, no migration
+  guides
+- **Minimal documentation**: Most learning happens by reading code and asking
+  questions
+- **Frustrating iteration cycles**: Compile errors with unclear messages,
+  runtime behavior that doesn't match expectations
+- **Tool instability**: Development tools are experimental and may have bugs or
+  missing features
+- **Time investment**: Expect to spend significant time debugging issues that
+  aren't your fault
 
 ### This Is For You If:
 
@@ -28,4 +35,5 @@
 - ❌ You're easily frustrated by broken tools
 - ❌ You're looking for a production-ready system
 
-**Still interested?** You've been warned. See [SETUP.md](SETUP.md) if you're ready to proceed.
+**Still interested?** You've been warned. See [SETUP.md](SETUP.md) if you're
+ready to proceed.

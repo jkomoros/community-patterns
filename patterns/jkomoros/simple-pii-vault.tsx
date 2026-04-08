@@ -1,5 +1,13 @@
 /// <cts-enable />
-import { Writable, computed, Default, handler, NAME, pattern, UI } from "commonfabric";
+import {
+  computed,
+  Default,
+  handler,
+  NAME,
+  pattern,
+  UI,
+  Writable,
+} from "commonfabric";
 
 // PII categories for structured input
 type PIICategory = "name" | "email" | "phone" | "ssn" | "address" | "custom";
@@ -23,7 +31,10 @@ interface Output {
 }
 
 // Category display info
-const CATEGORY_INFO: Record<PIICategory, { label: string; placeholder: string }> = {
+const CATEGORY_INFO: Record<
+  PIICategory,
+  { label: string; placeholder: string }
+> = {
   name: { label: "Name", placeholder: "John Smith" },
   email: { label: "Email", placeholder: "john@example.com" },
   phone: { label: "Phone", placeholder: "555-123-4567" },
@@ -35,7 +46,11 @@ const CATEGORY_INFO: Record<PIICategory, { label: string; placeholder: string }>
 // Handler for adding entries
 const addEntry = handler<
   unknown,
-  { entries: Writable<PIIEntry[]>; category: Writable<PIICategory>; value: Writable<string> }
+  {
+    entries: Writable<PIIEntry[]>;
+    category: Writable<PIICategory>;
+    value: Writable<string>;
+  }
 >((_event, { entries, category, value }) => {
   const val = value.get().trim();
   if (val) {
@@ -144,7 +159,11 @@ export default pattern<InputSchema, Output>(({ title, entries }) => {
             <cf-input $value={newValue} placeholder={currentPlaceholder} />
           </div>
           <cf-button
-            onClick={addEntry({ entries, category: newCategory, value: newValue })}
+            onClick={addEntry({
+              entries,
+              category: newCategory,
+              value: newValue,
+            })}
           >
             Add
           </cf-button>

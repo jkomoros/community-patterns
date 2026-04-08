@@ -15,10 +15,10 @@ import {
   handler,
   NAME,
   pattern,
+  safeDateNow,
   str,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 // Minimal extraction result
@@ -78,20 +78,21 @@ const PersonMinimalV1 = pattern<Input, Output>(
     });
 
     // generateObject call
-    const { result: extractionResult, pending: extractionPending } = generateObject({
-      system: "Extract profile data from the text.",
-      prompt: guardedPrompt,
-      model: "anthropic:claude-sonnet-4-5",
-      schema: {
-        type: "object",
-        properties: {
-          givenName: { type: "string" },
-          familyName: { type: "string" },
-          email: { type: "string" },
-          remainingNotes: { type: "string" },
+    const { result: extractionResult, pending: extractionPending } =
+      generateObject({
+        system: "Extract profile data from the text.",
+        prompt: guardedPrompt,
+        model: "anthropic:claude-sonnet-4-5",
+        schema: {
+          type: "object",
+          properties: {
+            givenName: { type: "string" },
+            familyName: { type: "string" },
+            email: { type: "string" },
+            remainingNotes: { type: "string" },
+          },
         },
-      },
-    });
+      });
 
     // Computed for display in UI
     const notesDisplay = computed(() => notes || "(empty)");
@@ -108,13 +109,26 @@ const PersonMinimalV1 = pattern<Input, Output>(
       [UI]: (
         <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
           <h2>Person Minimal V1</h2>
-          <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST:</strong> Minimal recipe + generateObject (no ct-autolayout)
+          <div
+            style={{
+              backgroundColor: "#fef3c7",
+              padding: "0.5rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <strong>TEST:</strong>{" "}
+            Minimal recipe + generateObject (no ct-autolayout)
           </div>
 
           <div style={{ marginBottom: "1rem" }}>
             <strong>Notes:</strong>
-            <pre style={{ background: "#f5f5f5", padding: "0.5rem", whiteSpace: "pre-wrap" }}>
+            <pre
+              style={{
+                background: "#f5f5f5",
+                padding: "0.5rem",
+                whiteSpace: "pre-wrap",
+              }}
+            >
               {notesDisplay}
             </pre>
           </div>
@@ -127,7 +141,13 @@ const PersonMinimalV1 = pattern<Input, Output>(
           </cf-button>
 
           {resultDisplay && (
-            <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#d1fae5" }}>
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.5rem",
+                backgroundColor: "#d1fae5",
+              }}
+            >
               <strong>Result:</strong>
               <pre>{resultDisplay}</pre>
             </div>

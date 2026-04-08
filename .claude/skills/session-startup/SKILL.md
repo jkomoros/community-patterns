@@ -24,6 +24,7 @@ git status
 ```
 
 **If updates available:**
+
 ```bash
 # Pull updates (will update CLAUDE.md, GETTING_STARTED.md, examples, etc.)
 git pull --rebase upstream main
@@ -36,6 +37,7 @@ git push origin main
 ```
 
 **Why this matters:**
+
 - Gets latest CLAUDE.md (this file!) with new instructions
 - Gets updated GETTING_STARTED.md and DEVELOPMENT.md
 - Gets new example patterns
@@ -43,7 +45,8 @@ git push origin main
 
 ## Step 1.5: Update Labs and Patterns Repositories
 
-**After updating community-patterns, also update labs/ and patterns/ (if they exist):**
+**After updating community-patterns, also update labs/ and patterns/ (if they
+exist):**
 
 ```bash
 # Get parent directory
@@ -71,6 +74,7 @@ fi
 ```
 
 **Tell user:**
+
 ```
 Updated dependency repositories (labs and patterns if available).
 [If found updates]: Pulled latest updates! This includes:
@@ -111,7 +115,9 @@ echo "      $PARENT_DIR/labs/packages/shell/local-dev-shell.log"
 ```
 
 **Important Notes:**
-- **labs/** updates may include new framework features, bug fixes, or documentation
+
+- **labs/** updates may include new framework features, bug fixes, or
+  documentation
 - **Dev server must be restarted** after pulling labs updates
 - **patterns/** (if cloned) contains example patterns - optional to update
 - Check approximately weekly, or when user encounters framework issues
@@ -119,6 +125,7 @@ echo "      $PARENT_DIR/labs/packages/shell/local-dev-shell.log"
 ## Step 2: Load Workspace Configuration
 
 **Why we need this:** Your GitHub username is used for:
+
 - Determining which `patterns/$GITHUB_USER/` directory is yours
 - Committing patterns with proper attribution
 - Deploying patterns with your identity key
@@ -140,6 +147,7 @@ fi
 ```
 
 **If .claude-workspace doesn't exist** (shouldn't happen after setup):
+
 ```bash
 # Detect from origin remote URL (most reliable)
 ORIGIN_URL=$(git remote get-url origin)
@@ -164,6 +172,7 @@ echo "Repository type: $([ "$IS_FORK" = "true" ] && echo "fork" || echo "upstrea
 ```
 
 **Confirm with user:**
+
 ```
 Ready to work! Your workspace: patterns/$GITHUB_USER/
 
@@ -171,19 +180,24 @@ What would you like to work on today?
 ```
 
 **About `is_fork` configuration:**
-- **Fork** (`is_fork=true`): User has their own fork with `upstream` remote pointing to jkomoros/community-patterns
+
+- **Fork** (`is_fork=true`): User has their own fork with `upstream` remote
+  pointing to jkomoros/community-patterns
   - PRs go from their fork to upstream
   - Fetch/rebase from `upstream/main` before creating PRs
   - Most common scenario for contributors
-- **Direct** (`is_fork=false`): User working directly on jkomoros/community-patterns (e.g., jkomoros or collaborators)
+- **Direct** (`is_fork=false`): User working directly on
+  jkomoros/community-patterns (e.g., jkomoros or collaborators)
   - PRs go from feature branch to main in same repo
   - Fetch/rebase from `origin/main` before creating PRs
   - Less common, requires write access to upstream
-- This value is cached to avoid repeatedly checking `git remote` - it won't change during development
+- This value is cached to avoid repeatedly checking `git remote` - it won't
+  change during development
 
 ## Step 3: Check and Start Dev Servers (If Needed)
 
 **IMPORTANT: Two servers must be running:**
+
 1. **Toolshed** (backend) - Port 8000
 2. **Shell** (frontend) - Port 5173
 
@@ -217,7 +231,8 @@ fi
 
 **If servers are already running, STOP HERE and skip the rest of this step.**
 
-**Tell the user:** "I can see your dev servers are already running. Skipping server startup."
+**Tell the user:** "I can see your dev servers are already running. Skipping
+server startup."
 
 **Only if servers need to be started, run this:**
 
@@ -236,8 +251,10 @@ fi
 ```
 
 **Why this matters:**
+
 - Patterns need both servers to deploy and test
-- The user may have started servers themselves - respect that and don't restart unnecessarily
+- The user may have started servers themselves - respect that and don't restart
+  unnecessarily
 - Toolshed handles pattern deployment and data
 - Shell provides the UI for viewing patterns
 - Claude only starts servers if they're not already running

@@ -8,11 +8,11 @@ import {
   NAME,
   navigateTo,
   pattern,
+  safeDateNow,
   Stream,
   UI,
   type VNode,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 // Import patterns directly - optional defaults make {} work for all fields

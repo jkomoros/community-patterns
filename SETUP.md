@@ -1,6 +1,7 @@
 # Community Patterns
 
-A community-driven repository for sharing patterns. Each developer works in their own namespace under `patterns/YOUR-USERNAME/`.
+A community-driven repository for sharing patterns. Each developer works in
+their own namespace under `patterns/YOUR-USERNAME/`.
 
 ## Already Set Up?
 
@@ -17,7 +18,8 @@ That's it! Claude auto-starts dev servers and guides you.
 
 ## First-Time Setup
 
-Complete these steps BEFORE launching Claude Code for the first time. This takes about 30 minutes.
+Complete these steps BEFORE launching Claude Code for the first time. This takes
+about 30 minutes.
 
 ### Step 1: Install Claude Code
 
@@ -102,7 +104,9 @@ cd community-patterns
 
 **CRITICAL:** Quit Claude Code completely (Cmd+Q on macOS) and relaunch it.
 
-This repository includes `.mcp.json` which configures Playwright MCP automatically. After restarting, you should see a small "🔌" icon indicating MCP is connected.
+This repository includes `.mcp.json` which configures Playwright MCP
+automatically. After restarting, you should see a small "🔌" icon indicating MCP
+is connected.
 
 ---
 
@@ -117,9 +121,12 @@ claude
 
 **When Claude launches, say:** "Help me get started"
 
-**Note:** Claude will request permissions for various operations (reading files, running commands, etc.). These prompts are normal and expected - approve them to allow Claude to help you set up your environment.
+**Note:** Claude will request permissions for various operations (reading files,
+running commands, etc.). These prompts are normal and expected - approve them to
+allow Claude to help you set up your environment.
 
 Claude will help you:
+
 - Get your API keys (Anthropic required, others optional)
 - Create `.env` file with your API keys
 - Create your pattern namespace
@@ -146,23 +153,27 @@ community-patterns/
 
 ## Key Features
 
-✅ **Namespace Isolation** - Everyone works in `patterns/YOUR-USERNAME/`
-✅ **Auto-Updates** - Claude pulls latest docs automatically on launch
-✅ **Zero Conflicts** - Your namespace is yours alone
-✅ **Discover Patterns** - Browse other users' work for inspiration
-✅ **Optional Sharing** - Create PRs to contribute back
+✅ **Namespace Isolation** - Everyone works in `patterns/YOUR-USERNAME/` ✅
+**Auto-Updates** - Claude pulls latest docs automatically on launch ✅ **Zero
+Conflicts** - Your namespace is yours alone ✅ **Discover Patterns** - Browse
+other users' work for inspiration ✅ **Optional Sharing** - Create PRs to
+contribute back
 
 ## Documentation
 
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete setup guide for new users
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete setup guide for new
+  users
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Daily workflows and best practices
 - **[CLAUDE.md](CLAUDE.md)** - Instructions for Claude Code (read automatically)
 
 ## Resources
 
-- [Labs Framework](https://github.com/commontoolsinc/labs) - Framework repository
-- [Pattern Documentation](https://github.com/commontoolsinc/labs/blob/main/docs/common/PATTERNS.md) - Pattern examples
-- [Component Reference](https://github.com/commontoolsinc/labs/blob/main/docs/common/COMPONENTS.md) - UI components
+- [Labs Framework](https://github.com/commontoolsinc/labs) - Framework
+  repository
+- [Pattern Documentation](https://github.com/commontoolsinc/labs/blob/main/docs/common/PATTERNS.md) -
+  Pattern examples
+- [Component Reference](https://github.com/commontoolsinc/labs/blob/main/docs/common/COMPONENTS.md) -
+  UI components
 
 ## How It Works
 
@@ -185,6 +196,7 @@ community-patterns/
 ## Getting Help
 
 **Stuck?**
+
 - Check [GETTING_STARTED.md](GETTING_STARTED.md) for setup help
 - Check [DEVELOPMENT.md](DEVELOPMENT.md) for workflow help
 - Ask Claude Code - it has access to all documentation
@@ -196,21 +208,26 @@ For a comprehensive overview of the framework concepts and design:
 
 **[Framework Concept Overview](https://docs.google.com/document/d/13gJ5akQQId9pz1Z2sjzkkTUmHKrHFZaaIMNqm5YsBFU/edit?tab=t.0)**
 
-*Note: If you don't have access to this document, you may need to request access.*
+_Note: If you don't have access to this document, you may need to request
+access._
 
 ---
 
 ## Optional: Workflow Improvement with Happy
 
-**[Happy](https://happy.engineering/)** is a free, open-source mobile app that lets you control Claude Code from your phone or desktop. It's completely optional but can improve your workflow.
+**[Happy](https://happy.engineering/)** is a free, open-source mobile app that
+lets you control Claude Code from your phone or desktop. It's completely
+optional but can improve your workflow.
 
 ### What Happy Provides
 
 - **Voice-to-action** - Execute Claude Code commands hands-free with voice
-- **Multiple sessions** - Run several Claude Code instances across different projects simultaneously
+- **Multiple sessions** - Run several Claude Code instances across different
+  projects simultaneously
 - **Mobile access** - Control Claude Code from iOS, Android, or web app
 - **End-to-end encryption** - Your code and sessions remain private
-- **Real-time notifications** - Stay updated on Claude Code activity from anywhere
+- **Real-time notifications** - Stay updated on Claude Code activity from
+  anywhere
 
 ### Installation
 

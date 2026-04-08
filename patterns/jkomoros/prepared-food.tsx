@@ -146,7 +146,13 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
         <cf-vstack gap={1} style="padding: 8px; max-width: 700px;">
           {/* Header */}
           <div>
-            <h1 style={{ margin: "0 0 2px 0", fontSize: "20px", fontWeight: "700" }}>
+            <h1
+              style={{
+                margin: "0 0 2px 0",
+                fontSize: "20px",
+                fontWeight: "700",
+              }}
+            >
               {displayName}
             </h1>
             <div style={{ fontSize: "13px", color: "#666" }}>
@@ -157,13 +163,32 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
           {/* Basic Info */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Basic Info
               </h3>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                }}
+              >
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Name
                   </label>
                   <cf-input
@@ -173,7 +198,14 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Source
                   </label>
                   <cf-input
@@ -183,7 +215,14 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Servings
                   </label>
                   <cf-input
@@ -194,7 +233,14 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Category
                   </label>
                   <cf-select
@@ -214,7 +260,14 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
               </div>
 
               <div>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "4px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                  }}
+                >
                   Description
                 </label>
                 <cf-input
@@ -228,20 +281,43 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
           {/* Dietary Tags */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Dietary Compatibility
               </h3>
 
-              <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>
-                Add tags to indicate dietary compatibility (e.g., vegan, gluten-free, nut-free)
+              <div
+                style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}
+              >
+                Add tags to indicate dietary compatibility (e.g., vegan,
+                gluten-free, nut-free)
               </div>
 
               {/* Common tags quick-add */}
               <div>
-                <div style={{ fontSize: "12px", fontWeight: "500", marginBottom: "4px", color: "#666" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    marginBottom: "4px",
+                    color: "#666",
+                  }}
+                >
                   Common tags:
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "4px",
+                    marginBottom: "8px",
+                  }}
+                >
                   {COMMON_TAGS.map((tag) => (
                     <button
                       onClick={quickAddDietaryTag({ dietaryTags, tag })}
@@ -261,7 +337,14 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
               </div>
 
               {/* Current tags */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "6px",
+                  marginBottom: "8px",
+                }}
+              >
                 {dietaryTags.map((tag) => (
                   <div
                     style={{
@@ -303,16 +386,32 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
           {/* Primary Ingredients */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Main Ingredients
               </h3>
 
-              <div style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}>
-                List main ingredients for "no-X" matching (e.g., chicken, mushrooms, cilantro)
+              <div
+                style={{ fontSize: "13px", color: "#666", marginBottom: "8px" }}
+              >
+                List main ingredients for "no-X" matching (e.g., chicken,
+                mushrooms, cilantro)
               </div>
 
               {/* Current ingredients */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "6px",
+                  marginBottom: "8px",
+                }}
+              >
                 {primaryIngredients.map((ingredient) => (
                   <div
                     style={{
@@ -327,7 +426,10 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   >
                     <span>{ingredient}</span>
                     <button
-                      onClick={removeIngredient({ primaryIngredients, ingredient })}
+                      onClick={removeIngredient({
+                        primaryIngredients,
+                        ingredient,
+                      })}
                       style={{
                         background: "none",
                         border: "none",
@@ -354,13 +456,32 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
           {/* Prep Details */}
           <cf-card>
             <cf-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+              <h3
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
                 Prep Details (Optional)
               </h3>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                }}
+              >
                 <div>
-                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     Prep Time (min)
                   </label>
                   <cf-input
@@ -372,7 +493,15 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                 </div>
 
                 <div>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: "500" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                    }}
+                  >
                     <cf-checkbox $checked={requiresReheating} />
                     Requires Reheating
                   </label>

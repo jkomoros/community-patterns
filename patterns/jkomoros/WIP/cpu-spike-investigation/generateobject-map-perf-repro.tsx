@@ -27,9 +27,9 @@ import {
   ifElse,
   NAME,
   pattern,
+  safeDateNow,
   UI,
   Writable,
-  safeDateNow,
 } from "commonfabric";
 
 type Props = {
@@ -157,8 +157,9 @@ export default pattern<Props>(({ notes }) => {
             borderRadius: "4px",
           }}
         >
-          <strong>⚠️ BUG TEST:</strong> This pattern tests if the CPU spike is
-          caused by the combination of generateObject + ifElse + nested maps.
+          <strong>⚠️ BUG TEST:</strong>{" "}
+          This pattern tests if the CPU spike is caused by the combination of
+          generateObject + ifElse + nested maps.
         </div>
 
         <div style={{ marginBottom: "1rem" }}>
@@ -187,7 +188,9 @@ export default pattern<Props>(({ notes }) => {
           >
             {extractionPending ? "Extracting..." : "Extract Data"}
           </cf-button>
-          <cf-button onClick={clearExtraction({ extractedData: extractionResult })}>
+          <cf-button
+            onClick={clearExtraction({ extractedData: extractionResult })}
+          >
             Clear Results
           </cf-button>
         </div>
@@ -240,7 +243,7 @@ export default pattern<Props>(({ notes }) => {
               When extraction completes, ifElse will switch to the results
               branch which has nested maps.
             </p>
-          </div>
+          </div>,
         )}
 
         <h2 style={{ marginTop: "1rem" }}>Debug Info</h2>

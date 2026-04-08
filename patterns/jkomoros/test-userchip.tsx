@@ -4,7 +4,10 @@
  * Links directly to a google-auth charm to bypass wish picker.
  */
 import { NAME, pattern, UI } from "commonfabric";
-import { createGoogleAuth, type ScopeKey } from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
+import {
+  createGoogleAuth,
+  type ScopeKey,
+} from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
 
 interface Input {}
 interface Output {}
@@ -28,15 +31,23 @@ export default pattern<Input, Output>(() => {
           {fullUI}
         </div>
 
-        <div style={{
-          padding: "16px",
-          backgroundColor: "#f5f5f5",
-          borderRadius: "8px",
-          fontSize: "13px"
-        }}>
-          <p><strong>isReady:</strong> {isReady ? "true" : "false"}</p>
-          <p><strong>currentEmail:</strong> {currentEmail || "(none)"}</p>
-          <p><strong>State:</strong> {authInfo.state}</p>
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#f5f5f5",
+            borderRadius: "8px",
+            fontSize: "13px",
+          }}
+        >
+          <p>
+            <strong>isReady:</strong> {isReady ? "true" : "false"}
+          </p>
+          <p>
+            <strong>currentEmail:</strong> {currentEmail || "(none)"}
+          </p>
+          <p>
+            <strong>State:</strong> {authInfo.state}
+          </p>
         </div>
       </div>
     ),

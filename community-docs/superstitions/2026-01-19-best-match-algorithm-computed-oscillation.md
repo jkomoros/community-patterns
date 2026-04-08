@@ -1,15 +1,17 @@
 # Avoid "Best Match" Algorithms in computed() - They Cause Oscillation
 
-**Date:** 2026-01-19
-**Status:** superstition
-**Confidence:** medium
-**Stars:** 3
+**Date:** 2026-01-19 **Status:** superstition **Confidence:** medium **Stars:**
+3
 
 ## TL;DR - The Rule
 
-**When matching/selecting items inside a `computed()`, avoid algorithms that find the "best match" by comparing all candidates.** If two candidates tie (equal score), which one wins depends on iteration order, causing **non-deterministic results and UI oscillation**.
+**When matching/selecting items inside a `computed()`, avoid algorithms that
+find the "best match" by comparing all candidates.** If two candidates tie
+(equal score), which one wins depends on iteration order, causing
+**non-deterministic results and UI oscillation**.
 
-Use **deterministic selection instead:** first match, last match, or explicit tie-breaker.
+Use **deterministic selection instead:** first match, last match, or explicit
+tie-breaker.
 
 ```tsx
 // BROKEN - Non-deterministic when ties occur
@@ -19,7 +21,7 @@ const matchingPayment = computed(() => {
 
   for (const payment of payments) {
     const diff = Math.abs(dueDate - payment.date);
-    if (diff < bestDiff) {  // On tie, iteration order wins
+    if (diff < bestDiff) { // On tie, iteration order wins
       bestDiff = diff;
       bestMatch = payment;
     }
@@ -31,7 +33,7 @@ const matchingPayment = computed(() => {
 // CORRECT - Pre-sort ensures deterministic first match
 const matchingPayment = computed(() => {
   const sorted = [...payments].sort((a, b) => a.date.localeCompare(b.date));
-  return sorted.find(p => isWithinWindow(p, dueDate));
+  return sorted.find((p) => isWithinWindow(p, dueDate));
 });
 ```
 
@@ -39,19 +41,26 @@ const matchingPayment = computed(() => {
 
 ## Summary
 
-When you use a "best match" algorithm that iterates through all candidates and keeps the one with the smallest/largest/best score, **ties cause non-determinism**. If two items have the same score, which one wins depends on iteration order - and iteration order can vary between reactive evaluations.
+When you use a "best match" algorithm that iterates through all candidates and
+keeps the one with the smallest/largest/best score, **ties cause
+non-determinism**. If two items have the same score, which one wins depends on
+iteration order - and iteration order can vary between reactive evaluations.
 
-In the CommonTools reactive system, `computed()` nodes re-evaluate frequently. If the selection logic produces different results on different evaluations (due to iteration order variance), the UI will oscillate between states.
+In the CommonTools reactive system, `computed()` nodes re-evaluate frequently.
+If the selection logic produces different results on different evaluations (due
+to iteration order variance), the UI will oscillate between states.
 
 ## Why This Happens
 
 JavaScript arrays may iterate in different orders between evaluations due to:
+
 - Memory layout changes
 - Object property enumeration order
 - Garbage collection and reallocation
 - Different code paths creating the array
 
-When comparing with `<` (strict less-than), ties don't update the best match. But which item is seen first determines the winner:
+When comparing with `<` (strict less-than), ties don't update the best match.
+But which item is seen first determines the winner:
 
 ```tsx
 // Two payments both 2 days from due date
@@ -102,7 +111,7 @@ const sortedPayments = computed(() =>
 
 // Then use .find() which is inherently deterministic
 const matchingPayment = computed(() =>
-  sortedPayments.find(p => isWithinWindow(p, dueDate))
+  sortedPayments.find((p) => isWithinWindow(p, dueDate))
 );
 ```
 
@@ -112,7 +121,7 @@ const matchingPayment = computed(() =>
 const matchingPayment = computed(() => {
   let bestMatch = null;
   let bestDiff = Infinity;
-  let bestId = "";  // Tie-breaker
+  let bestId = ""; // Tie-breaker
 
   for (const payment of payments) {
     const diff = Math.abs(dueDate - payment.date);
@@ -131,8 +140,8 @@ const matchingPayment = computed(() => {
 
 ## Real-World Example
 
-**Pattern:** Chase Bill Tracker - matching payments to bills
-**Bug:** "Closest payment" algorithm caused bills to flip between paid/unpaid
+**Pattern:** Chase Bill Tracker - matching payments to bills **Bug:** "Closest
+payment" algorithm caused bills to flip between paid/unpaid
 
 ### Before (Oscillation)
 
@@ -151,7 +160,8 @@ const matchingPayment = cardPayments.find((paymentDate) => {
 });
 ```
 
-**Result:** Bill status oscillated between "paid" and "unpaid" on each evaluation when two payments were equally close to the due date.
+**Result:** Bill status oscillated between "paid" and "unpaid" on each
+evaluation when two payments were equally close to the due date.
 
 ### After (Stable)
 
@@ -180,8 +190,10 @@ const matchingPayment = sortedPayments.find((paymentDate) => {
 
 ## Related Issues
 
-- `2026-01-08-computed-inside-map-callback-infinite-loop.md` - Reactive node identity causing loops
-- `2025-12-17-nested-computed-in-ifelse-causes-thrashing.md` - Similar oscillation symptom, different cause
+- `2026-01-08-computed-inside-map-callback-infinite-loop.md` - Reactive node
+  identity causing loops
+- `2025-12-17-nested-computed-in-ifelse-causes-thrashing.md` - Similar
+  oscillation symptom, different cause
 
 ## Metadata
 
@@ -202,8 +214,15 @@ applies_to: [CommonTools, general-reactive-programming]
 
 ## Guestbook
 
-- 2026-01-19 - Chase Bill Tracker payment matching. Used "closest payment to due date" algorithm with `Math.abs(daysDiff)` comparison. When two payments were equally close (same absolute day difference), which one matched depended on iteration order, causing the bill to oscillate between paid/unpaid states. Fixed by pre-sorting payments chronologically and using `.find()` for first valid match. (chase-bill-tracker-payment-matching)
+- 2026-01-19 - Chase Bill Tracker payment matching. Used "closest payment to due
+  date" algorithm with `Math.abs(daysDiff)` comparison. When two payments were
+  equally close (same absolute day difference), which one matched depended on
+  iteration order, causing the bill to oscillate between paid/unpaid states.
+  Fixed by pre-sorting payments chronologically and using `.find()` for first
+  valid match. (chase-bill-tracker-payment-matching)
 
 ---
 
-**Remember:** This is a superstition based on a single observation. The core insight (non-deterministic selection causes oscillation) is likely sound, but verify in your specific context.
+**Remember:** This is a superstition based on a single observation. The core
+insight (non-deterministic selection causes oscillation) is likely sound, but
+verify in your specific context.

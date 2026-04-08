@@ -13,16 +13,16 @@
  * 4. Does the token actually refresh?
  */
 import {
-  Writable,
   Default,
   derive,
   handler,
   NAME,
   pattern,
+  safeDateNow,
   Stream,
   UI,
   wish,
-  safeDateNow,
+  Writable,
 } from "commonfabric";
 
 // Auth type (inline to avoid import issues)
@@ -89,7 +89,9 @@ const testStreamAccess = handler<
   results.push(`[${timestamp}] === STREAM ACCESS TEST ===`);
 
   // Get the current charm value
-  const charm = (wishedCharm as any)?.get ? (wishedCharm as any).get() : wishedCharm;
+  const charm = (wishedCharm as any)?.get
+    ? (wishedCharm as any).get()
+    : wishedCharm;
 
   results.push(`  charm type: ${typeof charm}`);
   results.push(`  charm is null: ${charm === null}`);
@@ -108,7 +110,9 @@ const testStreamAccess = handler<
         try {
           const streamVal = rt.get();
           results.push(`  .get() result type: ${typeof streamVal}`);
-          results.push(`  .get() result: ${JSON.stringify(streamVal)?.slice(0, 100)}`);
+          results.push(
+            `  .get() result: ${JSON.stringify(streamVal)?.slice(0, 100)}`,
+          );
           if (streamVal) {
             results.push(`  .get().send type: ${typeof streamVal.send}`);
           }
@@ -137,8 +141,14 @@ const attemptRefresh = handler<
   const results: string[] = [];
   results.push(`[${timestamp}] === ATTEMPTING REFRESH ===`);
   results.push(`  refreshStream type: ${typeof refreshStream}`);
-  results.push(`  refreshStream keys: ${refreshStream ? Object.keys(refreshStream).join(", ") : "null"}`);
-  results.push(`  typeof refreshStream.send: ${typeof (refreshStream as any)?.send}`);
+  results.push(
+    `  refreshStream keys: ${
+      refreshStream ? Object.keys(refreshStream).join(", ") : "null"
+    }`,
+  );
+  results.push(
+    `  typeof refreshStream.send: ${typeof (refreshStream as any)?.send}`,
+  );
 
   if (!refreshStream) {
     results.push(`  ERROR: No stream provided`);
@@ -148,7 +158,9 @@ const attemptRefresh = handler<
 
   if (typeof refreshStream.send !== "function") {
     results.push(`  ERROR: refreshStream.send is not a function`);
-    results.push(`  stream value: ${JSON.stringify(refreshStream)?.slice(0, 200)}`);
+    results.push(
+      `  stream value: ${JSON.stringify(refreshStream)?.slice(0, 200)}`,
+    );
     logCell.set([...logs, ...results]);
     return;
   }
@@ -160,10 +172,18 @@ const attemptRefresh = handler<
   // Note: Stream.send() only takes event, no onCommit callback
   try {
     refreshStream.send({});
-    const successLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] refreshStream.send({}) called successfully`];
+    const successLog = [
+      `[${
+        new Date().toISOString().split("T")[1].slice(0, 12)
+      }] refreshStream.send({}) called successfully`,
+    ];
     logCell.set([...logCell.get(), ...successLog]);
   } catch (e) {
-    const errorLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] Refresh ERROR: ${e}`];
+    const errorLog = [
+      `[${
+        new Date().toISOString().split("T")[1].slice(0, 12)
+      }] Refresh ERROR: ${e}`,
+    ];
     console.error("[TEST-CONSUMER] Refresh error:", e);
     logCell.set([...logCell.get(), ...errorLog]);
   }
@@ -187,11 +207,17 @@ export default pattern<Input, Output>(
 
     // Extract the refreshToken stream from the wished charm
     // Per Berni: Pass this directly to handlers with Stream<T> type in handler signature
-    const refreshTokenStream = derive(wishedCharm, (charm: any) => charm?.refreshToken || null);
+    const refreshTokenStream = derive(
+      wishedCharm,
+      (charm: any) => charm?.refreshToken || null,
+    );
 
     // Get auth data (if available)
     const auth = derive(wishedCharm, (charm: any) => charm?.auth || null);
-    const isAuthenticated = derive(auth, (a: any) => !!(a?.token && a?.user?.email));
+    const isAuthenticated = derive(
+      auth,
+      (a: any) => !!(a?.token && a?.user?.email),
+    );
 
     // Token status
     const tokenStatus = derive(auth, (a: any) => {
@@ -211,18 +237,30 @@ export default pattern<Input, Output>(
     const refreshStreamInfo = derive(wishedCharm, (charm: any) => {
       if (!charm) return { available: false, reason: "no charm" };
       const stream = charm.refreshToken;
-      if (!stream) return { available: false, reason: "no refreshToken property" };
-      if (typeof stream.send === "function") return { available: true, reason: "has .send()" };
+      if (!stream) {
+        return { available: false, reason: "no refreshToken property" };
+      }
+      if (typeof stream.send === "function") {
+        return { available: true, reason: "has .send()" };
+      }
       if (typeof stream.get === "function") {
         try {
           const val = stream.get();
-          if (typeof val?.send === "function") return { available: true, reason: "has .get().send()" };
-          return { available: false, reason: `.get() returned ${typeof val}, no .send()` };
+          if (typeof val?.send === "function") {
+            return { available: true, reason: "has .get().send()" };
+          }
+          return {
+            available: false,
+            reason: `.get() returned ${typeof val}, no .send()`,
+          };
         } catch (e) {
           return { available: false, reason: `.get() threw: ${e}` };
         }
       }
-      return { available: false, reason: `stream is ${typeof stream}, no .send() or .get()` };
+      return {
+        available: false,
+        reason: `stream is ${typeof stream}, no .send() or .get()`,
+      };
     });
 
     return {
@@ -248,7 +286,8 @@ export default pattern<Input, Output>(
               fontSize: "14px",
             }}
           >
-            Testing cross-charm token refresh with <code>#googleAuthShortTTL</code>
+            Testing cross-charm token refresh with{" "}
+            <code>#googleAuthShortTTL</code>
           </div>
 
           {/* Wish Status */}
@@ -260,10 +299,16 @@ export default pattern<Input, Output>(
               border: "1px solid #e2e8f0",
             }}
           >
-            <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>Wish Status</h3>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>
+              Wish Status
+            </h3>
             <div style={{ fontFamily: "monospace", fontSize: "13px" }}>
-              <div>State: <strong>{wishState}</strong></div>
-              <div>Has charm: {derive(wishedCharm, (c: any) => c ? "YES" : "NO")}</div>
+              <div>
+                State: <strong>{wishState}</strong>
+              </div>
+              <div>
+                Has charm: {derive(wishedCharm, (c: any) => c ? "YES" : "NO")}
+              </div>
               <div>Error: {wishError}</div>
             </div>
           </div>
@@ -281,13 +326,24 @@ export default pattern<Input, Output>(
               border: "1px solid #e2e8f0",
             }}
           >
-            <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>Auth Status</h3>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>
+              Auth Status
+            </h3>
             <div style={{ fontFamily: "monospace", fontSize: "13px" }}>
-              <div>Authenticated: {derive(isAuthenticated, (a: boolean) => a ? "YES" : "NO")}</div>
-              <div>Email: {derive(auth, (a: any) => a?.user?.email || "N/A")}</div>
-              <div>Token status: <strong>{tokenStatus}</strong></div>
+              <div>
+                Authenticated:{" "}
+                {derive(isAuthenticated, (a: boolean) => a ? "YES" : "NO")}
+              </div>
+              <div>
+                Email: {derive(auth, (a: any) => a?.user?.email || "N/A")}
+              </div>
+              <div>
+                Token status: <strong>{tokenStatus}</strong>
+              </div>
               <div>Time remaining: {timeRemaining}s</div>
-              <div>expiresAt: {derive(auth, (a: any) => a?.expiresAt || "N/A")}</div>
+              <div>
+                expiresAt: {derive(auth, (a: any) => a?.expiresAt || "N/A")}
+              </div>
             </div>
           </div>
 
@@ -295,15 +351,32 @@ export default pattern<Input, Output>(
           <div
             style={{
               padding: "16px",
-              backgroundColor: derive(refreshStreamInfo, (info: any) => info?.available ? "#dcfce7" : "#fef3c7"),
+              backgroundColor: derive(refreshStreamInfo, (info: any) =>
+                info?.available ? "#dcfce7" : "#fef3c7"),
               borderRadius: "8px",
               border: "1px solid #e2e8f0",
             }}
           >
-            <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>Refresh Stream Access</h3>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>
+              Refresh Stream Access
+            </h3>
             <div style={{ fontFamily: "monospace", fontSize: "13px" }}>
-              <div>Available: <strong>{derive(refreshStreamInfo, (info: any) => info?.available ? "YES" : "NO")}</strong></div>
-              <div>Reason: {derive(refreshStreamInfo, (info: any) => info?.reason || "unknown")}</div>
+              <div>
+                Available:{" "}
+                <strong>
+                  {derive(
+                    refreshStreamInfo,
+                    (info: any) =>
+                      info?.available ? "YES" : "NO",
+                  )}
+                </strong>
+              </div>
+              <div>
+                Reason: {derive(
+                  refreshStreamInfo,
+                  (info: any) => info?.reason || "unknown",
+                )}
+              </div>
             </div>
           </div>
 
@@ -325,7 +398,10 @@ export default pattern<Input, Output>(
             </button>
 
             <button
-              onClick={attemptRefresh({ testLog, refreshStream: refreshTokenStream })}
+              onClick={attemptRefresh({
+                testLog,
+                refreshStream: refreshTokenStream,
+              })}
               style={{
                 padding: "10px 16px",
                 backgroundColor: "#22c55e",
@@ -383,20 +459,39 @@ export default pattern<Input, Output>(
               overflow: "auto",
             }}
           >
-            <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#94a3b8" }}>Test Log</h3>
+            <h3
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: "14px",
+                color: "#94a3b8",
+              }}
+            >
+              Test Log
+            </h3>
             {derive(testLog, (logs: string[]) => {
               if (!logs || logs.length === 0) {
-                return <div style={{ color: "#64748b" }}>No log entries yet. Click "Test Stream Access" to start.</div>;
+                return (
+                  <div style={{ color: "#64748b" }}>
+                    No log entries yet. Click "Test Stream Access" to start.
+                  </div>
+                );
               }
               return logs.map((log: string, i: number) => (
-                <div key={i} style={{ marginBottom: "4px", whiteSpace: "pre-wrap" }}>{log}</div>
+                <div
+                  key={i}
+                  style={{ marginBottom: "4px", whiteSpace: "pre-wrap" }}
+                >
+                  {log}
+                </div>
               ));
             })}
           </div>
 
           {/* Debug: Raw charm data */}
           <details style={{ fontSize: "12px" }}>
-            <summary style={{ cursor: "pointer", color: "#6b7280" }}>Raw Charm Data</summary>
+            <summary style={{ cursor: "pointer", color: "#6b7280" }}>
+              Raw Charm Data
+            </summary>
             <pre
               style={{
                 background: "#f3f4f6",

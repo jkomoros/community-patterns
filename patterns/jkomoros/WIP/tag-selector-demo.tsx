@@ -7,24 +7,72 @@
  * creating a multi-select experience from the single-select autocomplete component.
  */
 
-import { Writable, computed, Default, NAME, pattern, UI, equals } from "commonfabric";
+import {
+  computed,
+  Default,
+  equals,
+  NAME,
+  pattern,
+  UI,
+  Writable,
+} from "commonfabric";
 
 // Sample relationship types for demo
 const RELATIONSHIP_ITEMS = [
   { value: "colleague", label: "Colleague", group: "Professional" },
   { value: "manager", label: "Manager", group: "Professional" },
-  { value: "mentor", label: "Mentor", group: "Professional", searchAliases: ["advisor", "guide"] },
+  {
+    value: "mentor",
+    label: "Mentor",
+    group: "Professional",
+    searchAliases: ["advisor", "guide"],
+  },
   { value: "report", label: "Direct Report", group: "Professional" },
   { value: "friend", label: "Friend", group: "Personal" },
-  { value: "close-friend", label: "Close Friend", group: "Personal", searchAliases: ["bestie", "bff"] },
+  {
+    value: "close-friend",
+    label: "Close Friend",
+    group: "Personal",
+    searchAliases: ["bestie", "bff"],
+  },
   { value: "acquaintance", label: "Acquaintance", group: "Personal" },
-  { value: "parent", label: "Parent", group: "Family", searchAliases: ["mom", "dad", "mother", "father"] },
-  { value: "sibling", label: "Sibling", group: "Family", searchAliases: ["sister", "brother", "bro", "sis"] },
-  { value: "child", label: "Child", group: "Family", searchAliases: ["son", "daughter", "kid"] },
-  { value: "spouse", label: "Spouse", group: "Family", searchAliases: ["husband", "wife", "partner"] },
-  { value: "extended", label: "Extended Family", group: "Family", searchAliases: ["aunt", "uncle", "cousin", "grandparent"] },
+  {
+    value: "parent",
+    label: "Parent",
+    group: "Family",
+    searchAliases: ["mom", "dad", "mother", "father"],
+  },
+  {
+    value: "sibling",
+    label: "Sibling",
+    group: "Family",
+    searchAliases: ["sister", "brother", "bro", "sis"],
+  },
+  {
+    value: "child",
+    label: "Child",
+    group: "Family",
+    searchAliases: ["son", "daughter", "kid"],
+  },
+  {
+    value: "spouse",
+    label: "Spouse",
+    group: "Family",
+    searchAliases: ["husband", "wife", "partner"],
+  },
+  {
+    value: "extended",
+    label: "Extended Family",
+    group: "Family",
+    searchAliases: ["aunt", "uncle", "cousin", "grandparent"],
+  },
   { value: "neighbor", label: "Neighbor", group: "Community" },
-  { value: "classmate", label: "Classmate", group: "Community", searchAliases: ["schoolmate"] },
+  {
+    value: "classmate",
+    label: "Classmate",
+    group: "Community",
+    searchAliases: ["schoolmate"],
+  },
   { value: "teammate", label: "Teammate", group: "Community" },
 ];
 
@@ -42,7 +90,7 @@ type Result = {
 
 // Get label for a value
 const getLabel = (value: string) => {
-  const item = RELATIONSHIP_ITEMS.find(i => i.value === value);
+  const item = RELATIONSHIP_ITEMS.find((i) => i.value === value);
   return item?.label || value;
 };
 
@@ -50,8 +98,10 @@ export default pattern<Input, Result>(
   ({ selectedTags }) => {
     // Use computed to compute available items reactively
     const availableItems = computed(() => {
-      const selectedValues = (selectedTags || []).map(t => t.value);
-      return RELATIONSHIP_ITEMS.filter(item => !selectedValues.includes(item.value as any));
+      const selectedValues = (selectedTags || []).map((t) => t.value);
+      return RELATIONSHIP_ITEMS.filter((item) =>
+        !selectedValues.includes(item.value as any)
+      );
     });
 
     return {
@@ -60,8 +110,8 @@ export default pattern<Input, Result>(
         <cf-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
           <h2>Tag Selector Demo</h2>
           <p style={{ color: "#666", fontSize: "0.875rem" }}>
-            This demonstrates using <code>ct-autocomplete</code> with a userland
-            tag display to create a multi-select experience.
+            This demonstrates using <code>ct-autocomplete</code>{" "}
+            with a userland tag display to create a multi-select experience.
           </p>
 
           <cf-card>
@@ -69,12 +119,14 @@ export default pattern<Input, Result>(
               <label style={{ fontWeight: "500" }}>Relationship Types</label>
 
               {/* Selected tags display - using Cell.map() */}
-              <div style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.5rem",
-                minHeight: "2rem",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  minHeight: "2rem",
+                }}
+              >
                 {selectedTags.map((tag) => (
                   <span
                     style={{
@@ -92,7 +144,9 @@ export default pattern<Input, Result>(
                     <button
                       onClick={() => {
                         const current = selectedTags.get();
-                        const index = current.findIndex((el) => equals(tag, el));
+                        const index = current.findIndex((el) =>
+                          equals(tag, el)
+                        );
                         if (index >= 0) {
                           selectedTags.set(current.toSpliced(index, 1));
                         }
@@ -127,7 +181,7 @@ export default pattern<Input, Result>(
                   const value = e.detail?.value;
                   if (value) {
                     const current = selectedTags.get() || [];
-                    const exists = current.some(t => t.value === value);
+                    const exists = current.some((t) => t.value === value);
                     if (!exists) {
                       selectedTags.push({ value });
                     }
@@ -141,26 +195,30 @@ export default pattern<Input, Result>(
           {/* Debug output */}
           <cf-card>
             <cf-vstack gap="2">
-              <label style={{ fontWeight: "500", fontSize: "0.875rem" }}>Selected Values (debug)</label>
-              <code style={{
-                padding: "0.5rem",
-                backgroundColor: "#f3f4f6",
-                borderRadius: "0.25rem",
-                fontSize: "0.75rem",
-                whiteSpace: "pre-wrap",
-              }}>
+              <label style={{ fontWeight: "500", fontSize: "0.875rem" }}>
+                Selected Values (debug)
+              </label>
+              <code
+                style={{
+                  padding: "0.5rem",
+                  backgroundColor: "#f3f4f6",
+                  borderRadius: "0.25rem",
+                  fontSize: "0.75rem",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {computed(() => JSON.stringify(selectedTags || [], null, 2))}
               </code>
             </cf-vstack>
           </cf-card>
 
           <p style={{ color: "#666", fontSize: "0.75rem" }}>
-            Try typing "sister" to find "Sibling" (via searchAliases), or type
-            a custom value and press Enter to add it.
+            Try typing "sister" to find "Sibling" (via searchAliases), or type a
+            custom value and press Enter to add it.
           </p>
         </cf-vstack>
       ),
       selectedTags,
     };
-  }
+  },
 );

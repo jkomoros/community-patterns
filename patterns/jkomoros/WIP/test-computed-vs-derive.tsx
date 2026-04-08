@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Writable,
   computed,
   Default,
   derive,
@@ -9,9 +8,10 @@ import {
   ifElse,
   NAME,
   pattern,
+  safeDateNow,
   str,
   UI,
-  safeDateNow,
+  Writable,
 } from "commonfabric";
 
 /**
@@ -60,7 +60,7 @@ const triggerCompute = handler<
 >(
   (_, { computeTrigger }) => {
     computeTrigger.set(computeTrigger.get() + 1);
-  }
+  },
 );
 
 // Handler to toggle mode
@@ -70,7 +70,7 @@ const toggleMode = handler<
 >(
   (_, { useDerive }) => {
     useDerive.set(!useDerive.get());
-  }
+  },
 );
 
 // Handler to update field
@@ -80,7 +80,7 @@ const updateField = handler<
 >(
   ({ detail }, { field }) => {
     field.set(detail?.value ?? "");
-  }
+  },
 );
 
 const TestPattern = pattern<Input, Output>(
@@ -104,7 +104,9 @@ const TestPattern = pattern<Input, Output>(
     computeTrigger,
   }) => {
     // Create a prompt that depends on the trigger (to force re-computation)
-    const promptBase = Writable.of<string>("Summarize the following fields concisely in one sentence:");
+    const promptBase = Writable.of<string>(
+      "Summarize the following fields concisely in one sentence:",
+    );
 
     // Construct the full prompt in a computed cell
     const fullPrompt = computed(() => {
@@ -117,7 +119,9 @@ const TestPattern = pattern<Input, Output>(
       if (useDerive) return null;
 
       const startTime = safeDateNow();
-      console.log("[Version A - computed()] Starting computation with closures...");
+      console.log(
+        "[Version A - computed()] Starting computation with closures...",
+      );
 
       // This computed() closes over all 14 field cells
       // The reactive system must track dependencies for each closed-over cell
@@ -134,7 +138,11 @@ const TestPattern = pattern<Input, Output>(
       });
 
       const reactiveOverhead = safeDateNow() - startTime;
-      console.log(`[Version A - computed()] Reactive overhead: ${reactiveOverhead.toFixed(2)}ms`);
+      console.log(
+        `[Version A - computed()] Reactive overhead: ${
+          reactiveOverhead.toFixed(2)
+        }ms`,
+      );
 
       return result.result;
     });
@@ -163,7 +171,9 @@ const TestPattern = pattern<Input, Output>(
         if (!params.shouldCompute) return null;
 
         const startTime = safeDateNow();
-        console.log("[Version B - derive()] Starting computation with explicit params...");
+        console.log(
+          "[Version B - derive()] Starting computation with explicit params...",
+        );
 
         // This derive() has explicit dependencies listed
         // The reactive system knows exactly what to track
@@ -180,10 +190,14 @@ const TestPattern = pattern<Input, Output>(
         });
 
         const reactiveOverhead = safeDateNow() - startTime;
-        console.log(`[Version B - derive()] Reactive overhead: ${reactiveOverhead.toFixed(2)}ms`);
+        console.log(
+          `[Version B - derive()] Reactive overhead: ${
+            reactiveOverhead.toFixed(2)
+          }ms`,
+        );
 
         return result.result;
-      }
+      },
     );
 
     // Select which result to display based on mode
@@ -201,14 +215,18 @@ const TestPattern = pattern<Input, Output>(
       if (!result) {
         return "Click 'Run Test' to start computation";
       }
-      if (typeof result === 'object' && result !== null) {
-        return `Summary: ${(result as any).summary || "(pending)"}\nComputation Time: ${(result as any).computationTime || "?"} ms`;
+      if (typeof result === "object" && result !== null) {
+        return `Summary: ${
+          (result as any).summary || "(pending)"
+        }\nComputation Time: ${(result as any).computationTime || "?"} ms`;
       }
       return JSON.stringify(result);
     });
 
     return {
-      [NAME]: str`Performance Test: ${computed(() => useDerive ? "derive()" : "computed()")}`,
+      [NAME]: str`Performance Test: ${
+        computed(() => useDerive ? "derive()" : "computed()")
+      }`,
       [UI]: (
         <cf-screen>
           <div slot="header">
@@ -216,11 +234,32 @@ const TestPattern = pattern<Input, Output>(
           </div>
 
           <cf-vscroll flex showScrollbar>
-            <cf-vstack style={{ padding: "20px", gap: "16px", maxWidth: "800px", margin: "0 auto" }}>
+            <cf-vstack
+              style={{
+                padding: "20px",
+                gap: "16px",
+                maxWidth: "800px",
+                margin: "0 auto",
+              }}
+            >
               {/* Mode Toggle */}
-              <cf-vstack style={{ gap: "8px", padding: "16px", background: "#f3f4f6", borderRadius: "8px" }}>
+              <cf-vstack
+                style={{
+                  gap: "8px",
+                  padding: "16px",
+                  background: "#f3f4f6",
+                  borderRadius: "8px",
+                }}
+              >
                 <h3 style={{ margin: 0, fontSize: "16px" }}>Test Mode</h3>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={useDerive}
@@ -235,15 +274,19 @@ const TestPattern = pattern<Input, Output>(
                   </span>
                 </label>
                 <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                  Toggle to compare the two approaches. Check the browser console for timing details.
+                  Toggle to compare the two approaches. Check the browser
+                  console for timing details.
                 </p>
               </cf-vstack>
 
               {/* Input Fields */}
               <cf-vstack style={{ gap: "8px" }}>
-                <h3 style={{ margin: 0, fontSize: "16px" }}>Input Fields (14 total)</h3>
+                <h3 style={{ margin: 0, fontSize: "16px" }}>
+                  Input Fields (14 total)
+                </h3>
                 <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
-                  Fill in some values to test with. Both versions will process the same data.
+                  Fill in some values to test with. Both versions will process
+                  the same data.
                 </p>
 
                 <cf-vstack style={{ gap: "6px" }}>
@@ -371,42 +414,83 @@ const TestPattern = pattern<Input, Output>(
               </cf-button>
 
               {/* Results */}
-              <cf-vstack style={{ gap: "8px", padding: "16px", background: "#f9fafb", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
+              <cf-vstack
+                style={{
+                  gap: "8px",
+                  padding: "16px",
+                  background: "#f9fafb",
+                  borderRadius: "8px",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
                 <h3 style={{ margin: 0, fontSize: "16px" }}>Result</h3>
-                <pre style={{
-                  margin: 0,
-                  fontSize: "13px",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontFamily: "monospace",
-                }}>
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: "13px",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    fontFamily: "monospace",
+                  }}
+                >
                   {displayResult}
                 </pre>
-                <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#666" }}>
+                <p
+                  style={{
+                    margin: "8px 0 0 0",
+                    fontSize: "12px",
+                    color: "#666",
+                  }}
+                >
                   Check the browser console for detailed timing measurements.
                 </p>
               </cf-vstack>
 
               {/* Explanation */}
-              <cf-vstack style={{ gap: "8px", padding: "16px", background: "#fef3c7", borderRadius: "8px", border: "1px solid #fbbf24" }}>
-                <h3 style={{ margin: 0, fontSize: "16px" }}>How This Test Works</h3>
-                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", lineHeight: "1.6" }}>
+              <cf-vstack
+                style={{
+                  gap: "8px",
+                  padding: "16px",
+                  background: "#fef3c7",
+                  borderRadius: "8px",
+                  border: "1px solid #fbbf24",
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: "16px" }}>
+                  How This Test Works
+                </h3>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: "20px",
+                    fontSize: "13px",
+                    lineHeight: "1.6",
+                  }}
+                >
                   <li>
-                    <strong>Version A (computed with closures):</strong> Uses computed() that closes over all 14 field cells.
-                    The reactive system must track each closure dependency individually.
+                    <strong>Version A (computed with closures):</strong>{" "}
+                    Uses computed() that closes over all 14 field cells. The
+                    reactive system must track each closure dependency
+                    individually.
                   </li>
                   <li>
-                    <strong>Version B (derive with explicit params):</strong> Uses derive() with all 14 fields explicitly
-                    listed as parameters. The reactive system knows the exact dependency graph upfront.
+                    <strong>Version B (derive with explicit params):</strong>
+                    {" "}
+                    Uses derive() with all 14 fields explicitly listed as
+                    parameters. The reactive system knows the exact dependency
+                    graph upfront.
                   </li>
                   <li>
-                    Both versions call the same generateObject() API, so LLM time is identical.
+                    Both versions call the same generateObject() API, so LLM
+                    time is identical.
                   </li>
                   <li>
-                    The timing measurements show only the reactive system overhead before the LLM call starts.
+                    The timing measurements show only the reactive system
+                    overhead before the LLM call starts.
                   </li>
                   <li>
-                    Expected result: derive() should show ~40-50% less blocking time than computed().
+                    Expected result: derive() should show ~40-50% less blocking
+                    time than computed().
                   </li>
                 </ul>
               </cf-vstack>
@@ -433,7 +517,7 @@ const TestPattern = pattern<Input, Output>(
       computeTrigger,
       result: displayResult,
     };
-  }
+  },
 );
 
 export default TestPattern;

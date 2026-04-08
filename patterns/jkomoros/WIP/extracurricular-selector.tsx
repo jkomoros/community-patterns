@@ -15,7 +15,6 @@
  */
 import {
   Cell,
-  Writable,
   computed,
   Default,
   derive,
@@ -23,12 +22,13 @@ import {
   handler,
   ifElse,
   NAME,
+  nonPrivateRandom,
   pattern,
+  safeDateNow,
   str,
   toSchema,
   UI,
-  safeDateNow,
-  nonPrivateRandom,
+  Writable,
 } from "commonfabric";
 
 // ============================================================================
@@ -37,11 +37,23 @@ import {
 
 type Grade = "PK" | "TK" | "K" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
 
-type DayOfWeek = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+type DayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
 type LocationType = "afterschool-onsite" | "afterschool-offsite" | "external";
 
-type TriageStatus = "auto_kept" | "auto_discarded" | "needs_review" | "user_kept" | "user_discarded";
+type TriageStatus =
+  | "auto_kept"
+  | "auto_discarded"
+  | "needs_review"
+  | "user_kept"
+  | "user_discarded";
 
 interface ChildProfile {
   name: string;
@@ -171,7 +183,13 @@ function generateId(): string {
   return nonPrivateRandom().toString(36).substring(2, 15);
 }
 
-const DAYS_OF_WEEK: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const DAYS_OF_WEEK: DayOfWeek[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+];
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
   monday: "Mon",
@@ -183,7 +201,19 @@ const DAY_LABELS: Record<DayOfWeek, string> = {
   sunday: "Sun",
 };
 
-const GRADE_OPTIONS: Grade[] = ["PK", "TK", "K", "1", "2", "3", "4", "5", "6", "7", "8"];
+const GRADE_OPTIONS: Grade[] = [
+  "PK",
+  "TK",
+  "K",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+];
 
 // Status types for tracking class registration progress
 const STATUS_TYPES = [
@@ -205,7 +235,13 @@ const DEFAULT_CATEGORY_TAGS: CategoryTag[] = [
   { id: "language", name: "Language", color: "#6366f1" },
 ];
 
-const DEFAULT_STATUS_TYPES = ["registered", "confirmed", "waitlisted", "paid", "onCalendar"];
+const DEFAULT_STATUS_TYPES = [
+  "registered",
+  "confirmed",
+  "waitlisted",
+  "paid",
+  "onCalendar",
+];
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
@@ -222,7 +258,18 @@ const STATUS_LABELS: Record<string, string> = {
 // Location handlers
 const addLocation = handler<
   unknown,
-  { locations: Writable<Location[]>; newLocationForm: Writable<{ name: string; type: LocationType; address: string; hasFlatDailyRate: boolean; dailyRate: number }> }
+  {
+    locations: Writable<Location[]>;
+    newLocationForm: Writable<
+      {
+        name: string;
+        type: LocationType;
+        address: string;
+        hasFlatDailyRate: boolean;
+        dailyRate: number;
+      }
+    >;
+  }
 >((_, { locations, newLocationForm }) => {
   const form = newLocationForm.get();
   const name = form.name || "";
@@ -238,7 +285,13 @@ const addLocation = handler<
   };
 
   locations.push(newLocation);
-  newLocationForm.set({ name: "", type: "afterschool-onsite", address: "", hasFlatDailyRate: false, dailyRate: 0 });
+  newLocationForm.set({
+    name: "",
+    type: "afterschool-onsite",
+    address: "",
+    hasFlatDailyRate: false,
+    dailyRate: 0,
+  });
 });
 
 const removeLocation = handler<
@@ -262,7 +315,7 @@ const addCategoryTag = handler<
 
   const existing = categoryTags.get();
   // Check for duplicate (case-insensitive)
-  if (existing.some(t => t.name.toLowerCase() === name.toLowerCase())) return;
+  if (existing.some((t) => t.name.toLowerCase() === name.toLowerCase())) return;
 
   const newTag: CategoryTag = {
     id: generateId(),
@@ -316,16 +369,24 @@ const removeFriend = handler<
 // Travel time handler - set or update travel time between two locations
 const setTravelTime = handler<
   unknown,
-  { travelTimes: Writable<TravelTime[]>; fromLocationId: string; toLocationId: string; minutes: number }
+  {
+    travelTimes: Writable<TravelTime[]>;
+    fromLocationId: string;
+    toLocationId: string;
+    minutes: number;
+  }
 >((_, { travelTimes, fromLocationId, toLocationId, minutes }) => {
-  if (!fromLocationId || !toLocationId || fromLocationId === toLocationId) return;
+  if (!fromLocationId || !toLocationId || fromLocationId === toLocationId) {
+    return;
+  }
 
   const current = travelTimes.get();
   // Check for existing entry (either direction)
   const existingIndex = current.findIndex(
     (t) =>
-      (t.fromLocationId === fromLocationId && t.toLocationId === toLocationId) ||
-      (t.fromLocationId === toLocationId && t.toLocationId === fromLocationId)
+      (t.fromLocationId === fromLocationId &&
+        t.toLocationId === toLocationId) ||
+      (t.fromLocationId === toLocationId && t.toLocationId === fromLocationId),
   );
 
   if (existingIndex >= 0) {
@@ -433,7 +494,11 @@ const createPinnedSet = handler<
 // Delete a pinned set
 const deletePinnedSet = handler<
   unknown,
-  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; setId: string }
+  {
+    pinnedSets: Writable<PinnedSet[]>;
+    activePinnedSetId: Writable<string>;
+    setId: string;
+  }
 >((_, { pinnedSets, activePinnedSetId, setId }) => {
   const sets = pinnedSets.get();
   const newSets = sets.filter((s) => s.id !== setId);
@@ -453,14 +518,18 @@ const renamePinnedSet = handler<
 >((_, { pinnedSets, setId, newName }) => {
   const sets = pinnedSets.get();
   pinnedSets.set(
-    sets.map((s) => (s.id === setId ? { ...s, name: newName } : s))
+    sets.map((s) => (s.id === setId ? { ...s, name: newName } : s)),
   );
 });
 
 // Add a class to the active pinned set
 const addClassToSet = handler<
   unknown,
-  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; classId: string }
+  {
+    pinnedSets: Writable<PinnedSet[]>;
+    activePinnedSetId: Writable<string>;
+    classId: string;
+  }
 >((_, { pinnedSets, activePinnedSetId, classId }) => {
   const activeId = activePinnedSetId.get();
   if (!activeId) return;
@@ -471,14 +540,18 @@ const addClassToSet = handler<
       if (s.id !== activeId) return s;
       if (s.classIds.includes(classId)) return s; // Already in set
       return { ...s, classIds: [...s.classIds, classId] };
-    })
+    }),
   );
 });
 
 // Remove a class from the active pinned set
 const removeClassFromSet = handler<
   unknown,
-  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; classId: string }
+  {
+    pinnedSets: Writable<PinnedSet[]>;
+    activePinnedSetId: Writable<string>;
+    classId: string;
+  }
 >((_, { pinnedSets, activePinnedSetId, classId }) => {
   const activeId = activePinnedSetId.get();
   if (!activeId) return;
@@ -488,7 +561,7 @@ const removeClassFromSet = handler<
     sets.map((s) => {
       if (s.id !== activeId) return s;
       return { ...s, classIds: s.classIds.filter((id) => id !== classId) };
-    })
+    }),
   );
 });
 
@@ -523,7 +596,11 @@ const switchActiveSet = handler<
 // Add all classes from a suggested set
 const addSuggestedSet = handler<
   unknown,
-  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; classIds: string[] }
+  {
+    pinnedSets: Writable<PinnedSet[]>;
+    activePinnedSetId: Writable<string>;
+    classIds: string[];
+  }
 >((_, { pinnedSets, activePinnedSetId, classIds }) => {
   const activeId = activePinnedSetId.get();
   if (!activeId) return;
@@ -535,7 +612,7 @@ const addSuggestedSet = handler<
       // Add all classes that aren't already in the set
       const newIds = classIds.filter((id) => !s.classIds.includes(id));
       return { ...s, classIds: [...s.classIds, ...newIds] };
-    })
+    }),
   );
 });
 
@@ -559,7 +636,9 @@ const toggleClassStatus = handler<
   if (existingIndex >= 0) {
     // Update existing status record
     const existing = statuses[existingIndex];
-    const newStatuses = existing.statuses[statusKey] ? { ...existing.statuses } : { ...existing.statuses };
+    const newStatuses = existing.statuses[statusKey]
+      ? { ...existing.statuses }
+      : { ...existing.statuses };
     newStatuses[statusKey] = !newStatuses[statusKey];
     classStatuses.set([
       ...statuses.slice(0, existingIndex),
@@ -593,7 +672,10 @@ const closeSettingsDialog = handler<
 // Set active tab for custom tab UI
 const setActiveTab = handler<
   unknown,
-  { activeTab: Writable<"dashboard" | "configure" | "import" | "selection">; tab: "dashboard" | "configure" | "import" | "selection" }
+  {
+    activeTab: Writable<"dashboard" | "configure" | "import" | "selection">;
+    tab: "dashboard" | "configure" | "import" | "selection";
+  }
 >((_, { activeTab, tab }) => {
   activeTab.set(tab);
 });
@@ -629,13 +711,37 @@ const handleFileUploadChange = handler<
 // Clear uploaded files
 const clearUploadedFiles = handler<
   unknown,
-  { uploadedFiles: Writable<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>> }
+  {
+    uploadedFiles: Writable<
+      Array<
+        {
+          id: string;
+          name: string;
+          url: string;
+          data: string;
+          timestamp: number;
+          size: number;
+          type: string;
+        }
+      >
+    >;
+  }
 >((_, { uploadedFiles }) => {
   uploadedFiles.set([]);
 });
 
 // ImageData type for ct-image-input
-type ImageData = { id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string; width?: number; height?: number };
+type ImageData = {
+  id: string;
+  name: string;
+  url: string;
+  data: string;
+  timestamp: number;
+  size: number;
+  type: string;
+  width?: number;
+  height?: number;
+};
 
 // Handle image upload for OCR - extracts first image from the array
 const handleImageUploadForOcr = handler<
@@ -697,7 +803,7 @@ function parseTimeToMinutes(time: string): number {
 function getTravelTime(
   fromLocationId: string,
   toLocationId: string,
-  travelTimes: TravelTime[]
+  travelTimes: TravelTime[],
 ): number {
   // Same location = no travel time
   if (fromLocationId === toLocationId) return 0;
@@ -705,8 +811,9 @@ function getTravelTime(
   // Look for explicit travel time entry
   const entry = travelTimes.find(
     (t) =>
-      (t.fromLocationId === fromLocationId && t.toLocationId === toLocationId) ||
-      (t.fromLocationId === toLocationId && t.toLocationId === fromLocationId)
+      (t.fromLocationId === fromLocationId &&
+        t.toLocationId === toLocationId) ||
+      (t.fromLocationId === toLocationId && t.toLocationId === fromLocationId),
   );
 
   // Return found time or default of 15 minutes between different locations
@@ -719,7 +826,7 @@ function timeSlotsOverlapWithTravel(
   slot2: TimeSlot,
   loc1Id: string,
   loc2Id: string,
-  travelTimes: TravelTime[]
+  travelTimes: TravelTime[],
 ): boolean {
   if (slot1.day !== slot2.day) return false;
 
@@ -759,15 +866,19 @@ function classesConflict(class1: Class, class2: Class): boolean {
 function classesConflictWithTravel(
   class1: Class,
   class2: Class,
-  travelTimes: TravelTime[]
+  travelTimes: TravelTime[],
 ): boolean {
   for (const slot1 of class1.timeSlots) {
     for (const slot2 of class2.timeSlots) {
-      if (timeSlotsOverlapWithTravel(
-        slot1, slot2,
-        class1.locationId, class2.locationId,
-        travelTimes
-      )) {
+      if (
+        timeSlotsOverlapWithTravel(
+          slot1,
+          slot2,
+          class1.locationId,
+          class2.locationId,
+          travelTimes,
+        )
+      ) {
         return true;
       }
     }
@@ -779,7 +890,7 @@ function classesConflictWithTravel(
 function getConflictReason(
   class1: Class,
   class2: Class,
-  travelTimes: TravelTime[]
+  travelTimes: TravelTime[],
 ): string {
   // Check for direct overlap first
   if (classesConflict(class1, class2)) {
@@ -787,7 +898,11 @@ function getConflictReason(
   }
 
   // If not direct overlap but still conflicts, it's due to travel time
-  const travel = getTravelTime(class1.locationId, class2.locationId, travelTimes);
+  const travel = getTravelTime(
+    class1.locationId,
+    class2.locationId,
+    travelTimes,
+  );
   if (travel > 0) {
     return `${travel}min travel needed`;
   }
@@ -819,7 +934,7 @@ function scoreClass(
   preferencePriorities: PreferencePriority[],
   friendInterests: FriendClassInterest[],
   travelTimes: TravelTime[],
-  locations: Location[]
+  locations: Location[],
 ): ScoredClass {
   let preferenceScore = 0;
   let friendBonus = 0;
@@ -829,7 +944,8 @@ function scoreClass(
   // Preference rank scoring (priority 1 = 100pts, priority 2 = 70pts, etc.)
   for (const pref of preferencePriorities) {
     if (
-      (pref.type === "category" && cls.categoryTagIds.includes(pref.categoryId)) ||
+      (pref.type === "category" &&
+        cls.categoryTagIds.includes(pref.categoryId)) ||
       (pref.type === "specific_class" && cls.id === pref.classId)
     ) {
       preferenceScore = Math.round(100 * Math.pow(0.7, pref.rank - 1));
@@ -855,7 +971,9 @@ function scoreClass(
 
   for (const slot of cls.timeSlots) {
     const dayLocations = pinnedLocationsByDay.get(slot.day);
-    if (dayLocations && dayLocations.size > 0 && !dayLocations.has(cls.locationId)) {
+    if (
+      dayLocations && dayLocations.size > 0 && !dayLocations.has(cls.locationId)
+    ) {
       // New location on this day - apply travel penalty
       travelPenalty += 10;
     }
@@ -915,7 +1033,7 @@ function generateSuggestedSets(
   pinnedClasses: Class[],
   categoryTags: CategoryTag[],
   friendInterests: FriendClassInterest[],
-  travelTimes: TravelTime[]
+  travelTimes: TravelTime[],
 ): SuggestedSet[] {
   const sets: SuggestedSet[] = [];
 
@@ -953,7 +1071,8 @@ function generateSuggestedSets(
         if (nonConflicting.length >= 2) {
           sets.push({
             name: `${category.name} Focus`,
-            description: `${nonConflicting.length} ${category.name} classes without conflicts`,
+            description:
+              `${nonConflicting.length} ${category.name} classes without conflicts`,
             classIds: nonConflicting.map((c) => c.id),
             totalScore: nonConflicting.length * 50, // Simple scoring
             hasConflicts: false,
@@ -965,7 +1084,9 @@ function generateSuggestedSets(
 
   // Create a "friend classes" set if there are classes friends are interested in
   const friendClassIds = new Set(friendInterests.map((fi) => fi.classId));
-  const friendClasses = availableClasses.filter((c) => friendClassIds.has(c.id));
+  const friendClasses = availableClasses.filter((c) =>
+    friendClassIds.has(c.id)
+  );
   if (friendClasses.length >= 2) {
     // Filter to non-conflicting
     const nonConflicting: Class[] = [];
@@ -1008,7 +1129,10 @@ function generateSuggestedSets(
 // Note: classIds is a Cell<string[]> that is read at click time via .get()
 const selectAllInCategoryHandler = handler<
   unknown,
-  { stagedClassSelections: Writable<Record<string, boolean>>; classIds: Cell<string[]> }
+  {
+    stagedClassSelections: Writable<Record<string, boolean>>;
+    classIds: Cell<string[]>;
+  }
 >((_, { stagedClassSelections, classIds }) => {
   const current = stagedClassSelections.get() || {};
   const updated: Record<string, boolean> = { ...current };
@@ -1023,7 +1147,10 @@ const selectAllInCategoryHandler = handler<
 // Context provides: stagedClassSelections Cell and classIds Cell (computed)
 const deselectAllInCategoryHandler = handler<
   unknown,
-  { stagedClassSelections: Writable<Record<string, boolean>>; classIds: Cell<string[]> }
+  {
+    stagedClassSelections: Writable<Record<string, boolean>>;
+    classIds: Cell<string[]>;
+  }
 >((_, { stagedClassSelections, classIds }) => {
   const current = stagedClassSelections.get() || {};
   const updated: Record<string, boolean> = { ...current };
@@ -1040,7 +1167,12 @@ const deselectAllInCategoryHandler = handler<
 // Note: classesToImport is a Cell<Class[]> computed that is read at click time
 const confirmImportHandler = handler<
   unknown,
-  { classes: Writable<Class[]>; importText: Writable<string>; stagedClassSelections: Writable<Record<string, boolean>>; classesToImport: Cell<Class[]> }
+  {
+    classes: Writable<Class[]>;
+    importText: Writable<string>;
+    stagedClassSelections: Writable<Record<string, boolean>>;
+    classesToImport: Cell<Class[]>;
+  }
 >((_, { classes, importText, stagedClassSelections, classesToImport }) => {
   const newClasses = classesToImport.get();
   if (newClasses.length === 0) return;
@@ -1090,7 +1222,10 @@ interface ExtracurricularSelectorOutput extends ExtracurricularSelectorInput {
   [UI]: JSX.Element;
 }
 
-export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutput>(
+export default pattern<
+  ExtracurricularSelectorInput,
+  ExtracurricularSelectorOutput
+>(
   ({
     childName,
     childGrade,
@@ -1115,7 +1250,13 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // ========================================================================
 
     // Form state for adding new locations
-    const newLocationForm = Writable.of({ name: "", type: "afterschool-onsite" as LocationType, address: "", hasFlatDailyRate: false, dailyRate: 0 });
+    const newLocationForm = Writable.of({
+      name: "",
+      type: "afterschool-onsite" as LocationType,
+      address: "",
+      hasFlatDailyRate: false,
+      dailyRate: 0,
+    });
 
     // Form state for adding new tags
     const newTagName = Writable.of<string>("");
@@ -1146,7 +1287,9 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const showSettingsDialog = Writable.of<boolean>(true);
 
     // Active tab state for custom tab UI (ct-tabs not available in JSX types)
-    const activeTab = Writable.of<"dashboard" | "configure" | "import" | "selection">("dashboard");
+    const activeTab = Writable.of<
+      "dashboard" | "configure" | "import" | "selection"
+    >("dashboard");
 
     // Computed values for tab visibility
     const isDashboardTab = computed(() => activeTab.get() === "dashboard");
@@ -1155,7 +1298,19 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const isSelectionTab = computed(() => activeTab.get() === "selection");
 
     // File upload state - stores uploaded files (ct-file-input provides FileData[])
-    const uploadedFiles = Writable.of<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
+    const uploadedFiles = Writable.of<
+      Array<
+        {
+          id: string;
+          name: string;
+          url: string;
+          data: string;
+          timestamp: number;
+          size: number;
+          type: string;
+        }
+      >
+    >([]);
 
     // Image upload state for OCR - stores array of images (ct-image-input uses $images two-way binding)
     const uploadedImagesForOcr = Writable.of<ImageData[]>([]);
@@ -1196,7 +1351,15 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
       const locs = (locations || []).filter((l) => l != null);
       const times = (travelTimes || []).filter((t) => t != null);
       if (locs.length < 2) return [];
-      const pairs: Array<{ loc1Id: string; loc1Name: string; loc2Id: string; loc2Name: string; minutes: number }> = [];
+      const pairs: Array<
+        {
+          loc1Id: string;
+          loc1Name: string;
+          loc2Id: string;
+          loc2Name: string;
+          minutes: number;
+        }
+      > = [];
       for (let i = 0; i < locs.length; i++) {
         for (let j = i + 1; j < locs.length; j++) {
           const loc1 = locs[i];
@@ -1204,7 +1367,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
           const existing = times.find(
             (t: TravelTime) =>
               (t.fromLocationId === loc1.id && t.toLocationId === loc2.id) ||
-              (t.fromLocationId === loc2.id && t.toLocationId === loc1.id)
+              (t.fromLocationId === loc2.id && t.toLocationId === loc1.id),
           );
           pairs.push({
             loc1Id: loc1.id,
@@ -1238,14 +1401,18 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
       const locs = (locations as any)?.get?.() ?? locations ?? [];
 
       // Don't extract if no triggered text or no location selected
-      if (!text || typeof text !== "string" || text.trim().length < 50 || !locId) {
+      if (
+        !text || typeof text !== "string" || text.trim().length < 50 || !locId
+      ) {
         return "";
       }
 
       const locsArray = Array.isArray(locs) ? locs : [];
       const tagsArray = Array.isArray(tags) ? tags : [];
 
-      const locationName = locsArray.find((l: Location) => l.id === locId)?.name || "Unknown";
+      const locationName = locsArray.find((l: Location) =>
+        l.id === locId
+      )?.name || "Unknown";
       const tagNames = tagsArray.map((t: CategoryTag) => t.name).join(", ");
 
       return `You are extracting extracurricular class information from a schedule.
@@ -1278,7 +1445,8 @@ If cost is not specified, use null.`;
     const extractionResult = generateObject({
       model: "anthropic:claude-sonnet-4-5",
       prompt: extractionPrompt,
-      system: "You are a precise data extraction assistant. Extract class information exactly as found in the source text. Do not invent or assume information not present. For times, use 24-hour format. For days, use lowercase (monday, tuesday, etc.).",
+      system:
+        "You are a precise data extraction assistant. Extract class information exactly as found in the source text. Do not invent or assume information not present. For times, use 24-hour format. For days, use lowercase (monday, tuesday, etc.).",
       schema: {
         type: "object",
         properties: {
@@ -1297,9 +1465,19 @@ If cost is not specified, use null.`;
                 eligible: { type: "string" },
                 eligibilityReason: { type: "string" },
                 eligibilityConfidence: { type: "number" },
-                cost: { type: "number", description: "Cost of class, 0 if not specified" },
-                costPer: { type: "string", description: "Cost period: semester, month, or session. Empty string if not specified" },
-                notes: { type: "string", description: "Additional notes, empty string if none" },
+                cost: {
+                  type: "number",
+                  description: "Cost of class, 0 if not specified",
+                },
+                costPer: {
+                  type: "string",
+                  description:
+                    "Cost period: semester, month, or session. Empty string if not specified",
+                },
+                notes: {
+                  type: "string",
+                  description: "Additional notes, empty string if none",
+                },
               },
             },
           },
@@ -1312,14 +1490,19 @@ If cost is not specified, use null.`;
     });
 
     // Computed: Is extraction in progress? (defined after extractionResult)
-    const isExtractionPending = computed(() => (extractionResult as any)?.pending === true);
+    const isExtractionPending = computed(() =>
+      (extractionResult as any)?.pending === true
+    );
 
     // Computed: Suggested new tags from extraction result (for display in UI)
     const suggestedNewTags = computed(() => {
       const r = (extractionResult as any)?.result;
       return (r?.suggestedNewTags as string[]) || [];
     });
-    const hasSuggestedNewTags = derive(suggestedNewTags, (tags) => tags.length > 0);
+    const hasSuggestedNewTags = derive(
+      suggestedNewTags,
+      (tags) => tags.length > 0,
+    );
 
     // Image OCR extraction - extracts text from uploaded photos
     const imageOcrPrompt = computed(() => {
@@ -1337,7 +1520,8 @@ If cost is not specified, use null.`;
         { type: "image" as const, image: img.data },
         {
           type: "text" as const,
-          text: `Extract all text from this image of a class schedule or activity listing.
+          text:
+            `Extract all text from this image of a class schedule or activity listing.
 
 Preserve the structure and formatting as much as possible. Include:
 - Class/activity names
@@ -1347,8 +1531,8 @@ Preserve the structure and formatting as much as possible. Include:
 - Descriptions
 - Any other relevant information
 
-Return the complete extracted text.`
-        }
+Return the complete extracted text.`,
+        },
       ];
     });
 
@@ -1358,15 +1542,26 @@ Return the complete extracted text.`
       schema: {
         type: "object",
         properties: {
-          extractedText: { type: "string", description: "All text extracted from the image, preserving structure" },
-          confidence: { type: "number", description: "Confidence in extraction quality (0-1)" },
+          extractedText: {
+            type: "string",
+            description:
+              "All text extracted from the image, preserving structure",
+          },
+          confidence: {
+            type: "number",
+            description: "Confidence in extraction quality (0-1)",
+          },
         },
       },
     });
 
     // Pre-computed values for image OCR state (must be outside JSX for reactivity)
-    const hasUploadedImage = computed(() => uploadedImagesForOcr.get().length > 0);
-    const isImageOcrPending = computed(() => (imageOcrResult as any)?.pending === true);
+    const hasUploadedImage = computed(() =>
+      uploadedImagesForOcr.get().length > 0
+    );
+    const isImageOcrPending = computed(() =>
+      (imageOcrResult as any)?.pending === true
+    );
     const hasImageOcrResult = computed(() => {
       const r = imageOcrResult as any;
       return r?.result?.extractedText && !r?.pending;
@@ -1376,10 +1571,10 @@ Return the complete extracted text.`
     const processedStagedClasses = computed(() => {
       // extractionResult is a generateObject result with .result, .pending, .error properties
       // Access via extractionResult directly - framework handles reactivity
-      const extractionState = (extractionResult as any);
-      const locId = importLocationId.get();  // Writable<> - use .get()
-      const locs = locations;                // Default<> - access directly
-      const tags = categoryTags;             // Default<> - access directly
+      const extractionState = extractionResult as any;
+      const locId = importLocationId.get(); // Writable<> - use .get()
+      const locs = locations; // Default<> - access directly
+      const tags = categoryTags; // Default<> - access directly
 
       // extractionResult is a state object with .result property
       const result = extractionState?.result;
@@ -1387,7 +1582,9 @@ Return the complete extracted text.`
         return [] as StagedClass[];
       }
 
-      const resolvedLocationName = locs.find((l: Location) => l.id === locId)?.name || "";
+      const resolvedLocationName = locs.find((l: Location) =>
+        l.id === locId
+      )?.name || "";
 
       return result.classes.map((cls: any, index: number): StagedClass => {
         // Determine triage status based on eligibility (flattened fields)
@@ -1407,7 +1604,8 @@ Return the complete extracted text.`
         const matchedTagNames: string[] = [];
         for (const suggestedTag of cls.suggestedTags || []) {
           const existing = tags.find(
-            (t: CategoryTag) => t.name.toLowerCase() === suggestedTag.toLowerCase()
+            (t: CategoryTag) =>
+              t.name.toLowerCase() === suggestedTag.toLowerCase(),
           );
           if (existing) {
             matchedTagIds.push(existing.id);
@@ -1423,7 +1621,7 @@ Return the complete extracted text.`
           timeSlots: [{
             day: (cls.dayOfWeek || "monday") as DayOfWeek,
             startTime: cls.startTime || "15:00",
-            endTime: cls.endTime || "16:00"
+            endTime: cls.endTime || "16:00",
           }],
           cost: cls.cost || 0,
           costPer: cls.costPer || "session",
@@ -1436,20 +1634,26 @@ Return the complete extracted text.`
           endDate: "",
           triageStatus,
           eligibilityReason: cls.eligibilityReason || "",
-          eligibilityConfidence: confidence
+          eligibilityConfidence: confidence,
         };
       });
     });
 
     // Pre-computed class ID lists for each triage category (for use in handlers)
     const autoKeptClassIds = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_kept").map((c: StagedClass) => c.id)
+      processedStagedClasses.filter((c: StagedClass) =>
+        c.triageStatus === "auto_kept"
+      ).map((c: StagedClass) => c.id)
     );
     const needsReviewClassIds = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "needs_review").map((c: StagedClass) => c.id)
+      processedStagedClasses.filter((c: StagedClass) =>
+        c.triageStatus === "needs_review"
+      ).map((c: StagedClass) => c.id)
     );
     const autoDiscardedClassIds = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_discarded").map((c: StagedClass) => c.id)
+      processedStagedClasses.filter((c: StagedClass) =>
+        c.triageStatus === "auto_discarded"
+      ).map((c: StagedClass) => c.id)
     );
 
     // Pre-computed list of classes to import (for confirm import handler)
@@ -1484,15 +1688,21 @@ Return the complete extracted text.`
     const stagedClassCount = computed(() => processedStagedClasses.length);
     const hasStagedClasses = computed(() => stagedClassCount > 0);
     const autoKeptCount = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_kept").length
+      processedStagedClasses.filter((c: StagedClass) =>
+        c.triageStatus === "auto_kept"
+      ).length
     );
     const hasAutoKeptClasses = computed(() => autoKeptCount > 0);
     const needsReviewCount = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "needs_review").length
+      processedStagedClasses.filter((c: StagedClass) =>
+        c.triageStatus === "needs_review"
+      ).length
     );
     const hasNeedsReviewClasses = computed(() => needsReviewCount > 0);
     const autoDiscardedCount = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_discarded").length
+      processedStagedClasses.filter((c: StagedClass) =>
+        c.triageStatus === "auto_discarded"
+      ).length
     );
     const hasAutoDiscardedClasses = computed(() => autoDiscardedCount > 0);
     const selectedClassCount = computed(() => {
@@ -1514,19 +1724,25 @@ Return the complete extracted text.`
       const selections = stagedClassSelections || {};
       return processedStagedClasses.map((cls: StagedClass) => ({
         ...cls,
-        selected: selections[cls.id] ?? (cls.triageStatus === "auto_kept")
+        selected: selections[cls.id] ?? (cls.triageStatus === "auto_kept"),
       }));
     });
 
     // Filter computeds for triage UI
     const autoKeptClasses = computed(() =>
-      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "auto_kept")
+      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) =>
+        cls.triageStatus === "auto_kept"
+      )
     );
     const needsReviewClasses = computed(() =>
-      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "needs_review")
+      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) =>
+        cls.triageStatus === "needs_review"
+      )
     );
     const autoDiscardedClasses = computed(() =>
-      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "auto_discarded")
+      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) =>
+        cls.triageStatus === "auto_discarded"
+      )
     );
 
     // NOTE: Checkbox toggle is handled inline in derive callbacks below.
@@ -1546,7 +1762,7 @@ Return the complete extracted text.`
     const patternName = ifElse(
       hasChildName,
       str`${childName}'s Activities`,
-      "Extracurricular Selector"
+      "Extracurricular Selector",
     );
 
     // Use computed() for reactive transformations
@@ -1578,7 +1794,9 @@ Return the complete extracted text.`
     // Inside computed(), the framework wraps values in OpaqueCell
     // Use .some() with direct comparison instead of .includes() to handle wrapped values
     const pinnedClasses = computed(() => {
-      return classes.filter((c: Class) => pinnedClassIds.some((id: string) => id === c.id));
+      return classes.filter((c: Class) =>
+        pinnedClassIds.some((id: string) => id === c.id)
+      );
     });
 
     const hasPinnedClasses = computed(() => pinnedClasses.length > 0);
@@ -1586,7 +1804,9 @@ Return the complete extracted text.`
 
     // Available (unpinned) classes
     const availableClasses = computed(() => {
-      return classes.filter((c: Class) => !pinnedClassIds.some((id: string) => id === c.id));
+      return classes.filter((c: Class) =>
+        !pinnedClassIds.some((id: string) => id === c.id)
+      );
     });
 
     const hasAvailableClasses = computed(() => availableClasses.length > 0);
@@ -1594,7 +1814,10 @@ Return the complete extracted text.`
 
     // Total cost of pinned classes
     const totalPinnedCost = computed(() => {
-      return pinnedClasses.reduce((sum: number, c: Class) => sum + (c.cost || 0), 0);
+      return pinnedClasses.reduce(
+        (sum: number, c: Class) => sum + (c.cost || 0),
+        0,
+      );
     });
 
     // Conflict detection with travel time
@@ -1603,8 +1826,18 @@ Return the complete extracted text.`
       const pairs: Array<{ c1: Class; c2: Class; reason: string }> = [];
       for (let i = 0; i < pinnedClasses.length; i++) {
         for (let j = i + 1; j < pinnedClasses.length; j++) {
-          if (classesConflictWithTravel(pinnedClasses[i], pinnedClasses[j], travelTimes)) {
-            const reason = getConflictReason(pinnedClasses[i], pinnedClasses[j], travelTimes);
+          if (
+            classesConflictWithTravel(
+              pinnedClasses[i],
+              pinnedClasses[j],
+              travelTimes,
+            )
+          ) {
+            const reason = getConflictReason(
+              pinnedClasses[i],
+              pinnedClasses[j],
+              travelTimes,
+            );
             pairs.push({ c1: pinnedClasses[i], c2: pinnedClasses[j], reason });
           }
         }
@@ -1616,7 +1849,9 @@ Return the complete extracted text.`
 
     // Conflict warnings JSX - computed for pure rendering (no handlers inside)
     const conflictWarnings = computed(() => {
-      return conflictingPairs.map(({ c1, c2, reason }: { c1: Class; c2: Class; reason: string }) => (
+      return conflictingPairs.map((
+        { c1, c2, reason }: { c1: Class; c2: Class; reason: string },
+      ) => (
         <div style="font-size: 11px; color: #991b1b; margin-top: 4px;">
           {c1.name} ↔ {c2.name} ({reason})
         </div>
@@ -1629,19 +1864,35 @@ Return the complete extracted text.`
 
     // hasRankedClasses - computed inline from inputs to avoid nested computed access
     const hasRankedClasses = computed(() => {
-      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) ||
+        null;
       const pinnedIds: string[] = activeSet?.classIds || [];
-      const availableCount = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id)).length;
+      const availableCount = classes.filter((c: Class) =>
+        !pinnedIds.some((id: string) =>
+          id === c.id
+        )
+      ).length;
       return availableCount > 0;
     });
 
     // hasSuggestedSets - computed inline from inputs to avoid nested computed access
     const hasSuggestedSets = computed(() => {
-      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) ||
+        null;
       const pinnedIds: string[] = activeSet?.classIds || [];
-      const available = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id));
-      const pinned = classes.filter((c: Class) => pinnedIds.some((id: string) => id === c.id));
-      const sets = generateSuggestedSets(available, pinned, categoryTags, friendInterests, travelTimes);
+      const available = classes.filter((c: Class) =>
+        !pinnedIds.some((id: string) => id === c.id)
+      );
+      const pinned = classes.filter((c: Class) =>
+        pinnedIds.some((id: string) => id === c.id)
+      );
+      const sets = generateSuggestedSets(
+        available,
+        pinned,
+        categoryTags,
+        friendInterests,
+        travelTimes,
+      );
       return sets.length > 0;
     });
 
@@ -1650,12 +1901,17 @@ Return the complete extracted text.`
     // NOTE: Inside computed, all Cell values are auto-unwrapped to plain values
     const rankedClassesDisplay = computed(() => {
       // First, get the active set's class IDs
-      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) ||
+        null;
       const pinnedIds: string[] = activeSet?.classIds || [];
 
       // Compute available and pinned classes inline from the classes input
-      const available = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id));
-      const pinned = classes.filter((c: Class) => pinnedIds.some((id: string) => id === c.id));
+      const available = classes.filter((c: Class) =>
+        !pinnedIds.some((id: string) => id === c.id)
+      );
+      const pinned = classes.filter((c: Class) =>
+        pinnedIds.some((id: string) => id === c.id)
+      );
 
       // Get active class ID (selected via click/tap)
       // Use .get() to explicitly read the cell value and create a reactive dependency
@@ -1663,7 +1919,14 @@ Return the complete extracted text.`
 
       // Score each class inline rather than using nested computed
       const scored = available.map((cls: Class) =>
-        scoreClass(cls, pinned, preferencePriorities, friendInterests, travelTimes, locations)
+        scoreClass(
+          cls,
+          pinned,
+          preferencePriorities,
+          friendInterests,
+          travelTimes,
+          locations,
+        )
       );
 
       // Sort by score
@@ -1675,7 +1938,10 @@ Return the complete extracted text.`
 
       // Compute "what becomes incompatible" for each class
       // For each class, find other available classes that would conflict if this one were added
-      const incompatibilityMap = new Map<string, Array<{ name: string; reason: string }>>();
+      const incompatibilityMap = new Map<
+        string,
+        Array<{ name: string; reason: string }>
+      >();
       for (const item of scored) {
         const wouldBlock: Array<{ name: string; reason: string }> = [];
         for (const other of scored) {
@@ -1701,15 +1967,21 @@ Return the complete extracted text.`
           endTime: String(item.cls.timeSlots[0]?.endTime || ""),
           cost: Number(item.cls.cost) || 0,
           conflictsWithPinned: Boolean(item.conflictsWithPinned),
-          conflictReasons: item.conflictReasons ? [...item.conflictReasons].join(", ") : "",
+          conflictReasons: item.conflictReasons
+            ? [...item.conflictReasons].join(", ")
+            : "",
           classId: String(item.cls.id || ""),
           prefScore: Number(item.breakdown?.preferenceScore) || 0,
           friendBonus: Number(item.breakdown?.friendBonus) || 0,
           travelPenalty: Number(item.breakdown?.travelPenalty) || 0,
           tbsPenalty: Number(item.breakdown?.tbsPenalty) || 0,
           wouldBlockCount: wouldBlock.length,
-          wouldBlockList: wouldBlock.map(b => `${b.name} (${b.reason})`).join(", "),
-          wouldBlockLabel: wouldBlock.length === 1 ? "1 other class" : `${wouldBlock.length} other classes`,
+          wouldBlockList: wouldBlock.map((b) => `${b.name} (${b.reason})`).join(
+            ", ",
+          ),
+          wouldBlockLabel: wouldBlock.length === 1
+            ? "1 other class"
+            : `${wouldBlock.length} other classes`,
           isActive: String(item.cls.id) === String(activeClassId),
         };
       });
@@ -1717,8 +1989,16 @@ Return the complete extracted text.`
       return displayItems.map((item) => (
         <div
           style={{
-            background: item.isActive ? "#eff6ff" : item.conflictsWithPinned ? "#fef2f2" : "white",
-            border: item.isActive ? "2px solid #3b82f6" : item.conflictsWithPinned ? "1px solid #fca5a5" : "1px solid #e5e7eb",
+            background: item.isActive
+              ? "#eff6ff"
+              : item.conflictsWithPinned
+              ? "#fef2f2"
+              : "white",
+            border: item.isActive
+              ? "2px solid #3b82f6"
+              : item.conflictsWithPinned
+              ? "1px solid #fca5a5"
+              : "1px solid #e5e7eb",
             borderRadius: "6px",
             padding: "10px 12px",
           }}
@@ -1734,45 +2014,79 @@ Return the complete extracted text.`
                 textAlign: "left",
                 cursor: "pointer",
               }}
-              onClick={toggleSelectedClass({ selectedClassId, classId: item.classId })}
+              onClick={toggleSelectedClass({
+                selectedClassId,
+                classId: item.classId,
+              })}
             >
               <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <span style="font-size: 13px; font-weight: 500;">{item.name}</span>
-                <span style={{
-                  padding: "2px 6px",
-                  borderRadius: "10px",
-                  background: item.score > 0 ? "#dcfce7" : item.score < 0 ? "#fee2e2" : "#f3f4f6",
-                  color: item.score > 0 ? "#166534" : item.score < 0 ? "#991b1b" : "#6b7280",
-                  fontSize: "10px",
-                  fontWeight: "600",
-                }}>
-                  {item.score > 0 ? "+" : ""}{item.score} pts
+                <span style="font-size: 13px; font-weight: 500;">
+                  {item.name}
+                </span>
+                <span
+                  style={{
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    background: item.score > 0
+                      ? "#dcfce7"
+                      : item.score < 0
+                      ? "#fee2e2"
+                      : "#f3f4f6",
+                    color: item.score > 0
+                      ? "#166534"
+                      : item.score < 0
+                      ? "#991b1b"
+                      : "#6b7280",
+                    fontSize: "10px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {item.score > 0 ? "+" : ""}
+                  {item.score} pts
                 </span>
                 {/* Show block count badge when not active */}
                 {!item.isActive && item.wouldBlockCount > 0 && (
-                  <span style={{
-                    padding: "2px 6px",
-                    borderRadius: "10px",
-                    background: "#fef3c7",
-                    color: "#92400e",
-                    fontSize: "9px",
-                    fontWeight: "500",
-                  }}>
+                  <span
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: "10px",
+                      background: "#fef3c7",
+                      color: "#92400e",
+                      fontSize: "9px",
+                      fontWeight: "500",
+                    }}
+                  >
                     blocks {item.wouldBlockCount}
                   </span>
                 )}
               </div>
               <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
-                {DAY_LABELS[item.day as DayOfWeek]} {item.startTime}-{item.endTime}
+                {DAY_LABELS[item.day as DayOfWeek]}{" "}
+                {item.startTime}-{item.endTime}
                 {item.cost > 0 && ` • $${item.cost}`}
               </div>
               {/* Score breakdown */}
-              {(item.prefScore > 0 || item.friendBonus > 0 || item.travelPenalty > 0 || item.tbsPenalty > 0) && (
+              {(item.prefScore > 0 || item.friendBonus > 0 ||
+                item.travelPenalty > 0 || item.tbsPenalty > 0) && (
                 <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">
-                  {item.prefScore > 0 && <span style="color: #16a34a;">+{item.prefScore} pref </span>}
-                  {item.friendBonus > 0 && <span style="color: #2563eb;">+{item.friendBonus} friends </span>}
-                  {item.travelPenalty > 0 && <span style="color: #dc2626;">-{item.travelPenalty} travel </span>}
-                  {item.tbsPenalty > 0 && <span style="color: #dc2626;">-{item.tbsPenalty} partial </span>}
+                  {item.prefScore > 0 && (
+                    <span style="color: #16a34a;">+{item.prefScore} pref</span>
+                  )}
+                  {item.friendBonus > 0 && (
+                    <span style="color: #2563eb;">
+                      +{item.friendBonus} friends
+                    </span>
+                  )}
+                  {item.travelPenalty > 0 && (
+                    <span style="color: #dc2626;">
+                      -{item.travelPenalty} travel
+                    </span>
+                  )}
+                  {item.tbsPenalty > 0 && (
+                    <span style="color: #dc2626;">
+                      -{item.tbsPenalty} partial
+                    </span>
+                  )}
                 </div>
               )}
               {item.conflictsWithPinned && (
@@ -1791,7 +2105,8 @@ Return the complete extracted text.`
                   </div>
                 </div>
               )}
-              {item.isActive && item.wouldBlockCount === 0 && !item.conflictsWithPinned && (
+              {item.isActive && item.wouldBlockCount === 0 &&
+                !item.conflictsWithPinned && (
                 <div style="font-size: 10px; color: #16a34a; margin-top: 4px; padding: 6px 8px; background: #dcfce7; border-radius: 4px;">
                   ✓ No conflicts - safe to add!
                 </div>
@@ -1809,7 +2124,11 @@ Return the complete extracted text.`
                 fontWeight: "500",
                 marginLeft: "8px",
               }}
-              onClick={addClassToSet({ classId: item.classId, pinnedSets, activePinnedSetId })}
+              onClick={addClassToSet({
+                classId: item.classId,
+                pinnedSets,
+                activePinnedSetId,
+              })}
             >
               + Add
             </button>
@@ -1822,15 +2141,26 @@ Return the complete extracted text.`
     // Compute EVERYTHING inline from inputs - no nested computed access
     const suggestedSetsDisplay = computed(() => {
       // First, get the active set's class IDs
-      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) ||
+        null;
       const pinnedIds = activeSet?.classIds || [];
 
       // Compute available and pinned classes inline from the classes input
-      const available = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id));
-      const pinned = classes.filter((c: Class) => pinnedIds.some((id: string) => id === c.id));
+      const available = classes.filter((c: Class) =>
+        !pinnedIds.some((id: string) => id === c.id)
+      );
+      const pinned = classes.filter((c: Class) =>
+        pinnedIds.some((id: string) => id === c.id)
+      );
 
       // Generate suggested sets inline
-      const sets = generateSuggestedSets(available, pinned, categoryTags, friendInterests, travelTimes);
+      const sets = generateSuggestedSets(
+        available,
+        pinned,
+        categoryTags,
+        friendInterests,
+        travelTimes,
+      );
 
       return sets.map((set: SuggestedSet) => (
         <div style="background: white; border-radius: 6px; padding: 10px 12px; border: 1px solid #bbf7d0;">
@@ -1854,7 +2184,11 @@ Return the complete extracted text.`
                 cursor: "pointer",
                 fontWeight: "500",
               }}
-              onClick={addSuggestedSet({ classIds: set.classIds, pinnedSets, activePinnedSetId })}
+              onClick={addSuggestedSet({
+                classIds: set.classIds,
+                pinnedSets,
+                activePinnedSetId,
+              })}
             >
               + Add All
             </button>
@@ -1873,7 +2207,9 @@ Return the complete extracted text.`
         <button
           style={{
             padding: "6px 12px",
-            border: set.id === activePinnedSetId ? "2px solid #3b82f6" : "1px solid #d1d5db",
+            border: set.id === activePinnedSetId
+              ? "2px solid #3b82f6"
+              : "1px solid #d1d5db",
             borderRadius: "6px",
             background: set.id === activePinnedSetId ? "#eff6ff" : "white",
             fontWeight: set.id === activePinnedSetId ? "600" : "400",
@@ -1916,9 +2252,12 @@ Return the complete extracted text.`
                 <div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                     <div>
-                      <div style="font-size: 13px; font-weight: 500;">{cls.name}</div>
+                      <div style="font-size: 13px; font-weight: 500;">
+                        {cls.name}
+                      </div>
                       <div style="font-size: 11px; color: #6b7280;">
-                        {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]?.endTime}
+                        {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]
+                          ?.endTime}
                         {cls.locationName && ` @ ${cls.locationName}`}
                       </div>
                     </div>
@@ -1932,7 +2271,11 @@ Return the complete extracted text.`
                         cursor: "pointer",
                         color: "#6b7280",
                       }}
-                      onClick={removeClassFromSet({ classId: cls.id, pinnedSets, activePinnedSetId })}
+                      onClick={removeClassFromSet({
+                        classId: cls.id,
+                        pinnedSets,
+                        activePinnedSetId,
+                      })}
                     >
                       Remove
                     </button>
@@ -1948,15 +2291,23 @@ Return the complete extracted text.`
                             alignItems: "center",
                             gap: "3px",
                             padding: "2px 6px",
-                            border: isChecked ? `1px solid ${statusType.color}` : "1px solid #d1d5db",
+                            border: isChecked
+                              ? `1px solid ${statusType.color}`
+                              : "1px solid #d1d5db",
                             borderRadius: "12px",
-                            background: isChecked ? `${statusType.color}15` : "white",
+                            background: isChecked
+                              ? `${statusType.color}15`
+                              : "white",
                             fontSize: "10px",
                             cursor: "pointer",
                             color: isChecked ? statusType.color : "#9ca3af",
                             fontWeight: isChecked ? "500" : "400",
                           }}
-                          onClick={toggleClassStatus({ classStatuses, classId: cls.id, statusKey: statusType.key })}
+                          onClick={toggleClassStatus({
+                            classStatuses,
+                            classId: cls.id,
+                            statusKey: statusType.key,
+                          })}
                         >
                           <span>{statusType.icon}</span>
                           <span>{statusType.label}</span>
@@ -1992,7 +2343,9 @@ Return the complete extracted text.`
       // Count statuses for pinned classes
       const pinnedIds = activeSet.classIds;
       const counts: Record<string, number> = {};
-      STATUS_TYPES.forEach((st) => { counts[st.key] = 0; });
+      STATUS_TYPES.forEach((st) => {
+        counts[st.key] = 0;
+      });
 
       for (const classId of pinnedIds) {
         const status = statuses.find((s) => s.classId === classId);
@@ -2014,21 +2367,27 @@ Return the complete extracted text.`
           </div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             {STATUS_TYPES.map((st) => (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                padding: "4px 10px",
-                borderRadius: "16px",
-                background: counts[st.key] > 0 ? `${st.color}15` : "#f3f4f6",
-                border: `1px solid ${counts[st.key] > 0 ? st.color : "#e5e7eb"}`,
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "4px 10px",
+                  borderRadius: "16px",
+                  background: counts[st.key] > 0 ? `${st.color}15` : "#f3f4f6",
+                  border: `1px solid ${
+                    counts[st.key] > 0 ? st.color : "#e5e7eb"
+                  }`,
+                }}
+              >
                 <span style="font-size: 12px;">{st.icon}</span>
-                <span style={{
-                  fontSize: "12px",
-                  fontWeight: counts[st.key] > 0 ? "600" : "400",
-                  color: counts[st.key] > 0 ? st.color : "#9ca3af",
-                }}>
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: counts[st.key] > 0 ? "600" : "400",
+                    color: counts[st.key] > 0 ? st.color : "#9ca3af",
+                  }}
+                >
                   {counts[st.key]}/{totalPinned} {st.label}
                 </span>
               </div>
@@ -2044,10 +2403,16 @@ Return the complete extracted text.`
 
     // Pre-bind handlers with their Cell dependencies
     // These are bound at pattern evaluation time, not inside derive
-    const boundCreatePinnedSet = createPinnedSet({ pinnedSets, activePinnedSetId });
+    const boundCreatePinnedSet = createPinnedSet({
+      pinnedSets,
+      activePinnedSetId,
+    });
 
     // Delete active set - uses module-scope deleteActiveSet handler
-    const boundDeleteActiveSet = deleteActiveSet({ pinnedSets, activePinnedSetId });
+    const boundDeleteActiveSet = deleteActiveSet({
+      pinnedSets,
+      activePinnedSetId,
+    });
 
     // ========================================================================
     // RENDER
@@ -2100,7 +2465,7 @@ Return the complete extracted text.`
                 onClick={setActiveTab({ activeTab, tab: "dashboard" })}
               >
                 Dashboard
-              </button>
+              </button>,
             )}
             {ifElse(
               isConfigureTab,
@@ -2112,7 +2477,7 @@ Return the complete extracted text.`
                 onClick={setActiveTab({ activeTab, tab: "configure" })}
               >
                 Configure
-              </button>
+              </button>,
             )}
             {ifElse(
               isImportTab,
@@ -2124,7 +2489,7 @@ Return the complete extracted text.`
                 onClick={setActiveTab({ activeTab, tab: "import" })}
               >
                 Import
-              </button>
+              </button>,
             )}
             {ifElse(
               isSelectionTab,
@@ -2136,7 +2501,7 @@ Return the complete extracted text.`
                 onClick={setActiveTab({ activeTab, tab: "selection" })}
               >
                 Selection
-              </button>
+              </button>,
             )}
           </div>
 
@@ -2146,7 +2511,9 @@ Return the complete extracted text.`
             {ifElse(
               isDashboardTab,
               <cf-vstack style="padding: 16px; gap: 16px;">
-                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Dashboard</h2>
+                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">
+                  Dashboard
+                </h2>
 
                 {/* Child Profile Summary */}
                 <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
@@ -2156,16 +2523,20 @@ Return the complete extracted text.`
                   {ifElse(
                     derive(childName, (name) => !!name),
                     <div style="color: #6b7280;">
-                      <div><strong>{childName}</strong> - Grade {childGrade}</div>
+                      <div>
+                        <strong>{childName}</strong> - Grade {childGrade}
+                      </div>
                       {ifElse(
                         derive(childEligibilityNotes, (notes) => !!notes),
-                        <div style="font-size: 12px; margin-top: 4px;">{childEligibilityNotes}</div>,
-                        null
+                        <div style="font-size: 12px; margin-top: 4px;">
+                          {childEligibilityNotes}
+                        </div>,
+                        null,
                       )}
                     </div>,
                     <div style="color: #9ca3af; font-style: italic;">
                       No child profile set. Go to Configure tab to set up.
-                    </div>
+                    </div>,
                   )}
                 </div>
 
@@ -2175,16 +2546,18 @@ Return the complete extracted text.`
                     Weekly Schedule
                   </h3>
                   {derive(classes, (cls) =>
-                    cls.length === 0 ? (
-                      <div style="color: #9ca3af; font-style: italic;">
-                        No classes added yet. Import classes from the Import tab.
-                      </div>
-                    ) : (
-                      <div style="color: #6b7280;">
-                        {cls.length} classes available
-                      </div>
-                    )
-                  )}
+                    cls.length === 0
+                      ? (
+                        <div style="color: #9ca3af; font-style: italic;">
+                          No classes added yet. Import classes from the Import
+                          tab.
+                        </div>
+                      )
+                      : (
+                        <div style="color: #6b7280;">
+                          {cls.length} classes available
+                        </div>
+                      ))}
                 </div>
 
                 {/* Status Summary */}
@@ -2195,14 +2568,16 @@ Return the complete extracted text.`
                   {statusSummaryDisplay}
                 </div>
               </cf-vstack>,
-              null
+              null,
             )}
 
             {/* ========== TAB 2: CONFIGURE ========== */}
             {ifElse(
               isConfigureTab,
               <cf-vstack style="padding: 16px; gap: 16px;">
-                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Configure</h2>
+                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">
+                  Configure
+                </h2>
 
                 {/* Child Profile Section */}
                 <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
@@ -2225,7 +2600,10 @@ Return the complete extracted text.`
                       </label>
                       <cf-select
                         $value={childGrade}
-                        items={GRADE_OPTIONS.map((g) => ({ label: g, value: g }))}
+                        items={GRADE_OPTIONS.map((g) => ({
+                          label: g,
+                          value: g,
+                        }))}
                       />
                     </div>
                     <div>
@@ -2259,33 +2637,41 @@ Return the complete extracted text.`
                   {/* Existing locations */}
                   {derive(locations, (rawLocs) => {
                     // Defensive filtering: arrays may contain undefined elements
-                    const locs = (rawLocs || []).filter((l) => l != null);
-                    return locs.length > 0 ? (
-                      <cf-vstack style="gap: 8px; margin-bottom: 16px;">
-                        {locs.map((loc) => (
-                          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-                            <div>
-                              <div style="font-weight: 500;">{loc.name}</div>
-                              <div style="font-size: 12px; color: #6b7280;">
-                                {loc.type}
-                                {loc.hasFlatDailyRate && ` - $${loc.dailyRate}/day flat rate`}
-                              </div>
-                            </div>
-                            <cf-button
-                              size="sm"
-                              variant="destructive"
-                              onClick={removeLocation({ locations, locationId: loc.id })}
-                            >
-                              Remove
-                            </cf-button>
-                          </div>
-                        ))}
-                      </cf-vstack>
-                    ) : (
-                      <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
-                        No locations added yet.
-                      </div>
+                    const locs = (rawLocs || []).filter((l) =>
+                      l != null
                     );
+                    return locs.length > 0
+                      ? (
+                        <cf-vstack style="gap: 8px; margin-bottom: 16px;">
+                          {locs.map((loc) => (
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                              <div>
+                                <div style="font-weight: 500;">{loc.name}</div>
+                                <div style="font-size: 12px; color: #6b7280;">
+                                  {loc.type}
+                                  {loc.hasFlatDailyRate &&
+                                    ` - $${loc.dailyRate}/day flat rate`}
+                                </div>
+                              </div>
+                              <cf-button
+                                size="sm"
+                                variant="destructive"
+                                onClick={removeLocation({
+                                  locations,
+                                  locationId: loc.id,
+                                })}
+                              >
+                                Remove
+                              </cf-button>
+                            </div>
+                          ))}
+                        </cf-vstack>
+                      )
+                      : (
+                        <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
+                          No locations added yet.
+                        </div>
+                      );
                   })}
 
                   {/* Add new location form */}
@@ -2299,11 +2685,20 @@ Return the complete extracted text.`
                         $value={newLocationForm.key("name")}
                       />
                       <select
-                        style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px" }}
+                        style={{
+                          width: "100%",
+                          padding: "8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "6px",
+                        }}
                         value={newLocationForm.key("type")}
                       >
-                        <option value="afterschool-onsite">Afterschool - On-site</option>
-                        <option value="afterschool-offsite">Afterschool - Off-site</option>
+                        <option value="afterschool-onsite">
+                          Afterschool - On-site
+                        </option>
+                        <option value="afterschool-offsite">
+                          Afterschool - Off-site
+                        </option>
                         <option value="external">External Location</option>
                       </select>
                       <cf-input
@@ -2314,7 +2709,9 @@ Return the complete extracted text.`
                         <cf-checkbox
                           $checked={newLocationForm.key("hasFlatDailyRate")}
                         />
-                        <span style="font-size: 14px;">Has flat daily rate</span>
+                        <span style="font-size: 14px;">
+                          Has flat daily rate
+                        </span>
                         {ifElse(
                           newLocationForm.key("hasFlatDailyRate"),
                           <cf-input
@@ -2323,7 +2720,7 @@ Return the complete extracted text.`
                             placeholder="$/day"
                             $value={newLocationForm.key("dailyRate")}
                           />,
-                          null
+                          null,
                         )}
                       </cf-hstack>
                       <cf-button
@@ -2343,15 +2740,22 @@ Return the complete extracted text.`
                       Travel Times
                     </h3>
                     <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                      Set travel time (in minutes) between each pair of locations. Used for detecting schedule conflicts.
+                      Set travel time (in minutes) between each pair of
+                      locations. Used for detecting schedule conflicts.
                     </p>
                     <cf-vstack style="gap: 12px;">
                       {locationPairs.map((pair) => (
                         <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
                           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                            <span style="font-size: 13px; font-weight: 500;">{pair.loc1Name}</span>
-                            <span style="font-size: 12px; color: #9ca3af;">↔</span>
-                            <span style="font-size: 13px; font-weight: 500;">{pair.loc2Name}</span>
+                            <span style="font-size: 13px; font-weight: 500;">
+                              {pair.loc1Name}
+                            </span>
+                            <span style="font-size: 12px; color: #9ca3af;">
+                              ↔
+                            </span>
+                            <span style="font-size: 13px; font-weight: 500;">
+                              {pair.loc2Name}
+                            </span>
                           </div>
                           <cf-hstack style="gap: 8px; align-items: center;">
                             <cf-button
@@ -2382,7 +2786,7 @@ Return the complete extracted text.`
                       ))}
                     </cf-vstack>
                   </div>,
-                  null
+                  null,
                 )}
 
                 {/* Category Tags Section */}
@@ -2391,18 +2795,28 @@ Return the complete extracted text.`
                     Category Tags
                   </h3>
                   <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                    Tags help categorize classes. The AI will use these when importing.
+                    Tags help categorize classes. The AI will use these when
+                    importing.
                   </p>
 
                   {/* Existing tags */}
                   <cf-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
                     {categoryTags.map((tag) => (
-                      <div style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}>
-                        <span style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}>{tag.name}</span>
+                      <div
+                        style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}
+                      >
+                        <span
+                          style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}
+                        >
+                          {tag.name}
+                        </span>
                         <cf-button
                           size="sm"
                           variant="ghost"
-                          onClick={removeCategoryTag({ categoryTags, tagId: tag.id })}
+                          onClick={removeCategoryTag({
+                            categoryTags,
+                            tagId: tag.id,
+                          })}
                         >
                           ×
                         </cf-button>
@@ -2437,27 +2851,33 @@ Return the complete extracted text.`
 
                   {/* Existing friends */}
                   {derive(friends, (f) =>
-                    f.length > 0 ? (
-                      <cf-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                        {f.map((friend) => (
-                          <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
-                            <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">{friend.name}</span>
-                            <cf-button
-                              size="sm"
-                              variant="ghost"
-                              onClick={removeFriend({ friends, friendId: friend.id })}
-                            >
-                              ×
-                            </cf-button>
-                          </div>
-                        ))}
-                      </cf-hstack>
-                    ) : (
-                      <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
-                        No friends added yet.
-                      </div>
-                    )
-                  )}
+                    f.length > 0
+                      ? (
+                        <cf-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                          {f.map((friend) => (
+                            <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
+                              <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">
+                                {friend.name}
+                              </span>
+                              <cf-button
+                                size="sm"
+                                variant="ghost"
+                                onClick={removeFriend({
+                                  friends,
+                                  friendId: friend.id,
+                                })}
+                              >
+                                ×
+                              </cf-button>
+                            </div>
+                          ))}
+                        </cf-hstack>
+                      )
+                      : (
+                        <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
+                          No friends added yet.
+                        </div>
+                      ))}
 
                   {/* Add new friend */}
                   <cf-hstack style="gap: 8px;">
@@ -2475,19 +2895,22 @@ Return the complete extracted text.`
                   </cf-hstack>
                 </div>
               </cf-vstack>,
-              null
+              null,
             )}
 
             {/* ========== TAB 3: IMPORT ========== */}
             {ifElse(
               isImportTab,
               <cf-vstack style="padding: 16px; gap: 16px;">
-                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Import Classes</h2>
+                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">
+                  Import Classes
+                </h2>
 
                 <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
                   <p style="color: #6b7280; margin: 0 0 16px 0;">
-                    Paste class schedules from afterschool programs, recreation centers, or any source.
-                    The AI will extract class information and filter by eligibility.
+                    Paste class schedules from afterschool programs, recreation
+                    centers, or any source. The AI will extract class
+                    information and filter by eligibility.
                   </p>
 
                   {/* Location selector */}
@@ -2496,17 +2919,23 @@ Return the complete extracted text.`
                       Source Location
                     </label>
                     {ifElse(
-                      derive(locations, (locs) => locs.length === 0),
+                      derive(locations, (locs) =>
+                        locs.length === 0),
                       <div style="color: #f59e0b; font-size: 14px;">
-                        Add locations in the Configure tab before importing classes.
+                        Add locations in the Configure tab before importing
+                        classes.
                       </div>,
                       <cf-select
                         $value={importLocationId}
                         items={derive(locations, (locs: Location[]) => [
                           { label: "Select a location...", value: "" },
-                          ...(locs || []).filter((l) => l != null).map((loc) => ({ label: loc.name, value: loc.id }))
+                          ...(locs || []).filter((l) =>
+                            l != null
+                          ).map((
+                            loc,
+                          ) => ({ label: loc.name, value: loc.id })),
                         ])}
-                      />
+                      />,
                     )}
                   </div>
 
@@ -2527,11 +2956,15 @@ Return the complete extracted text.`
                       </span>
                     </div>
                     {ifElse(
-                      derive(uploadedFiles, (files: Array<{ id: string; name: string }>) => files.length > 0),
+                      derive(
+                        uploadedFiles,
+                        (files: Array<{ id: string; name: string }>) =>
+                          files.length > 0,
+                      ),
                       <div style="margin-top: 8px; font-size: 12px; color: #059669;">
                         ✓ File loaded - text extracted to field below
                       </div>,
-                      null
+                      null,
                     )}
                   </div>
 
@@ -2555,14 +2988,14 @@ Return the complete extracted text.`
                       <div style="margin-top: 8px; font-size: 12px; color: #059669;">
                         ✓ Image uploaded
                       </div>,
-                      null
+                      null,
                     )}
                     {ifElse(
                       isImageOcrPending,
                       <div style="margin-top: 8px; padding: 8px; background: #dbeafe; border-radius: 4px; color: #1e40af; font-size: 12px;">
                         🔍 Extracting text from image...
                       </div>,
-                      null
+                      null,
                     )}
                     {ifElse(
                       hasImageOcrResult,
@@ -2573,12 +3006,15 @@ Return the complete extracted text.`
                         <cf-button
                           size="sm"
                           variant="outline"
-                          onClick={copyOcrToImportText({ imageOcrResult, importText })}
+                          onClick={copyOcrToImportText({
+                            imageOcrResult,
+                            importText,
+                          })}
                         >
                           Use Extracted Text →
                         </cf-button>
                       </div>,
-                      null
+                      null,
                     )}
                   </div>
 
@@ -2599,24 +3035,32 @@ Return the complete extracted text.`
                     {ifElse(
                       canExtract,
                       <cf-button
-                        onClick={triggerExtraction({ importText, extractionTriggerText })}
+                        onClick={triggerExtraction({
+                          importText,
+                          extractionTriggerText,
+                        })}
                       >
                         🔍 Extract Classes
                       </cf-button>,
                       <cf-button disabled>
                         🔍 Extract Classes
-                      </cf-button>
+                      </cf-button>,
                     )}
                     {ifElse(
                       showExtractionHelp,
                       <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
                         {ifElse(
                           isLocationMissing,
-                          <span>Select a source location above to enable extraction.</span>,
-                          <span>Enter at least 50 characters of schedule text to enable extraction.</span>
+                          <span>
+                            Select a source location above to enable extraction.
+                          </span>,
+                          <span>
+                            Enter at least 50 characters of schedule text to
+                            enable extraction.
+                          </span>,
                         )}
                       </div>,
-                      null
+                      null,
                     )}
                   </div>
 
@@ -2626,13 +3070,15 @@ Return the complete extracted text.`
                     <div style="padding: 16px; background: #dbeafe; border-radius: 8px; margin-bottom: 12px;">
                       <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
                         <cf-loader />
-                        <span style="color: #1e40af; font-weight: 500;">Extracting classes...</span>
+                        <span style="color: #1e40af; font-weight: 500;">
+                          Extracting classes...
+                        </span>
                       </div>
                       <div style="text-align: center; color: #1e40af; font-size: 12px; margin-top: 8px;">
                         Analyzing {extractionTextLength} characters of text
                       </div>
                     </div>,
-                    null
+                    null,
                   )}
                 </div>
 
@@ -2651,30 +3097,50 @@ Return the complete extracted text.`
                           <div style="display: flex; gap: 8px;">
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: #166534; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                              onClick={selectAllInCategoryHandler({ stagedClassSelections, classIds: autoKeptClassIds })}
-                            >All</button>
+                              onClick={selectAllInCategoryHandler({
+                                stagedClassSelections,
+                                classIds: autoKeptClassIds,
+                              })}
+                            >
+                              All
+                            </button>
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #166534; border: 1px solid #166534; border-radius: 4px; cursor: pointer;"
-                              onClick={deselectAllInCategoryHandler({ stagedClassSelections, classIds: autoKeptClassIds })}
-                            >None</button>
+                              onClick={deselectAllInCategoryHandler({
+                                stagedClassSelections,
+                                classIds: autoKeptClassIds,
+                              })}
+                            >
+                              None
+                            </button>
                           </div>
                         </div>
                         <cf-vstack style="gap: 8px;">
-                          {autoKeptClasses.map((cls: StagedClassWithSelection) => (
+                          {autoKeptClasses.map((
+                            cls: StagedClassWithSelection,
+                          ) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                {/* TODO: Individual checkbox toggle doesn't work - onClick inside computed.map()
-                                    causes framework issues. All/None buttons work as workaround. */}
+                                {
+                                  /* TODO: Individual checkbox toggle doesn't work - onClick inside computed.map()
+                                    causes framework issues. All/None buttons work as workaround. */
+                                }
                                 <cf-checkbox
                                   checked={cls.selected}
                                   disabled
                                 />
                                 <div style="flex: 1;">
-                                  <div style="font-weight: 500;">{cls.name}</div>
+                                  <div style="font-weight: 500;">
+                                    {cls.name}
+                                  </div>
                                   <div style="font-size: 12px; color: #6b7280;">
-                                    {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                    {DAY_LABELS[
+                                      cls.timeSlots[0]?.day as DayOfWeek
+                                    ] || "?"} {cls.timeSlots[0]?.startTime ||
+                                      "?"}-{cls.timeSlots[0]?.endTime || "?"}
                                     {cls.cost > 0 && ` - $${cls.cost}`}
-                                    {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                    {cls.gradeMin &&
+                                      ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
                                   </div>
                                   <div style="font-size: 11px; color: #16a34a; margin-top: 2px;">
                                     {cls.eligibilityReason}
@@ -2685,7 +3151,7 @@ Return the complete extracted text.`
                           ))}
                         </cf-vstack>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Needs review classes - using filtered computed + handler */}
@@ -2699,16 +3165,28 @@ Return the complete extracted text.`
                           <div style="display: flex; gap: 8px;">
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: #854d0e; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                              onClick={selectAllInCategoryHandler({ stagedClassSelections, classIds: needsReviewClassIds })}
-                            >All</button>
+                              onClick={selectAllInCategoryHandler({
+                                stagedClassSelections,
+                                classIds: needsReviewClassIds,
+                              })}
+                            >
+                              All
+                            </button>
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #854d0e; border: 1px solid #854d0e; border-radius: 4px; cursor: pointer;"
-                              onClick={deselectAllInCategoryHandler({ stagedClassSelections, classIds: needsReviewClassIds })}
-                            >None</button>
+                              onClick={deselectAllInCategoryHandler({
+                                stagedClassSelections,
+                                classIds: needsReviewClassIds,
+                              })}
+                            >
+                              None
+                            </button>
                           </div>
                         </div>
                         <cf-vstack style="gap: 8px;">
-                          {needsReviewClasses.map((cls: StagedClassWithSelection) => (
+                          {needsReviewClasses.map((
+                            cls: StagedClassWithSelection,
+                          ) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
                                 <cf-checkbox
@@ -2716,14 +3194,23 @@ Return the complete extracted text.`
                                   disabled
                                 />
                                 <div style="flex: 1;">
-                                  <div style="font-weight: 500;">{cls.name}</div>
+                                  <div style="font-weight: 500;">
+                                    {cls.name}
+                                  </div>
                                   <div style="font-size: 12px; color: #6b7280;">
-                                    {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                    {DAY_LABELS[
+                                      cls.timeSlots[0]?.day as DayOfWeek
+                                    ] || "?"} {cls.timeSlots[0]?.startTime ||
+                                      "?"}-{cls.timeSlots[0]?.endTime || "?"}
                                     {cls.cost > 0 && ` - $${cls.cost}`}
-                                    {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                    {cls.gradeMin &&
+                                      ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
                                   </div>
                                   <div style="font-size: 11px; color: #ca8a04; margin-top: 2px;">
-                                    {cls.eligibilityReason} (confidence: {Math.round(cls.eligibilityConfidence * 100)}%)
+                                    {cls.eligibilityReason} (confidence:{" "}
+                                    {Math.round(
+                                      cls.eligibilityConfidence * 100,
+                                    )}%)
                                   </div>
                                 </div>
                               </div>
@@ -2731,7 +3218,7 @@ Return the complete extracted text.`
                           ))}
                         </cf-vstack>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Auto-discarded classes - using filtered computed + handler */}
@@ -2745,16 +3232,28 @@ Return the complete extracted text.`
                           <div style="display: flex; gap: 8px;">
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                              onClick={selectAllInCategoryHandler({ stagedClassSelections, classIds: autoDiscardedClassIds })}
-                            >All</button>
+                              onClick={selectAllInCategoryHandler({
+                                stagedClassSelections,
+                                classIds: autoDiscardedClassIds,
+                              })}
+                            >
+                              All
+                            </button>
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #6b7280; border: 1px solid #6b7280; border-radius: 4px; cursor: pointer;"
-                              onClick={deselectAllInCategoryHandler({ stagedClassSelections, classIds: autoDiscardedClassIds })}
-                            >None</button>
+                              onClick={deselectAllInCategoryHandler({
+                                stagedClassSelections,
+                                classIds: autoDiscardedClassIds,
+                              })}
+                            >
+                              None
+                            </button>
                           </div>
                         </div>
                         <cf-vstack style="gap: 8px;">
-                          {autoDiscardedClasses.map((cls: StagedClassWithSelection) => (
+                          {autoDiscardedClasses.map((
+                            cls: StagedClassWithSelection,
+                          ) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px; opacity: 0.7;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
                                 <cf-checkbox
@@ -2762,10 +3261,16 @@ Return the complete extracted text.`
                                   disabled
                                 />
                                 <div style="flex: 1;">
-                                  <div style="font-weight: 500; text-decoration: line-through;">{cls.name}</div>
+                                  <div style="font-weight: 500; text-decoration: line-through;">
+                                    {cls.name}
+                                  </div>
                                   <div style="font-size: 12px; color: #9ca3af;">
-                                    {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
-                                    {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                    {DAY_LABELS[
+                                      cls.timeSlots[0]?.day as DayOfWeek
+                                    ] || "?"} {cls.timeSlots[0]?.startTime ||
+                                      "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                    {cls.gradeMin &&
+                                      ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
                                   </div>
                                   <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
                                     {cls.eligibilityReason}
@@ -2776,7 +3281,7 @@ Return the complete extracted text.`
                           ))}
                         </cf-vstack>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Suggested new tags - use ifElse with pre-computed values */}
@@ -2797,7 +3302,7 @@ Return the complete extracted text.`
                           Add these in Settings to use them in future imports.
                         </div>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Confirm Import Button - counts selected classes */}
@@ -2806,19 +3311,30 @@ Return the complete extracted text.`
                       <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 16px; text-align: center;">
                         <cf-button
                           variant="default"
-                          style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
-                          onClick={confirmImportHandler({ classes, importText, stagedClassSelections, classesToImport })}
+                          style={{
+                            width: "100%",
+                            padding: "12px 24px",
+                            fontSize: "16px",
+                            fontWeight: "600",
+                          }}
+                          onClick={confirmImportHandler({
+                            classes,
+                            importText,
+                            stagedClassSelections,
+                            classesToImport,
+                          })}
                         >
-                          Import {selectedClassCount} Class{ifElse(selectedClassCountIsOne, "", "es")}
+                          Import {selectedClassCount}{" "}
+                          Class{ifElse(selectedClassCountIsOne, "", "es")}
                         </cf-button>
                         <div style="font-size: 12px; color: #059669; margin-top: 8px;">
                           Selected classes will be added to your class list.
                         </div>
                       </div>,
-                      null
+                      null,
                     )}
                   </cf-vstack>,
-                  null
+                  null,
                 )}
 
                 {/* Manual Class Entry */}
@@ -2847,7 +3363,10 @@ Return the complete extracted text.`
                         </label>
                         <cf-select
                           $value={manualClassForm.key("day")}
-                          items={DAYS_OF_WEEK.map((d) => ({ label: DAY_LABELS[d], value: d }))}
+                          items={DAYS_OF_WEEK.map((d) => ({
+                            label: DAY_LABELS[d],
+                            value: d,
+                          }))}
                         />
                       </div>
                     </cf-hstack>
@@ -2934,22 +3453,29 @@ Return the complete extracted text.`
                       </div>,
                       <cf-button
                         variant="default"
-                        onClick={addManualClass({ classes, manualClassForm, importLocationId, locations })}
+                        onClick={addManualClass({
+                          classes,
+                          manualClassForm,
+                          importLocationId,
+                          locations,
+                        })}
                       >
                         Add Class
-                      </cf-button>
+                      </cf-button>,
                     )}
                   </cf-vstack>
                 </div>
               </cf-vstack>,
-              null
+              null,
             )}
 
             {/* ========== TAB 4: SELECTION ========== */}
             {ifElse(
               isSelectionTab,
               <cf-vstack style="padding: 16px; gap: 16px;">
-                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Selection Builder</h2>
+                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">
+                  Selection Builder
+                </h2>
 
                 {/* Show message if no classes imported yet */}
                 {ifElse(
@@ -2957,9 +3483,10 @@ Return the complete extracted text.`
                   null,
                   <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px;">
                     <p style="color: #92400e; margin: 0;">
-                      No classes imported yet. Go to the Import tab to add classes first!
+                      No classes imported yet. Go to the Import tab to add
+                      classes first!
                     </p>
-                  </div>
+                  </div>,
                 )}
 
                 {/* Main selection builder - using computed values and ifElse instead of derive */}
@@ -3005,7 +3532,7 @@ Return the complete extracted text.`
                               >
                                 Delete Set
                               </cf-button>,
-                              null
+                              null,
                             )}
                           </div>
 
@@ -3018,7 +3545,7 @@ Return the complete extracted text.`
                               </div>
                               {conflictWarnings}
                             </div>,
-                            null
+                            null,
                           )}
 
                           {/* Day-by-day schedule */}
@@ -3028,8 +3555,9 @@ Return the complete extracted text.`
                               {pinnedScheduleByDay}
                             </cf-vstack>,
                             <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
-                              No classes pinned yet. Add classes from the right panel.
-                            </p>
+                              No classes pinned yet. Add classes from the right
+                              panel.
+                            </p>,
                           )}
 
                           {/* Cost summary */}
@@ -3040,14 +3568,14 @@ Return the complete extracted text.`
                                 <strong>Total Cost:</strong> ${totalPinnedCost}
                               </div>
                             </div>,
-                            null
+                            null,
                           )}
                         </div>,
                         <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
                           <p style="color: #9ca3af; font-size: 13px; margin: 0;">
                             Create a set to start building your schedule.
                           </p>
-                        </div>
+                        </div>,
                       )}
                     </div>
 
@@ -3065,7 +3593,7 @@ Return the complete extracted text.`
                             {suggestedSetsDisplay}
                           </cf-vstack>
                         </div>,
-                        null
+                        null,
                       )}
 
                       {/* Ranked Individual Classes Section */}
@@ -3074,7 +3602,8 @@ Return the complete extracted text.`
                           📊 Ranked Classes ({availableClassCount})
                         </h3>
                         <p style="font-size: 11px; color: #6b7280; margin: 0 0 12px 0;">
-                          Scored by preferences, friends, and schedule compatibility
+                          Scored by preferences, friends, and schedule
+                          compatibility
                         </p>
 
                         {ifElse(
@@ -3085,19 +3614,19 @@ Return the complete extracted text.`
                           </cf-vstack>,
                           <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
                             All classes are pinned to this set!
-                          </p>
+                          </p>,
                         )}
                       </div>
                     </div>
                   </cf-hstack>,
-                  null
+                  null,
                 )}
               </cf-vstack>,
-              null
+              null,
             )}
           </div>
         </cf-screen>
       ),
     };
-  }
+  },
 );

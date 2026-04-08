@@ -54,8 +54,12 @@ export default pattern<Record<string, never>>((_) => {
 
   // For display purposes
   const userEmail = computed(() => wishResult?.result?.auth?.user?.email || "");
-  const userName = computed(() => wishResult?.result?.auth?.user?.name || "N/A");
-  const hasToken = computed(() => wishResult?.result?.auth?.token ? "Yes" : "No");
+  const userName = computed(() =>
+    wishResult?.result?.auth?.user?.name || "N/A"
+  );
+  const hasToken = computed(() =>
+    wishResult?.result?.auth?.token ? "Yes" : "No"
+  );
   const wishError = computed(() => wishResult?.error);
   const wishUI = computed(() => wishResult?.$UI);
 
@@ -70,12 +74,14 @@ export default pattern<Record<string, never>>((_) => {
           const state = authState;
           if (state === "loading") {
             return (
-              <div style={{
-                padding: "15px",
-                borderRadius: "8px",
-                backgroundColor: "#f8f9fa",
-                border: "1px solid #dee2e6",
-              }}>
+              <div
+                style={{
+                  padding: "15px",
+                  borderRadius: "8px",
+                  backgroundColor: "#f8f9fa",
+                  border: "1px solid #dee2e6",
+                }}
+              >
                 <p>Loading...</p>
               </div>
             );
@@ -84,16 +90,24 @@ export default pattern<Record<string, never>>((_) => {
           if (state === "authenticated") {
             // State 3: Fully authenticated
             return (
-              <div style={{
-                padding: "15px",
-                borderRadius: "8px",
-                backgroundColor: "#d4edda",
-                border: "1px solid #c3e6cb",
-              }}>
+              <div
+                style={{
+                  padding: "15px",
+                  borderRadius: "8px",
+                  backgroundColor: "#d4edda",
+                  border: "1px solid #c3e6cb",
+                }}
+              >
                 <h3 style={{ margin: "0 0 10px 0" }}>Status: Authenticated</h3>
-                <p><strong>Email:</strong> {userEmail}</p>
-                <p><strong>Name:</strong> {userName}</p>
-                <p><strong>Has Token:</strong> {hasToken}</p>
+                <p>
+                  <strong>Email:</strong> {userEmail}
+                </p>
+                <p>
+                  <strong>Name:</strong> {userName}
+                </p>
+                <p>
+                  <strong>Has Token:</strong> {hasToken}
+                </p>
               </div>
             );
           }
@@ -101,22 +115,29 @@ export default pattern<Record<string, never>>((_) => {
           if (state === "found-not-authenticated") {
             // State 2: Charm found but not authenticated - show inline auth UI
             return (
-              <div style={{
-                padding: "15px",
-                borderRadius: "8px",
-                backgroundColor: "#fff3cd",
-                border: "1px solid #ffeeba",
-              }}>
-                <h3 style={{ margin: "0 0 10px 0" }}>Status: Auth Charm Found (Not Logged In)</h3>
+              <div
+                style={{
+                  padding: "15px",
+                  borderRadius: "8px",
+                  backgroundColor: "#fff3cd",
+                  border: "1px solid #ffeeba",
+                }}
+              >
+                <h3 style={{ margin: "0 0 10px 0" }}>
+                  Status: Auth Charm Found (Not Logged In)
+                </h3>
                 <p style={{ marginBottom: "15px" }}>
-                  Found your Gmail Auth charm, but you're not logged in yet. Authenticate below:
+                  Found your Gmail Auth charm, but you're not logged in yet.
+                  Authenticate below:
                 </p>
-                <div style={{
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  borderRadius: "6px",
-                  border: "1px solid #ddd",
-                }}>
+                <div
+                  style={{
+                    padding: "10px",
+                    backgroundColor: "#fff",
+                    borderRadius: "6px",
+                    border: "1px solid #ddd",
+                  }}
+                >
                   {wishUI}
                 </div>
               </div>
@@ -125,29 +146,43 @@ export default pattern<Record<string, never>>((_) => {
 
           // State 1: Not found
           return (
-            <div style={{
-              padding: "15px",
-              borderRadius: "8px",
-              backgroundColor: "#f8d7da",
-              border: "1px solid #f5c6cb",
-            }}>
-              <h3 style={{ margin: "0 0 10px 0" }}>Status: No Auth Charm Found</h3>
-              {computed(() => wishError ? (
-                <p style={{ color: "#721c24", marginBottom: "10px" }}>
-                  <strong>Error:</strong> {wishError}
-                </p>
-              ) : null)}
-              <div style={{
-                padding: "12px",
-                backgroundColor: "#e7f3ff",
-                borderRadius: "6px",
-                border: "1px solid #b6d4fe",
-              }}>
+            <div
+              style={{
+                padding: "15px",
+                borderRadius: "8px",
+                backgroundColor: "#f8d7da",
+                border: "1px solid #f5c6cb",
+              }}
+            >
+              <h3 style={{ margin: "0 0 10px 0" }}>
+                Status: No Auth Charm Found
+              </h3>
+              {computed(() =>
+                wishError
+                  ? (
+                    <p style={{ color: "#721c24", marginBottom: "10px" }}>
+                      <strong>Error:</strong> {wishError}
+                    </p>
+                  )
+                  : null
+              )}
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: "#e7f3ff",
+                  borderRadius: "6px",
+                  border: "1px solid #b6d4fe",
+                }}
+              >
                 <strong>To fix:</strong>
                 <ol style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
-                  <li>Deploy a <code>gmail-auth.tsx</code> pattern</li>
+                  <li>
+                    Deploy a <code>gmail-auth.tsx</code> pattern
+                  </li>
                   <li>Click the star button to favorite it</li>
-                  <li>Come back here - you'll be able to authenticate inline!</li>
+                  <li>
+                    Come back here - you'll be able to authenticate inline!
+                  </li>
                 </ol>
               </div>
             </div>
@@ -158,26 +193,36 @@ export default pattern<Record<string, never>>((_) => {
           <summary style={{ cursor: "pointer", marginBottom: "10px" }}>
             Debug: Raw Wish Result
           </summary>
-          <pre style={{
-            backgroundColor: "#f5f5f5",
-            padding: "10px",
-            borderRadius: "4px",
-            overflow: "auto",
-            fontSize: "12px",
-          }}>
+          <pre
+            style={{
+              backgroundColor: "#f5f5f5",
+              padding: "10px",
+              borderRadius: "4px",
+              overflow: "auto",
+              fontSize: "12px",
+            }}
+          >
             {computed(() => JSON.stringify(wishResult, null, 2))}
           </pre>
         </details>
 
         <div style={{ marginTop: "20px", fontSize: "14px", color: "#666" }}>
           <p>
-            This pattern uses <code>wish(&lbrace; query: "#googleAuth" &rbrace;)</code> to
-            discover a favorited Google Auth charm. It shows three states:
+            This pattern uses{" "}
+            <code>wish(&lbrace; query: "#googleAuth" &rbrace;)</code>{" "}
+            to discover a favorited Google Auth charm. It shows three states:
           </p>
           <ol>
-            <li><strong>Not Found</strong> - No favorited auth charm</li>
-            <li><strong>Found (Not Logged In)</strong> - Auth charm found, renders inline for login</li>
-            <li><strong>Authenticated</strong> - Fully working with token</li>
+            <li>
+              <strong>Not Found</strong> - No favorited auth charm
+            </li>
+            <li>
+              <strong>Found (Not Logged In)</strong>{" "}
+              - Auth charm found, renders inline for login
+            </li>
+            <li>
+              <strong>Authenticated</strong> - Fully working with token
+            </li>
           </ol>
         </div>
       </div>

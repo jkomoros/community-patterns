@@ -6,14 +6,14 @@
  * when using generateObject with computed values that read from input cells.
  */
 import {
-  Writable,
   computed,
   Default,
   generateObject,
   NAME,
   pattern,
-  UI,
   safeDateNow,
+  UI,
+  Writable,
 } from "commonfabric";
 
 // Simple type for the array items
@@ -89,15 +89,13 @@ export default pattern<ReproInput, ReproOutput>(({ items }) => {
           This pattern tries to reproduce the Frame mismatch error by using
           generateObject with computed prompts that read from input cells.
         </p>
-        {hasItems ? (
-          <ul>
-            {items.map((item) => (
-              <li key={item.id}>{item.label}</li>
-            ))}
-          </ul>
-        ) : (
-          <p>No items yet</p>
-        )}
+        {hasItems
+          ? (
+            <ul>
+              {items.map((item) => <li key={item.id}>{item.label}</li>)}
+            </ul>
+          )
+          : <p>No items yet</p>}
         <cf-button
           onClick={() => {
             items.push({ id: `item-${safeDateNow()}`, label: "Test Item" });

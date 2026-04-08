@@ -2,26 +2,37 @@
 
 ## Summary
 
-I'm building a pattern that needs to automatically save data when an LLM extraction completes. I've tried using `computed()` to watch for completion and trigger saves, but encountered runtime errors. **What's the correct way to perform side effects automatically when reactive values change?**
+I'm building a pattern that needs to automatically save data when an LLM
+extraction completes. I've tried using `computed()` to watch for completion and
+trigger saves, but encountered runtime errors. **What's the correct way to
+perform side effects automatically when reactive values change?**
 
 ## Use Case
 
-**Pattern:** Hotel Membership Extractor - automatically extracts hotel loyalty numbers from Gmail
+**Pattern:** Hotel Membership Extractor - automatically extracts hotel loyalty
+numbers from Gmail
 
 **Workflow:**
+
 1. LLM generates a Gmail search query
 2. Gmail API fetches emails
 3. LLM extracts membership numbers from emails
-4. **Need:** Automatically save results to pattern state when extraction completes
+4. **Need:** Automatically save results to pattern state when extraction
+   completes
 
 **Why automatic save is needed:**
-- Multiple iterations: LLM refines queries based on previous results (e.g., if first query finds promotional emails but no memberships, try more specific query)
+
+- Multiple iterations: LLM refines queries based on previous results (e.g., if
+  first query finds promotional emails but no memberships, try more specific
+  query)
 - User shouldn't manually click "Save" after each iteration
-- Need seamless iteration: Extract → Auto-save → Refine query → Extract → Auto-save → ...
+- Need seamless iteration: Extract → Auto-save → Refine query → Extract →
+  Auto-save → ...
 
 ## Current State (Working - Manual Save)
 
-The pattern works correctly with a manual save button, but requires user to click after each extraction:
+The pattern works correctly with a manual save button, but requires user to
+click after each extraction:
 
 ```typescript
 // Handler for manual save (WORKS)
@@ -42,9 +53,17 @@ const saveResults = handler<unknown, {
 });
 
 // UI Button
-<ct-button onClick={saveResults({ memberships, brandHistory, extractorResult, queryResult, emails })}>
+<ct-button
+  onClick={saveResults({
+    memberships,
+    brandHistory,
+    extractorResult,
+    queryResult,
+    emails,
+  })}
+>
   💾 Save Results
-</ct-button>
+</ct-button>;
 ```
 
 ## What We Tried (Failed Attempts)
@@ -69,11 +88,13 @@ computed(() => {
 ```
 
 **Error:**
+
 ```
 TypeError: extractorResult.get is not a function
 ```
 
-**Analysis:** `extractorResult` from `generateObject` is already a value, not a cell.
+**Analysis:** `extractorResult` from `generateObject` is already a value, not a
+cell.
 
 ---
 
@@ -84,9 +105,9 @@ const autoSave = computed(() => {
   // Note: extractorResult and queryResult are already values (not cells)
   const extracted = extractorResult;
   const queryResultData = queryResult;
-  const scanning = isScanning.get();  // Pattern input cell
-  const pending = extractorPending;   // Already a boolean
-  const emailsList = emails.get();    // Pattern output cell
+  const scanning = isScanning.get(); // Pattern input cell
+  const pending = extractorPending; // Already a boolean
+  const emailsList = emails.get(); // Pattern output cell
 
   if (!extracted || !queryResultData || !emailsList) return;
   if (!scanning || pending) return;
@@ -100,11 +121,13 @@ const autoSave = computed(() => {
 ```
 
 **Error:**
+
 ```
 TypeError: isScanning.get is not a function
 ```
 
-**Analysis:** Inside `computed()`, even pattern input cells don't have `.get()` method.
+**Analysis:** Inside `computed()`, even pattern input cells don't have `.get()`
+method.
 
 ---
 
@@ -114,7 +137,17 @@ Here's the complete pattern showing where automatic save is needed:
 
 ```typescript
 /// <cts-enable />
-import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commonfabric";
+import {
+  Cell,
+  computed,
+  Default,
+  derive,
+  generateObject,
+  handler,
+  NAME,
+  pattern,
+  UI,
+} from "commonfabric";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -149,7 +182,10 @@ interface HotelMembershipInput {
   memberships: Default<MembershipRecord[], []>;
   scannedEmailIds: Default<string[], []>;
   lastScanAt: Default<number, 0>;
-  brandHistory: Default<BrandSearchHistory[], [{ brand: "Marriott"; attempts: []; status: "searching" }]>;
+  brandHistory: Default<
+    BrandSearchHistory[],
+    [{ brand: "Marriott"; attempts: []; status: "searching" }]
+  >;
   searchedBrands: Default<string[], []>;
   searchedNotFound: Default<any[], []>;
   unsearchedBrands: Default<string[], []>;
@@ -195,12 +231,16 @@ export default pattern<HotelMembershipInput>(({
   const authCharm = GmailAuth({ auth: auth });
 
   // Stage 1: LLM Query Generator - generates Gmail search queries
-  const queryGeneratorPrompt = derive(brandHistory, (history: BrandSearchHistory[]) => {
-    return JSON.stringify({ brandHistory: history });
-  });
+  const queryGeneratorPrompt = derive(
+    brandHistory,
+    (history: BrandSearchHistory[]) => {
+      return JSON.stringify({ brandHistory: history });
+    },
+  );
 
   const { result: queryResult, pending: queryPending } = generateObject({
-    system: `Given the brand search history, suggest the next Gmail query to try.
+    system:
+      `Given the brand search history, suggest the next Gmail query to try.
 
 You can see complete history of all query attempts for each brand. Analyze previous attempts:
 - What queries were tried?
@@ -217,8 +257,9 @@ Return:
 - selectedBrand: The brand to search next
 - query: The Gmail query string
 - reasoning: Why you chose this query`,
-    prompt: derive([queryGeneratorPrompt, queryGeneratorInput], ([state, trigger]) =>
-      trigger ? `${state}\n---TRIGGER-${trigger}---` : ""
+    prompt: derive(
+      [queryGeneratorPrompt, queryGeneratorInput],
+      ([state, trigger]) => trigger ? `${state}\n---TRIGGER-${trigger}---` : "",
     ),
     model: "anthropic:claude-sonnet-4-5",
     schema: {
@@ -236,11 +277,14 @@ Return:
   const autoQuery = derive(
     [queryResult, queryPending, isScanning, gmailFilterQuery],
     ([result, pending, scanning, manualQuery]) => {
-      if (scanning && !pending && result && result.query && result.query !== "done") {
+      if (
+        scanning && !pending && result && result.query &&
+        result.query !== "done"
+      ) {
         return result.query;
       }
       return manualQuery;
-    }
+    },
   );
 
   // Fetch emails with auto-generated query
@@ -256,25 +300,35 @@ Return:
   const emails = importer.emails;
 
   // Automatically trigger extraction when emails arrive
-  const autoExtractorTrigger = derive([emails, queryPending, isScanning], ([emailList, qPending, scanning]) => {
-    if (!emailList || !Array.isArray(emailList)) return "";
-    if (scanning && !qPending && emailList.length > 0) {
-      const emailIds = emailList.map((e: any) => e.id).sort().join(",");
-      return `AUTO-${emailIds}`;
-    }
-    return "";
-  });
+  const autoExtractorTrigger = derive(
+    [emails, queryPending, isScanning],
+    ([emailList, qPending, scanning]) => {
+      if (!emailList || !Array.isArray(emailList)) return "";
+      if (scanning && !qPending && emailList.length > 0) {
+        const emailIds = emailList.map((e: any) => e.id).sort().join(",");
+        return `AUTO-${emailIds}`;
+      }
+      return "";
+    },
+  );
 
   // Stage 2: LLM Membership Extractor
   const extractorPrompt = derive(
     [emails, memberships],
     ([emailList, existingMemberships]: [any[], MembershipRecord[]]) => {
-      const safeEmailList = (emailList && Array.isArray(emailList)) ? emailList : [];
-      const safeExistingMemberships = (existingMemberships && Array.isArray(existingMemberships)) ? existingMemberships : [];
-      const existingNumbers = safeExistingMemberships.map(m => m.membershipNumber);
+      const safeEmailList = (emailList && Array.isArray(emailList))
+        ? emailList
+        : [];
+      const safeExistingMemberships =
+        (existingMemberships && Array.isArray(existingMemberships))
+          ? existingMemberships
+          : [];
+      const existingNumbers = safeExistingMemberships.map((m) =>
+        m.membershipNumber
+      );
 
       return JSON.stringify({
-        emails: safeEmailList.map(email => ({
+        emails: safeEmailList.map((email) => ({
           id: email.id,
           subject: email.subject,
           from: email.from,
@@ -283,11 +337,12 @@ Return:
         })),
         existingMembershipNumbers: existingNumbers,
       });
-    }
+    },
   );
 
-  const { result: extractorResult, pending: extractorPending } = generateObject({
-    system: `Extract hotel loyalty program membership information from emails.
+  const { result: extractorResult, pending: extractorPending } = generateObject(
+    {
+      system: `Extract hotel loyalty program membership information from emails.
 
 Look for:
 - Hotel brand name (Marriott, Hilton, Hyatt, IHG, etc.)
@@ -296,34 +351,44 @@ Look for:
 - Tier levels (Gold, Platinum, Diamond, etc.)
 
 Return empty array if no NEW memberships found.`,
-    prompt: derive([extractorPrompt, autoExtractorTrigger], ([data, trigger]) =>
-      trigger ? `${data}\n---TRIGGER-${trigger}---` : ""
-    ),
-    model: "anthropic:claude-sonnet-4-5",
-    schema: {
-      type: "object",
-      properties: {
-        memberships: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              hotelBrand: { type: "string" },
-              programName: { type: "string" },
-              membershipNumber: { type: "string" },
-              tier: { type: "string" },
-              sourceEmailId: { type: "string" },
-              sourceEmailSubject: { type: "string" },
-              sourceEmailDate: { type: "string" },
-              confidence: { type: "number" },
+      prompt: derive(
+        [extractorPrompt, autoExtractorTrigger],
+        ([data, trigger]) => trigger ? `${data}\n---TRIGGER-${trigger}---` : "",
+      ),
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object",
+        properties: {
+          memberships: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                hotelBrand: { type: "string" },
+                programName: { type: "string" },
+                membershipNumber: { type: "string" },
+                tier: { type: "string" },
+                sourceEmailId: { type: "string" },
+                sourceEmailSubject: { type: "string" },
+                sourceEmailDate: { type: "string" },
+                confidence: { type: "number" },
+              },
+              required: [
+                "hotelBrand",
+                "programName",
+                "membershipNumber",
+                "sourceEmailId",
+                "sourceEmailSubject",
+                "sourceEmailDate",
+                "confidence",
+              ],
             },
-            required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
           },
         },
+        required: ["memberships"],
       },
-      required: ["memberships"],
     },
-  });
+  );
 
   // ============================================
   // THIS IS WHERE WE NEED AUTOMATIC SAVE
@@ -342,9 +407,9 @@ Return empty array if no NEW memberships found.`,
 
   computed(() => {
     // This fails - how should we do this?
-    const extracted = extractorResult.get();  // ERROR: extractorResult.get is not a function
+    const extracted = extractorResult.get(); // ERROR: extractorResult.get is not a function
     const queryResultData = queryResult.get();
-    const scanning = isScanning.get();         // ERROR: isScanning.get is not a function
+    const scanning = isScanning.get(); // ERROR: isScanning.get is not a function
     const pending = extractorPending.get();
     const emailsList = emails.get();
 
@@ -389,7 +454,7 @@ Return empty array if no NEW memberships found.`,
     };
 
     // Find or create brand history entry
-    let brandEntry = currentHistory.find(h => h.brand === selectedBrand);
+    let brandEntry = currentHistory.find((h) => h.brand === selectedBrand);
     let updatedHistory: BrandSearchHistory[];
 
     if (brandEntry) {
@@ -403,7 +468,7 @@ Return empty array if no NEW memberships found.`,
         newStatus = "searching";
       }
 
-      updatedHistory = currentHistory.map(h =>
+      updatedHistory = currentHistory.map((h) =>
         h.brand === selectedBrand
           ? { ...h, attempts: newAttempts, status: newStatus }
           : h
@@ -434,7 +499,8 @@ Return empty array if no NEW memberships found.`,
     auth: Cell<Default<any, any>>;
   }>((_, state) => {
     const authData = state.auth.get();
-    const authenticated = !!(authData && authData.token && authData.user && authData.user.email);
+    const authenticated =
+      !!(authData && authData.token && authData.user && authData.user.email);
 
     if (!authenticated) return;
 
@@ -454,7 +520,12 @@ Return empty array if no NEW memberships found.`,
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
             <ct-button
-              onClick={startScan({ queryGeneratorInput, isScanning, currentQuery, auth })}
+              onClick={startScan({
+                queryGeneratorInput,
+                isScanning,
+                currentQuery,
+                auth,
+              })}
               size="lg"
             >
               🔍 Scan for Hotel Memberships
@@ -470,21 +541,34 @@ Return empty array if no NEW memberships found.`,
             <details>
               <summary>🔧 Debug Info</summary>
               {derive(brandHistory, (history) => {
-                if (!history || !Array.isArray(history) || history.length === 0) {
+                if (
+                  !history || !Array.isArray(history) || history.length === 0
+                ) {
                   return <div>No history yet</div>;
                 }
                 return history.map((brandEntry) => (
                   <details>
                     <summary>
-                      {brandEntry.brand} - Status: {brandEntry.status} ({brandEntry.attempts.length} attempts)
+                      {brandEntry.brand} - Status: {brandEntry.status}{" "}
+                      ({brandEntry.attempts.length} attempts)
                     </summary>
                     <div>
                       {brandEntry.attempts.map((attempt, idx) => (
                         <div>
-                          <div><strong>Attempt {idx + 1}:</strong> {new Date(attempt.attemptedAt).toLocaleString()}</div>
-                          <div><strong>Query:</strong> {attempt.query}</div>
-                          <div><strong>Results:</strong> {attempt.emailsFound} emails → {attempt.membershipsFound} memberships</div>
-                          {attempt.membershipsFound > 0 && <div>✅ Success!</div>}
+                          <div>
+                            <strong>Attempt {idx + 1}:</strong>{" "}
+                            {new Date(attempt.attemptedAt).toLocaleString()}
+                          </div>
+                          <div>
+                            <strong>Query:</strong> {attempt.query}
+                          </div>
+                          <div>
+                            <strong>Results:</strong> {attempt.emailsFound}{" "}
+                            emails → {attempt.membershipsFound} memberships
+                          </div>
+                          {attempt.membershipsFound > 0 && (
+                            <div>✅ Success!</div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -502,7 +586,8 @@ Return empty array if no NEW memberships found.`,
 
 ## Questions
 
-1. **How should we perform side effects automatically when reactive values change?**
+1. **How should we perform side effects automatically when reactive values
+   change?**
    - Is there a different primitive than `computed()` for this?
    - Should we be structuring the pattern differently?
 
@@ -521,13 +606,15 @@ Return empty array if no NEW memberships found.`,
 ## Desired Behavior
 
 When `extractorResult` completes (i.e., `extractorPending` becomes `false`):
+
 1. Automatically read the results
 2. Update `memberships` cell with new findings
 3. Update `brandHistory` cell with this query attempt
 4. Update `lastScanAt` timestamp
 5. No user interaction required
 
-This enables seamless iteration where the LLM can refine queries based on previous results without manual intervention between iterations.
+This enables seamless iteration where the LLM can refine queries based on
+previous results without manual intervention between iterations.
 
 ## Environment
 

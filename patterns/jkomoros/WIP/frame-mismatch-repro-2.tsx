@@ -6,7 +6,6 @@
  */
 import {
   BuiltInLLMMessage,
-  Writable,
   computed,
   Default,
   generateObject,
@@ -14,9 +13,10 @@ import {
   llmDialog,
   NAME,
   pattern,
+  safeDateNow,
   Stream,
   UI,
-  safeDateNow,
+  Writable,
 } from "commonfabric";
 
 // Simple assumption type
@@ -135,11 +135,11 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
           </div>
           <div style={{ flex: 1 }}>
             <h3>Assumptions</h3>
-            {hasAssumptions ? (
-              assumptions.map((a) => <div key={a.id}>{a.label}</div>)
-            ) : (
-              <p>No assumptions yet</p>
-            )}
+            {hasAssumptions
+              ? (
+                assumptions.map((a) => <div key={a.id}>{a.label}</div>)
+              )
+              : <p>No assumptions yet</p>}
           </div>
         </div>
         <cf-prompt-input

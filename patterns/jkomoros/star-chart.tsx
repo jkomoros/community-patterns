@@ -5,11 +5,11 @@ import {
   handler,
   ifElse,
   NAME,
+  nonPrivateRandom,
   pattern,
   safeDateNow,
   UI,
   Writable,
-  nonPrivateRandom,
 } from "commonfabric";
 
 /**

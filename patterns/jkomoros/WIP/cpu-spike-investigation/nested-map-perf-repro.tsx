@@ -74,7 +74,7 @@ const triggerRender = handler<
 const clearItems = handler<Record<string, never>, { items: Writable<Item[]> }>(
   (_, { items }) => {
     items.set([]);
-  }
+  },
 );
 
 export default pattern<Props>(({ itemCount, childCount }) => {
@@ -85,13 +85,16 @@ export default pattern<Props>(({ itemCount, childCount }) => {
   const totalCells = computed(() => {
     const list = items.get();
     if (list.length === 0) return 0;
-    return list.length + list.reduce((sum, item) => sum + item.children.length, 0);
+    return list.length +
+      list.reduce((sum, item) => sum + item.children.length, 0);
   });
 
   // Computed for status message
   const status = computed(() => {
     const count = items.get().length;
-    if (count === 0) return "No items loaded. Click 'Load Items' to trigger the bug.";
+    if (count === 0) {
+      return "No items loaded. Click 'Load Items' to trigger the bug.";
+    }
     return `Loaded ${count} items with ${totalCells} total cells`;
   });
 
@@ -109,9 +112,10 @@ export default pattern<Props>(({ itemCount, childCount }) => {
             borderRadius: "4px",
           }}
         >
-          <strong>⚠️ BUG:</strong> This pattern demonstrates O(n²) scheduler
-          performance. Loading {itemCount} × {childCount} = {itemCount * childCount} nested items
-          should be instant but may take 10-30+ seconds.
+          <strong>⚠️ BUG:</strong>{" "}
+          This pattern demonstrates O(n²) scheduler performance. Loading{" "}
+          {itemCount} × {childCount} = {itemCount * childCount}{" "}
+          nested items should be instant but may take 10-30+ seconds.
         </div>
 
         <div style={{ marginBottom: "1rem" }}>

@@ -12,7 +12,6 @@
  */
 
 import {
-  Writable,
   Default,
   derive,
   fetchData,
@@ -22,6 +21,7 @@ import {
   pattern,
   UI,
   wish,
+  Writable,
 } from "commonfabric";
 import SimpleConfig from "./simple-config.tsx";
 
@@ -45,7 +45,7 @@ const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
     if (!current.includes(newId)) {
       ids.set([...current, newId]);
     }
-  }
+  },
 );
 
 // Handler to clear all
@@ -62,17 +62,27 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
   // 3. THREE-WAY DERIVE - combine all sources (like effectiveToken in momentum tracker)
   const effectiveMultiplier = derive(
-    { discovered: discoveredConfig, passed: linkedConfig, inline: inlineConfig.multiplier },
+    {
+      discovered: discoveredConfig,
+      passed: linkedConfig,
+      inline: inlineConfig.multiplier,
+    },
     (values) => {
-      const discovered = (values.discovered as any)?.get ? (values.discovered as any).get() : values.discovered;
-      const passed = (values.passed as any)?.get ? (values.passed as any).get() : values.passed;
-      const inline = (values.inline as any)?.get ? (values.inline as any).get() : values.inline;
+      const discovered = (values.discovered as any)?.get
+        ? (values.discovered as any).get()
+        : values.discovered;
+      const passed = (values.passed as any)?.get
+        ? (values.passed as any).get()
+        : values.passed;
+      const inline = (values.inline as any)?.get
+        ? (values.inline as any).get()
+        : values.inline;
 
       if (discovered?.multiplier) return discovered.multiplier;
       if (passed?.multiplier) return passed.multiplier;
-      if (typeof inline === 'number') return inline;
+      if (typeof inline === "number") return inline;
       return 1;
-    }
+    },
   );
 
   const hasConfig = derive(effectiveMultiplier, (m: number) => m > 0);
@@ -85,10 +95,16 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const apiUrl = derive(
       { hasConfig, ref },
       (values) => {
-        const config = (values.hasConfig as any)?.get ? (values.hasConfig as any).get() : values.hasConfig;
-        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
-        return (config && r) ? `https://jsonplaceholder.typicode.com/users/${r.userId}` : "";
-      }
+        const config = (values.hasConfig as any)?.get
+          ? (values.hasConfig as any).get()
+          : values.hasConfig;
+        const r = (values.ref as any)?.get
+          ? (values.ref as any).get()
+          : values.ref;
+        return (config && r)
+          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+          : "";
+      },
     );
 
     // First fetch
@@ -98,9 +114,15 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const samplePages = derive(
       { hasConfig, parsedRef: ref, userData },
       (values) => {
-        const config = (values.hasConfig as any)?.get ? (values.hasConfig as any).get() : values.hasConfig;
-        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-        const u = (values.userData as any)?.get ? (values.userData as any).get() : values.userData;
+        const config = (values.hasConfig as any)?.get
+          ? (values.hasConfig as any).get()
+          : values.hasConfig;
+        const r = (values.parsedRef as any)?.get
+          ? (values.parsedRef as any).get()
+          : values.parsedRef;
+        const u = (values.userData as any)?.get
+          ? (values.userData as any).get()
+          : values.userData;
 
         if (!config || !r || !u?.result?.id) {
           return { userId: 0, pages: [] as number[] };
@@ -108,16 +130,20 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         return {
           userId: u.result.id,
-          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (u.result.id - 1) * 10 + i),
+          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) =>
+            (u.result.id - 1) * 10 + i
+          ),
         };
-      }
+      },
     );
 
     // Create slot URL factory
     const makeSlotUrl = (slotIndex: number) =>
       derive(samplePages, (sp) => {
         if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[slotIndex]}`;
+        return `https://jsonplaceholder.typicode.com/todos/${
+          sp.pages[slotIndex]
+        }`;
       });
 
     // Create 10 explicit fetchData slots (like starSample0-9)
@@ -134,12 +160,39 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
     // Aggregate (like starHistory in momentum tracker)
     const aggregated = derive(
-      { samplePages, s0: slot0, s1: slot1, s2: slot2, s3: slot3, s4: slot4, s5: slot5, s6: slot6, s7: slot7, s8: slot8, s9: slot9 },
+      {
+        samplePages,
+        s0: slot0,
+        s1: slot1,
+        s2: slot2,
+        s3: slot3,
+        s4: slot4,
+        s5: slot5,
+        s6: slot6,
+        s7: slot7,
+        s8: slot8,
+        s9: slot9,
+      },
       (values) => {
-        const sp = (values.samplePages as any)?.get ? (values.samplePages as any).get() : values.samplePages;
-        if (!sp.pages || sp.pages.length === 0) return { loading: false, data: [] as string[] };
+        const sp = (values.samplePages as any)?.get
+          ? (values.samplePages as any).get()
+          : values.samplePages;
+        if (!sp.pages || sp.pages.length === 0) {
+          return { loading: false, data: [] as string[] };
+        }
 
-        const samples = [values.s0, values.s1, values.s2, values.s3, values.s4, values.s5, values.s6, values.s7, values.s8, values.s9];
+        const samples = [
+          values.s0,
+          values.s1,
+          values.s2,
+          values.s3,
+          values.s4,
+          values.s5,
+          values.s6,
+          values.s7,
+          values.s8,
+          values.s9,
+        ];
 
         const pending = samples.some((s, i) => {
           if (i >= sp.pages.length) return false;
@@ -151,20 +204,33 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         const data: string[] = [];
         for (let i = 0; i < sp.pages.length && i < 10; i++) {
-          const sample = (samples[i] as any)?.get ? (samples[i] as any).get() : samples[i];
+          const sample = (samples[i] as any)?.get
+            ? (samples[i] as any).get()
+            : samples[i];
           if (sample?.result?.title) {
             data.push(sample.result.title.substring(0, 15));
           }
         }
 
         return { loading: false, data };
-      }
+      },
     );
 
     return {
       id: idCell,
       userData,
-      slots: [slot0, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8, slot9],
+      slots: [
+        slot0,
+        slot1,
+        slot2,
+        slot3,
+        slot4,
+        slot5,
+        slot6,
+        slot7,
+        slot8,
+        slot9,
+      ],
       aggregated,
     };
   });
@@ -187,7 +253,14 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
           <li>ifElse conditional rendering</li>
         </ul>
 
-        <div style={{ marginBottom: "10px", padding: "10px", background: "#f0f0f0", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginBottom: "10px",
+            padding: "10px",
+            background: "#f0f0f0",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Inline Config:</strong> {inlineConfig}
         </div>
 
@@ -198,29 +271,50 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
         </div>
 
         <div style={{ marginBottom: "10px" }}>
-          <strong>IDs:</strong> {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          <strong>IDs:</strong>{" "}
+          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
           <strong>effectiveMultiplier:</strong> {effectiveMultiplier}
           {" | "}
-          <strong>hasConfig:</strong> {derive(hasConfig, (c) => c ? "Yes" : "No")}
+          <strong>hasConfig:</strong>{" "}
+          {derive(hasConfig, (c) => c ? "Yes" : "No")}
         </div>
 
         <h2>Results:</h2>
 
         {ifElse(
           derive(itemCount, (c) => c === 0),
-          <div style={{ padding: "20px", background: "#f8f9fa", borderRadius: "4px", textAlign: "center" }}>
+          <div
+            style={{
+              padding: "20px",
+              background: "#f8f9fa",
+              borderRadius: "4px",
+              textAlign: "center",
+            }}
+          >
             No items. Click "Add ID" to start.
           </div>,
           <div>
             {results.map((item) => {
-              const isLoading = derive(item.userData, (u) => u?.pending === true);
+              const isLoading = derive(
+                item.userData,
+                (u) => u?.pending === true,
+              );
               const hasError = derive(item.userData, (u) => !!u?.error);
               const data = derive(item.userData, (u) => u?.result);
 
               return (
-                <div style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "10px", borderRadius: "4px" }}>
-                  <div style={{ fontWeight: "bold", marginBottom: "8px" }}>ID: {item.id}</div>
+                <div
+                  style={{
+                    border: "1px solid #ccc",
+                    padding: "10px",
+                    marginBottom: "10px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+                    ID: {item.id}
+                  </div>
 
                   {ifElse(
                     isLoading,
@@ -231,32 +325,61 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
                       <div style={{ marginBottom: "8px" }}>
                         <strong>User:</strong>{" "}
                         {derive(data, (d) => d?.name || "—")}
-                      </div>
-                    )
+                      </div>,
+                    ),
                   )}
 
                   <div>
                     <strong>10 Slots:</strong>
-                    <div style={{ fontSize: "11px", display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "4px" }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "3px",
+                        marginTop: "4px",
+                      }}
+                    >
                       {item.slots.map((s, i) => (
-                        <span style={{ padding: "2px 4px", background: "#eee", borderRadius: "2px" }}>
-                          #{i}: {derive(s, (r) => r?.result?.title?.substring(0, 6) || (r?.pending ? "..." : "✗"))}
+                        <span
+                          style={{
+                            padding: "2px 4px",
+                            background: "#eee",
+                            borderRadius: "2px",
+                          }}
+                        >
+                          #{i}: {derive(s, (r) =>
+                            r?.result?.title?.substring(0, 6) ||
+                            (r?.pending ? "..." : "✗"))}
                         </span>
                       ))}
                     </div>
                   </div>
 
-                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
-                    <strong>Aggregated:</strong>{" "}
-                    {derive(item.aggregated, (a) => a.loading ? "Loading..." : `${a.data.length} items`)}
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      fontSize: "12px",
+                      color: "#666",
+                    }}
+                  >
+                    <strong>Aggregated:</strong> {derive(item.aggregated, (a) =>
+                      a.loading ? "Loading..." : `${a.data.length} items`)}
                   </div>
                 </div>
               );
             })}
-          </div>
+          </div>,
         )}
 
-        <div style={{ marginTop: "20px", padding: "10px", backgroundColor: "#fff3cd", borderRadius: "4px" }}>
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "10px",
+            backgroundColor: "#fff3cd",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Test:</strong> Does the COMBINATION trigger Frame mismatch?
         </div>
       </div>

@@ -11,13 +11,7 @@
  * 3. If it freezes for ~40 seconds, the bug is in navigateTo + cf-autolayout
  * 4. If it's instant, the bug is NOT in cf-autolayout's tabNames
  */
-import {
-  handler,
-  NAME,
-  navigateTo,
-  pattern,
-  UI,
-} from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 import CTAutoLayoutTest from "./cf-autolayout-tabnames-repro.tsx";
 
@@ -43,10 +37,18 @@ export default pattern(() => {
       <div style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>CTAutoLayout TabNames Bug Test</h1>
 
-        <div style={{ backgroundColor: "#dbeafe", padding: "0.75rem", marginBottom: "1rem", borderRadius: "4px" }}>
+        <div
+          style={{
+            backgroundColor: "#dbeafe",
+            padding: "0.75rem",
+            marginBottom: "1rem",
+            borderRadius: "4px",
+          }}
+        >
           <strong>Test Hypothesis:</strong>
           <br />
-          The ~40s freeze is caused by <code>cf-autolayout</code> having undefined <code>tabNames</code>
+          The ~40s freeze is caused by <code>cf-autolayout</code>{" "}
+          having undefined <code>tabNames</code>
           during certain render cycles when using navigateTo.
         </div>
 

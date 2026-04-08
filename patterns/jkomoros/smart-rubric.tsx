@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Writable,
   computed,
   Default,
   derive,
@@ -11,6 +10,7 @@ import {
   pattern,
   toSchema,
   UI,
+  Writable,
 } from "commonfabric";
 
 /**
@@ -34,28 +34,28 @@ import {
 // ============================================================================
 
 interface CategoryOption {
-  label: string;      // "Downtown", "Suburbs"
-  score: number;      // 10, 5
+  label: string; // "Downtown", "Suburbs"
+  score: number; // 10, 5
 }
 
 interface Dimension {
   name: string;
   type: "categorical" | "numeric";
-  multiplier: number;                            // No Default here - will provide in push
-  categories: CategoryOption[];                  // No Default here
-  numericMin: number;                            // No Default here
-  numericMax: number;                            // No Default here
+  multiplier: number; // No Default here - will provide in push
+  categories: CategoryOption[]; // No Default here
+  numericMin: number; // No Default here
+  numericMax: number; // No Default here
 }
 
 interface OptionValue {
-  dimensionName: string;      // Key to look up dimension
-  value: string | number;     // Category label OR numeric value
+  dimensionName: string; // Key to look up dimension
+  value: string | number; // Category label OR numeric value
 }
 
 interface RubricOption {
   name: string;
-  values: OptionValue[];                         // No Default here
-  manualRank: number | null;                     // No Default here
+  values: OptionValue[]; // No Default here
+  manualRank: number | null; // No Default here
 }
 
 interface SelectionState {
@@ -64,16 +64,16 @@ interface SelectionState {
 
 interface RubricInput {
   title?: Default<string, "Decision Rubric">;
-  options?: Default<RubricOption[], []>;  // Plain array - framework auto-boxes to Writable<Array<Writable<RubricOption>>>
+  options?: Default<RubricOption[], []>; // Plain array - framework auto-boxes to Writable<Array<Writable<RubricOption>>>
   dimensions?: Default<Dimension[], []>;
   selection?: Default<SelectionState, { value: null }>;
-  quickAddPrompt?: Default<string, "">;  // For LLM Quick Add feature - user types here
-  quickAddSubmitted?: Default<string, "">;  // Submitted prompt - triggers LLM only when set
+  quickAddPrompt?: Default<string, "">; // For LLM Quick Add feature - user types here
+  quickAddSubmitted?: Default<string, "">; // Submitted prompt - triggers LLM only when set
 }
 
 interface RubricOutput {
   title: string;
-  options: RubricOption[];  // Framework handles boxing
+  options: RubricOption[]; // Framework handles boxing
   dimensions: Dimension[];
   selection: SelectionState;
   quickAddPrompt: string;
@@ -95,15 +95,20 @@ interface QuickAddResponse {
 // Module-Scope Helper Functions
 // ============================================================================
 
-function calculateScore(option: RubricOption, dimensionsArray: Dimension[]): number {
+function calculateScore(
+  option: RubricOption,
+  dimensionsArray: Dimension[],
+): number {
   let totalScore = 0;
-  dimensionsArray.forEach(dim => {
-    const valueRecord = option.values.find(v => v.dimensionName === dim.name);
+  dimensionsArray.forEach((dim) => {
+    const valueRecord = option.values.find((v) => v.dimensionName === dim.name);
     if (!valueRecord) return;
 
     let dimensionScore = 0;
     if (dim.type === "categorical") {
-      const category = dim.categories.find(c => c.label === valueRecord.value);
+      const category = dim.categories.find((c) =>
+        c.label === valueRecord.value
+      );
       dimensionScore = category?.score || 0;
     } else {
       dimensionScore = Number(valueRecord.value) || 0;
@@ -116,9 +121,11 @@ function calculateScore(option: RubricOption, dimensionsArray: Dimension[]): num
 
 function getOptionValueForDimension(
   option: RubricOption,
-  dimensionName: string
+  dimensionName: string,
 ): string | number {
-  const valueRecord = option.values.find(v => v.dimensionName === dimensionName);
+  const valueRecord = option.values.find((v) =>
+    v.dimensionName === dimensionName
+  );
   return valueRecord?.value ?? "";
 }
 
@@ -126,23 +133,26 @@ function getOptionValueForDimension(
 // Module-Scope Handlers
 // ============================================================================
 
-const addTestOption = handler<unknown, { options: Writable<Array<Writable<RubricOption>>> }>(
+const addTestOption = handler<
+  unknown,
+  { options: Writable<Array<Writable<RubricOption>>> }
+>(
   (_, { options }) => {
     options.push({
       name: `Option ${options.get().length + 1}`,
       values: [],
       manualRank: null,
     });
-  }
+  },
 );
 
 const acceptQuickAddFromResult = handler<
   unknown,
   {
-    resultCell: Writable<QuickAddResponse | undefined>,
-    optionsCell: Writable<Array<Writable<RubricOption>>>,
-    promptCell: Writable<string>,
-    submittedCell: Writable<string>,
+    resultCell: Writable<QuickAddResponse | undefined>;
+    optionsCell: Writable<Array<Writable<RubricOption>>>;
+    promptCell: Writable<string>;
+    submittedCell: Writable<string>;
   }
 >(
   (_, { resultCell, optionsCell, promptCell, submittedCell }) => {
@@ -164,32 +174,35 @@ const acceptQuickAddFromResult = handler<
 
     promptCell.set("");
     submittedCell.set("");
-  }
+  },
 );
 
 const submitQuickAdd = handler<
   unknown,
-  { promptCell: Writable<string>, submittedCell: Writable<string> }
+  { promptCell: Writable<string>; submittedCell: Writable<string> }
 >(
   (_, { promptCell, submittedCell }) => {
     const prompt = promptCell.get();
     if (prompt && prompt.trim() !== "") {
       submittedCell.set(prompt);
     }
-  }
+  },
 );
 
 const clearQuickAdd = handler<
   unknown,
-  { promptCell: Writable<string>, submittedCell: Writable<string> }
+  { promptCell: Writable<string>; submittedCell: Writable<string> }
 >(
   (_, { promptCell, submittedCell }) => {
     promptCell.set("");
     submittedCell.set("");
-  }
+  },
 );
 
-const addTestDimension = handler<unknown, { dimensions: Writable<Dimension[]> }>(
+const addTestDimension = handler<
+  unknown,
+  { dimensions: Writable<Dimension[]> }
+>(
   (_, { dimensions }) => {
     const count = [...dimensions.get()].length + 1;
     const isEven = count % 2 === 0;
@@ -218,41 +231,58 @@ const addTestDimension = handler<unknown, { dimensions: Writable<Dimension[]> }>
         numericMax: 100,
       });
     }
-  }
+  },
 );
 
 const changeDimensionMultiplier = handler<
   unknown,
-  { dimensionsCell: Writable<Dimension[]>, dimensionName: string, delta: number }
+  {
+    dimensionsCell: Writable<Dimension[]>;
+    dimensionName: string;
+    delta: number;
+  }
 >(
   (_, { dimensionsCell, dimensionName, delta }) => {
     const dims = [...dimensionsCell.get()];
     const index = dims.findIndex((d: Dimension) => d.name === dimensionName);
     if (index < 0) return;
     const current = dims[index].multiplier;
-    const updated = { ...dims[index], multiplier: Math.max(0.1, current + delta) };
+    const updated = {
+      ...dims[index],
+      multiplier: Math.max(0.1, current + delta),
+    };
     dimensionsCell.set(dims.toSpliced(index, 1, updated));
-  }
+  },
 );
 
-const selectOption = handler<unknown, { name: string, selectionCell: Writable<SelectionState> }>(
+const selectOption = handler<
+  unknown,
+  { name: string; selectionCell: Writable<SelectionState> }
+>(
   (_, { name, selectionCell }) => {
     selectionCell.set({ value: name });
-  }
+  },
 );
 
 const changeCategoricalValue = handler<
   unknown,
-  { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, categoryValue: string }
+  {
+    optionName: string;
+    optionsCell: Writable<Array<Writable<RubricOption>>>;
+    dimensionName: string;
+    categoryValue: string;
+  }
 >(
   (_, { optionName, optionsCell, dimensionName, categoryValue }) => {
     const opts = optionsCell.get();
-    const optionCell = opts.find((opt: Writable<RubricOption>) => opt.get().name === optionName);
+    const optionCell = opts.find((opt: Writable<RubricOption>) =>
+      opt.get().name === optionName
+    );
     if (!optionCell) return;
 
     const opt = optionCell.get();
     const existingIndex = opt.values.findIndex(
-      (v: OptionValue) => v.dimensionName === dimensionName
+      (v: OptionValue) => v.dimensionName === dimensionName,
     );
 
     let newValues;
@@ -269,24 +299,35 @@ const changeCategoricalValue = handler<
     }
 
     optionCell.key("values").set(newValues);
-  }
+  },
 );
 
 const changeNumericValue = handler<
   unknown,
-  { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, delta: number, min: number, max: number }
+  {
+    optionName: string;
+    optionsCell: Writable<Array<Writable<RubricOption>>>;
+    dimensionName: string;
+    delta: number;
+    min: number;
+    max: number;
+  }
 >(
   (_, { optionName, optionsCell, dimensionName, delta, min, max }) => {
     const opts = optionsCell.get();
-    const optionCell = opts.find((opt: Writable<RubricOption>) => opt.get().name === optionName);
+    const optionCell = opts.find((opt: Writable<RubricOption>) =>
+      opt.get().name === optionName
+    );
     if (!optionCell) return;
 
     const opt = optionCell.get();
     const existingIndex = opt.values.findIndex(
-      (v: OptionValue) => v.dimensionName === dimensionName
+      (v: OptionValue) => v.dimensionName === dimensionName,
     );
 
-    const currentValue = existingIndex >= 0 ? (opt.values[existingIndex].value as number) : min;
+    const currentValue = existingIndex >= 0
+      ? (opt.values[existingIndex].value as number)
+      : min;
     const newValue = Math.max(min, Math.min(max, currentValue + delta));
 
     let newValues;
@@ -303,16 +344,21 @@ const changeNumericValue = handler<
     }
 
     optionCell.key("values").set(newValues);
-  }
+  },
 );
 
 const moveOptionUp = handler<
   unknown,
-  { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
+  {
+    optionCell: Writable<RubricOption>;
+    optionsCell: Writable<Array<Writable<RubricOption>>>;
+  }
 >(
   (_, { optionCell, optionsCell }) => {
     const opts = optionsCell.get();
-    const index = opts.findIndex((opt: Writable<RubricOption>) => equals(opt, optionCell));
+    const index = opts.findIndex((opt: Writable<RubricOption>) =>
+      equals(opt, optionCell)
+    );
 
     if (index <= 0) return;
 
@@ -323,16 +369,21 @@ const moveOptionUp = handler<
     newOpts[index].key("manualRank").set(index + 1);
 
     optionsCell.set(newOpts);
-  }
+  },
 );
 
 const moveOptionDown = handler<
   unknown,
-  { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
+  {
+    optionCell: Writable<RubricOption>;
+    optionsCell: Writable<Array<Writable<RubricOption>>>;
+  }
 >(
   (_, { optionCell, optionsCell }) => {
     const opts = optionsCell.get();
-    const index = opts.findIndex((opt: Writable<RubricOption>) => equals(opt, optionCell));
+    const index = opts.findIndex((opt: Writable<RubricOption>) =>
+      equals(opt, optionCell)
+    );
 
     if (index < 0 || index >= opts.length - 1) return;
 
@@ -343,7 +394,7 @@ const moveOptionDown = handler<
     newOpts[index + 1].key("manualRank").set(index + 2);
 
     optionsCell.set(newOpts);
-  }
+  },
 );
 
 const resetManualRanks = handler<
@@ -355,7 +406,7 @@ const resetManualRanks = handler<
     opts.forEach((opt: Writable<RubricOption>) => {
       opt.key("manualRank").set(null);
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -363,7 +414,16 @@ const resetManualRanks = handler<
 // ============================================================================
 
 const SmartRubric = pattern<RubricInput, RubricOutput>(
-  ({ title, options, dimensions, selection, quickAddPrompt, quickAddSubmitted }) => {
+  (
+    {
+      title,
+      options,
+      dimensions,
+      selection,
+      quickAddPrompt,
+      quickAddSubmitted,
+    },
+  ) => {
     // CRITICAL: Save references to Cells BEFORE entering .map() or derive() contexts
     // Inside .map() and derive(), closures may unwrap Cells to plain values
     const selectionCell = selection;
@@ -384,9 +444,11 @@ const SmartRubric = pattern<RubricInput, RubricOutput>(
 There are no dimensions defined yet. Extract a suitable name for the option and suggest what dimensions might be useful.`;
         }
 
-        const dimDescriptions = dims.map(dim => {
+        const dimDescriptions = dims.map((dim) => {
           if (dim.type === "categorical") {
-            const cats = dim.categories.map(c => `"${c.label}" (${c.score} pts)`).join(", ");
+            const cats = dim.categories.map((c) =>
+              `"${c.label}" (${c.score} pts)`
+            ).join(", ");
             return `- ${dim.name} (categorical): Options are ${cats}`;
           } else {
             return `- ${dim.name} (numeric): Range ${dim.numericMin}-${dim.numericMax}`;
@@ -404,7 +466,7 @@ Given a description of an option, extract:
 3. Your confidence level for each extraction
 
 Be precise with categorical values - use exact label matches.`;
-      }
+      },
     );
 
     // Call generateObject directly in pattern body (required by framework)
@@ -427,21 +489,30 @@ Be precise with categorical values - use exact label matches.`;
     return {
       [NAME]: "Smart Rubric (Phase 5)",
       [UI]: (
-        <cf-vstack gap="2" style="padding: 1rem; max-width: 1200px; margin: 0 auto;">
+        <cf-vstack
+          gap="2"
+          style="padding: 1rem; max-width: 1200px; margin: 0 auto;"
+        >
           {/* Header */}
           <div style={{ marginBottom: "1rem" }}>
             <h2 style={{ margin: "0 0 0.5rem 0" }}>Smart Rubric - Phase 5</h2>
-            <cf-input $value={title} placeholder="Rubric Title" style="width: 100%;" />
+            <cf-input
+              $value={title}
+              placeholder="Rubric Title"
+              style="width: 100%;"
+            />
           </div>
 
           {/* Quick Add with LLM */}
-          <div style={{
-            padding: "1rem",
-            background: "#e8f4f8",
-            border: "1px solid #b8daff",
-            borderRadius: "4px",
-            marginBottom: "1rem",
-          }}>
+          <div
+            style={{
+              padding: "1rem",
+              background: "#e8f4f8",
+              border: "1px solid #b8daff",
+              borderRadius: "4px",
+              marginBottom: "1rem",
+            }}
+          >
             <h3 style={{ margin: "0 0 0.75rem 0", color: "#004085" }}>
               🤖 Quick Add (AI-Powered)
             </h3>
@@ -452,7 +523,10 @@ Be precise with categorical values - use exact label matches.`;
                 style="flex: 1;"
               />
               <cf-button
-                onClick={submitQuickAdd({ promptCell: quickAddPromptCell, submittedCell: quickAddSubmittedCell })}
+                onClick={submitQuickAdd({
+                  promptCell: quickAddPromptCell,
+                  submittedCell: quickAddSubmittedCell,
+                })}
                 style={{ background: "#007bff", color: "white" }}
               >
                 Analyze
@@ -461,15 +535,37 @@ Be precise with categorical values - use exact label matches.`;
 
             {/* LLM Extraction Results - Display only, no handlers inside derive */}
             {derive(
-              { pending: quickAddExtraction.pending, error: quickAddExtraction.error, result: quickAddExtraction.result, submitted: quickAddSubmitted },
+              {
+                pending: quickAddExtraction.pending,
+                error: quickAddExtraction.error,
+                result: quickAddExtraction.result,
+                submitted: quickAddSubmitted,
+              },
               // deno-lint-ignore no-explicit-any
-              ({ pending, error, result, submitted }: { pending: boolean; error: any; result: any; submitted: string | null }) => {
+              (
+                { pending, error, result, submitted }: {
+                  pending: boolean;
+                  error: any;
+                  result: any;
+                  submitted: string | null;
+                },
+              ) => {
                 // Check if we have a submitted prompt (not the placeholder)
-                const hasSubmittedPrompt = submitted && submitted.trim() !== "" && submitted !== "No description submitted yet.";
+                const hasSubmittedPrompt = submitted &&
+                  submitted.trim() !== "" &&
+                  submitted !== "No description submitted yet.";
 
                 if (pending && hasSubmittedPrompt) {
                   return (
-                    <div style={{ color: "#004085", padding: "0.5rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div
+                      style={{
+                        color: "#004085",
+                        padding: "0.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
                       <cf-loader size="sm" show-elapsed></cf-loader>
                       Analyzing description...
                     </div>
@@ -478,7 +574,14 @@ Be precise with categorical values - use exact label matches.`;
 
                 if (error && hasSubmittedPrompt) {
                   return (
-                    <div style={{ color: "#721c24", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px" }}>
+                    <div
+                      style={{
+                        color: "#721c24",
+                        padding: "0.5rem",
+                        background: "#f8d7da",
+                        borderRadius: "4px",
+                      }}
+                    >
                       ❌ Error: {error}
                     </div>
                   );
@@ -487,25 +590,54 @@ Be precise with categorical values - use exact label matches.`;
                 // Only show result if we have a submitted prompt and a result
                 if (result && hasSubmittedPrompt) {
                   return (
-                    <div style={{ background: "white", padding: "1rem", borderRadius: "4px", border: "1px solid #ddd" }}>
+                    <div
+                      style={{
+                        background: "white",
+                        padding: "1rem",
+                        borderRadius: "4px",
+                        border: "1px solid #ddd",
+                      }}
+                    >
                       <div style={{ marginBottom: "0.75rem" }}>
                         <strong>Extracted Option:</strong> {result.optionName}
                       </div>
 
-                      {result.extractedValues && Array.isArray(result.extractedValues) && result.extractedValues.length > 0 && (
+                      {result.extractedValues &&
+                        Array.isArray(result.extractedValues) &&
+                        result.extractedValues.length > 0 && (
                         <div style={{ marginBottom: "0.75rem" }}>
                           <strong>Values:</strong>
-                          <ul style={{ margin: "0.25rem 0", paddingLeft: "1.25rem" }}>
+                          <ul
+                            style={{
+                              margin: "0.25rem 0",
+                              paddingLeft: "1.25rem",
+                            }}
+                          >
                             {result.extractedValues
-                              .filter((ev: any) => ev && ev.dimensionName)
-                              .map((ev: { dimensionName: string; value: string | number; confidence: "high" | "medium" | "low" }) => (
+                              .filter((ev: any) =>
+                                ev && ev.dimensionName
+                              )
+                              .map((
+                                ev: {
+                                  dimensionName: string;
+                                  value: string | number;
+                                  confidence: "high" | "medium" | "low";
+                                },
+                              ) => (
                                 <li style={{ fontSize: "0.9em" }}>
-                                  {ev.dimensionName}: <strong>{String(ev.value ?? "")}</strong>
-                                  <span style={{
-                                    marginLeft: "0.5rem",
-                                    fontSize: "0.8em",
-                                    color: ev.confidence === "high" ? "#28a745" : ev.confidence === "medium" ? "#ffc107" : "#dc3545"
-                                  }}>
+                                  {ev.dimensionName}:{" "}
+                                  <strong>{String(ev.value ?? "")}</strong>
+                                  <span
+                                    style={{
+                                      marginLeft: "0.5rem",
+                                      fontSize: "0.8em",
+                                      color: ev.confidence === "high"
+                                        ? "#28a745"
+                                        : ev.confidence === "medium"
+                                        ? "#ffc107"
+                                        : "#dc3545",
+                                    }}
+                                  >
                                     ({ev.confidence || "unknown"})
                                   </span>
                                 </li>
@@ -514,11 +646,23 @@ Be precise with categorical values - use exact label matches.`;
                         </div>
                       )}
 
-                      <div style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.75rem" }}>
+                      <div
+                        style={{
+                          fontSize: "0.85em",
+                          color: "#666",
+                          marginBottom: "0.75rem",
+                        }}
+                      >
                         <em>{result.reasoning}</em>
                       </div>
 
-                      <div style={{ color: "#666", fontSize: "0.85em", fontStyle: "italic" }}>
+                      <div
+                        style={{
+                          color: "#666",
+                          fontSize: "0.85em",
+                          fontStyle: "italic",
+                        }}
+                      >
                         Use buttons below to accept or clear.
                       </div>
                     </div>
@@ -527,11 +671,18 @@ Be precise with categorical values - use exact label matches.`;
 
                 // Default: no submitted prompt yet
                 return (
-                  <div style={{ color: "#666", fontSize: "0.9em", fontStyle: "italic" }}>
-                    Enter a description above and click "Analyze" to extract dimension values with AI.
+                  <div
+                    style={{
+                      color: "#666",
+                      fontSize: "0.9em",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Enter a description above and click "Analyze" to extract
+                    dimension values with AI.
                   </div>
                 );
-              }
+              },
             )}
 
             {/* Action buttons OUTSIDE derive to avoid ReadOnlyAddressError */}
@@ -548,7 +699,10 @@ Be precise with categorical values - use exact label matches.`;
                 ✓ Accept & Add
               </cf-button>
               <cf-button
-                onClick={clearQuickAdd({ promptCell: quickAddPromptCell, submittedCell: quickAddSubmittedCell })}
+                onClick={clearQuickAdd({
+                  promptCell: quickAddPromptCell,
+                  submittedCell: quickAddSubmittedCell,
+                })}
                 style={{ background: "#6c757d", color: "white" }}
               >
                 ✗ Clear
@@ -557,15 +711,23 @@ Be precise with categorical values - use exact label matches.`;
           </div>
 
           {/* Test Controls */}
-          <cf-hstack gap="1" style="margin-bottom: 1rem; padding: 1rem; background: #f5f5f5; border-radius: 4px;">
-            <cf-button onClick={addTestOption({ options })}>+ Add Test Option</cf-button>
-            <cf-button onClick={addTestDimension({ dimensions })}>+ Add Test Dimension</cf-button>
-            <cf-button onClick={resetManualRanks({ optionsCell })}>Reset Manual Ranks</cf-button>
+          <cf-hstack
+            gap="1"
+            style="margin-bottom: 1rem; padding: 1rem; background: #f5f5f5; border-radius: 4px;"
+          >
+            <cf-button onClick={addTestOption({ options })}>
+              + Add Test Option
+            </cf-button>
+            <cf-button onClick={addTestDimension({ dimensions })}>
+              + Add Test Dimension
+            </cf-button>
+            <cf-button onClick={resetManualRanks({ optionsCell })}>
+              Reset Manual Ranks
+            </cf-button>
           </cf-hstack>
 
           {/* Main Layout: Two Panes */}
           <cf-hstack gap="2" style="align-items: stretch; min-height: 400px;">
-
             {/* LEFT PANE: Ranked Options */}
             <cf-vstack
               gap="1"
@@ -573,118 +735,183 @@ Be precise with categorical values - use exact label matches.`;
             >
               <h3 style={{ margin: "0 0 1rem 0" }}>Ranked Options</h3>
 
-              {options.length === 0 ? (
-                <div style={{ color: "#999", fontStyle: "italic" }}>
-                  No options yet. Add some test data!
-                </div>
-              ) : (
-                // Boxing: optionCell is a Writable<RubricOption>
-                options.map((optionCell, index) => {
-                  // Use derive() to reactively compute score
-                  const score = derive(
-                    { opt: optionCell, dims: dimensions },
-                    ({ opt, dims }: { opt: RubricOption; dims: Dimension[] }) => {
-                      let totalScore = 0;
-                      dims.forEach((dim: Dimension) => {
-                        const valueRecord = opt.values.find((v: OptionValue) => v.dimensionName === dim.name);
-                        if (!valueRecord) return;
+              {options.length === 0
+                ? (
+                  <div style={{ color: "#999", fontStyle: "italic" }}>
+                    No options yet. Add some test data!
+                  </div>
+                )
+                : (
+                  // Boxing: optionCell is a Writable<RubricOption>
+                  options.map((optionCell, index) => {
+                    // Use derive() to reactively compute score
+                    const score = derive(
+                      { opt: optionCell, dims: dimensions },
+                      (
+                        { opt, dims }: { opt: RubricOption; dims: Dimension[] },
+                      ) => {
+                        let totalScore = 0;
+                        dims.forEach((dim: Dimension) => {
+                          const valueRecord = opt.values.find((
+                            v: OptionValue,
+                          ) => v.dimensionName === dim.name);
+                          if (!valueRecord) return;
 
-                        let dimensionScore = 0;
-                        if (dim.type === "categorical") {
-                          const category = dim.categories.find(c => c.label === valueRecord.value);
-                          dimensionScore = category?.score || 0;
-                        } else {
-                          dimensionScore = Number(valueRecord.value) || 0;
-                        }
+                          let dimensionScore = 0;
+                          if (dim.type === "categorical") {
+                            const category = dim.categories.find((c) =>
+                              c.label === valueRecord.value
+                            );
+                            dimensionScore = category?.score || 0;
+                          } else {
+                            dimensionScore = Number(valueRecord.value) || 0;
+                          }
 
-                        totalScore += dimensionScore * dim.multiplier;
-                      });
-                      return totalScore;
-                    }
-                  );
+                          totalScore += dimensionScore * dim.multiplier;
+                        });
+                        return totalScore;
+                      },
+                    );
 
-                  const optionName = derive(optionCell, (opt: RubricOption) => opt.name);
-                  const isSelected = derive(
-                    { selected: selection, name: optionName },
-                    ({ selected, name }: { selected: SelectionState; name: string }) => selected.value === name
-                  );
-                  const hasManualRank = derive(optionCell, (opt: RubricOption) => opt.manualRank !== null);
+                    const optionName = derive(
+                      optionCell,
+                      (opt: RubricOption) => opt.name,
+                    );
+                    const isSelected = derive(
+                      { selected: selection, name: optionName },
+                      (
+                        { selected, name }: {
+                          selected: SelectionState;
+                          name: string;
+                        },
+                      ) => selected.value === name,
+                    );
+                    const hasManualRank = derive(
+                      optionCell,
+                      (opt: RubricOption) => opt.manualRank !== null,
+                    );
 
-                  return (
-                    <div
-                      style={{
-                        padding: "0.75rem",
-                        border: derive(isSelected, (sel: boolean) => sel ? "2px solid #007bff" : "1px solid #ddd"),
-                        borderRadius: "4px",
-                        background: derive(isSelected, (sel: boolean) => sel ? "#e7f3ff" : "white"),
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
-                        {/* Up/Down Buttons */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <cf-button
-                            onClick={moveOptionUp({ optionCell, optionsCell })}
-                            style={{
-                              padding: "2px 6px",
-                              fontSize: "0.7em",
-                              minWidth: "24px",
-                              opacity: index === 0 ? "0.3" : "1",
-                            }}
-                          >
-                            ▲
-                          </cf-button>
-                          <cf-button
-                            onClick={moveOptionDown({ optionCell, optionsCell })}
-                            style={{
-                              padding: "2px 6px",
-                              fontSize: "0.7em",
-                              minWidth: "24px",
-                              opacity: index === options.length - 1 ? "0.3" : "1",
-                            }}
-                          >
-                            ▼
-                          </cf-button>
-                        </div>
-
-                        {/* Option Name - Clickable */}
-                        <span
-                          onClick={selectOption({ name: derive(optionCell, (opt: RubricOption) => opt.name), selectionCell })}
+                    return (
+                      <div
+                        style={{
+                          padding: "0.75rem",
+                          border: derive(
+                            isSelected,
+                            (sel: boolean) =>
+                              sel ? "2px solid #007bff" : "1px solid #ddd",
+                          ),
+                          borderRadius: "4px",
+                          background: derive(
+                            isSelected,
+                            (sel: boolean) => sel ? "#e7f3ff" : "white",
+                          ),
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        <div
                           style={{
-                            flex: 1,
-                            fontWeight: "bold",
-                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "0.5rem",
                           }}
                         >
-                          {index + 1}. {optionName}
-                        </span>
+                          {/* Up/Down Buttons */}
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "2px",
+                            }}
+                          >
+                            <cf-button
+                              onClick={moveOptionUp({
+                                optionCell,
+                                optionsCell,
+                              })}
+                              style={{
+                                padding: "2px 6px",
+                                fontSize: "0.7em",
+                                minWidth: "24px",
+                                opacity: index === 0 ? "0.3" : "1",
+                              }}
+                            >
+                              ▲
+                            </cf-button>
+                            <cf-button
+                              onClick={moveOptionDown({
+                                optionCell,
+                                optionsCell,
+                              })}
+                              style={{
+                                padding: "2px 6px",
+                                fontSize: "0.7em",
+                                minWidth: "24px",
+                                opacity: index === options.length - 1
+                                  ? "0.3"
+                                  : "1",
+                              }}
+                            >
+                              ▼
+                            </cf-button>
+                          </div>
 
-                        {/* Score and Manual Rank Indicator */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <span style={{
-                            fontSize: "1.2em",
-                            fontWeight: "bold",
-                            color: "#007bff",
-                          }}>
-                            {derive(score, (s: number) => s.toFixed(1))}
+                          {/* Option Name - Clickable */}
+                          <span
+                            onClick={selectOption({
+                              name: derive(
+                                optionCell,
+                                (opt: RubricOption) => opt.name,
+                              ),
+                              selectionCell,
+                            })}
+                            style={{
+                              flex: 1,
+                              fontWeight: "bold",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {index + 1}. {optionName}
                           </span>
-                          {derive(hasManualRank, (manual: boolean) =>
-                            manual ? (
-                              <span style={{
-                                fontSize: "0.8em",
-                                color: "#ff9800",
+
+                          {/* Score and Manual Rank Indicator */}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "1.2em",
                                 fontWeight: "bold",
-                              }} title="Manual ranking applied">
-                                ✋
-                              </span>
-                            ) : null
-                          )}
+                                color: "#007bff",
+                              }}
+                            >
+                              {derive(score, (s: number) => s.toFixed(1))}
+                            </span>
+                            {derive(hasManualRank, (manual: boolean) =>
+                              manual
+                                ? (
+                                  <span
+                                    style={{
+                                      fontSize: "0.8em",
+                                      color: "#ff9800",
+                                      fontWeight: "bold",
+                                    }}
+                                    title="Manual ranking applied"
+                                  >
+                                    ✋
+                                  </span>
+                                )
+                                : null)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
             </cf-vstack>
 
             {/* RIGHT PANE: Detail or Instructions */}
@@ -694,11 +921,19 @@ Be precise with categorical values - use exact label matches.`;
             >
               {derive(
                 { selectedState: selection, opts: options, dims: dimensions },
-                ({ selectedState, opts, dims }: { selectedState: SelectionState; opts: RubricOption[]; dims: Dimension[] }) => {
+                (
+                  { selectedState, opts, dims }: {
+                    selectedState: SelectionState;
+                    opts: RubricOption[];
+                    dims: Dimension[];
+                  },
+                ) => {
                   // Inside derive(), opts is unwrapped to RubricOption[] (plain objects)
                   // No .get() needed - access properties directly
                   const selectedData = selectedState.value
-                    ? opts.find((opt: RubricOption) => opt.name === selectedState.value) || null
+                    ? opts.find((opt: RubricOption) =>
+                      opt.name === selectedState.value
+                    ) || null
                     : null;
 
                   if (!selectedData) {
@@ -707,17 +942,34 @@ Be precise with categorical values - use exact label matches.`;
                       <div>
                         <h3 style={{ margin: "0 0 1rem 0" }}>Instructions</h3>
                         <div style={{ fontSize: "0.9em", lineHeight: "1.6" }}>
-                          <p><strong>Goal:</strong> Validate dynamic dimension data model</p>
+                          <p>
+                            <strong>Goal:</strong>{" "}
+                            Validate dynamic dimension data model
+                          </p>
 
                           <ol>
                             <li>Click "+ Add Test Option" to add options</li>
-                            <li>Click "+ Add Test Dimension" to add dimensions</li>
+                            <li>
+                              Click "+ Add Test Dimension" to add dimensions
+                            </li>
                             <li>Adjust dimension weights using +/- buttons</li>
-                            <li><strong>Click an option</strong> to edit its dimension values!</li>
+                            <li>
+                              <strong>Click an option</strong>{" "}
+                              to edit its dimension values!
+                            </li>
                           </ol>
 
-                          <p style={{ marginTop: "1rem", padding: "0.5rem", background: "#ffffcc", borderRadius: "4px" }}>
-                            <strong>Testing:</strong> Scores should update automatically when you change values!
+                          <p
+                            style={{
+                              marginTop: "1rem",
+                              padding: "0.5rem",
+                              background: "#ffffcc",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            <strong>Testing:</strong>{" "}
+                            Scores should update automatically when you change
+                            values!
                           </p>
                         </div>
                       </div>
@@ -733,191 +985,280 @@ Be precise with categorical values - use exact label matches.`;
                         Editing: {selectedData.name}
                       </h3>
 
-                      {dims.length === 0 ? (
-                        <div style={{ color: "#999", fontStyle: "italic" }}>
-                          No dimensions yet. Add dimensions to set values.
-                        </div>
-                      ) : (
-                        <div>
-                          {dims.map((dim) => {
-                            // Get current value for this dimension
-                            const currentValue = selectedData.values.find(
-                              v => v.dimensionName === dim.name
-                            )?.value ?? "";
+                      {dims.length === 0
+                        ? (
+                          <div style={{ color: "#999", fontStyle: "italic" }}>
+                            No dimensions yet. Add dimensions to set values.
+                          </div>
+                        )
+                        : (
+                          <div>
+                            {dims.map((dim) => {
+                              // Get current value for this dimension
+                              const currentValue = selectedData.values.find(
+                                (v) => v.dimensionName === dim.name,
+                              )?.value ?? "";
 
-                            return (
-                              <div style={{
-                                padding: "0.75rem",
-                                background: "white",
-                                border: "1px solid #ddd",
-                                borderRadius: "4px",
-                                marginBottom: "0.75rem",
-                              }}>
-                                <div style={{
-                                  fontSize: "0.85em",
-                                  fontWeight: "500",
-                                  marginBottom: "0.5rem",
-                                  color: "#555",
-                                }}>
-                                  {dim.name} [{dim.type}]
-                                </div>
+                              return (
+                                <div
+                                  style={{
+                                    padding: "0.75rem",
+                                    background: "white",
+                                    border: "1px solid #ddd",
+                                    borderRadius: "4px",
+                                    marginBottom: "0.75rem",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: "0.85em",
+                                      fontWeight: "500",
+                                      marginBottom: "0.5rem",
+                                      color: "#555",
+                                    }}
+                                  >
+                                    {dim.name} [{dim.type}]
+                                  </div>
 
-                                {dim.type === "categorical" ? (
-                                  dim.categories.length > 0 ? (
-                                    <div style={{ fontSize: "0.9em" }}>
-                                      {dim.categories.map((cat) => (
+                                  {dim.type === "categorical"
+                                    ? (
+                                      dim.categories.length > 0
+                                        ? (
+                                          <div style={{ fontSize: "0.9em" }}>
+                                            {dim.categories.map((cat) => (
+                                              <cf-button
+                                                onClick={changeCategoricalValue(
+                                                  {
+                                                    optionName:
+                                                      selectedData.name,
+                                                    optionsCell,
+                                                    dimensionName: dim.name,
+                                                    categoryValue: cat.label,
+                                                  },
+                                                )}
+                                                style={{
+                                                  padding: "0.5rem 0.75rem",
+                                                  marginRight: "0.5rem",
+                                                  marginBottom: "0.5rem",
+                                                  border:
+                                                    currentValue === cat.label
+                                                      ? "2px solid #007bff"
+                                                      : "1px solid #ddd",
+                                                  borderRadius: "4px",
+                                                  background:
+                                                    currentValue === cat.label
+                                                      ? "#e7f3ff"
+                                                      : "white",
+                                                  cursor: "pointer",
+                                                  fontWeight:
+                                                    currentValue === cat.label
+                                                      ? "bold"
+                                                      : "normal",
+                                                }}
+                                              >
+                                                {cat.label} ({cat.score} pts)
+                                              </cf-button>
+                                            ))}
+                                          </div>
+                                        )
+                                        : (
+                                          <div
+                                            style={{
+                                              color: "#999",
+                                              fontStyle: "italic",
+                                              fontSize: "0.85em",
+                                            }}
+                                          >
+                                            No categories defined
+                                          </div>
+                                        )
+                                    )
+                                    : (
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "0.75rem",
+                                        }}
+                                      >
                                         <cf-button
-                                          onClick={changeCategoricalValue({
+                                          onClick={changeNumericValue({
                                             optionName: selectedData.name,
                                             optionsCell,
                                             dimensionName: dim.name,
-                                            categoryValue: cat.label,
+                                            delta: -10,
+                                            min: dim.numericMin,
+                                            max: dim.numericMax,
                                           })}
                                           style={{
                                             padding: "0.5rem 0.75rem",
-                                            marginRight: "0.5rem",
-                                            marginBottom: "0.5rem",
-                                            border: currentValue === cat.label ? "2px solid #007bff" : "1px solid #ddd",
+                                            border: "1px solid #ddd",
                                             borderRadius: "4px",
-                                            background: currentValue === cat.label ? "#e7f3ff" : "white",
+                                            background: "white",
                                             cursor: "pointer",
-                                            fontWeight: currentValue === cat.label ? "bold" : "normal",
+                                            fontSize: "1.2em",
                                           }}
                                         >
-                                          {cat.label} ({cat.score} pts)
+                                          -
                                         </cf-button>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div style={{ color: "#999", fontStyle: "italic", fontSize: "0.85em" }}>
-                                      No categories defined
-                                    </div>
-                                  )
-                                ) : (
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                                    <cf-button
-                                      onClick={changeNumericValue({
-                                        optionName: selectedData.name,
-                                        optionsCell,
-                                        dimensionName: dim.name,
-                                        delta: -10,
-                                        min: dim.numericMin,
-                                        max: dim.numericMax,
-                                      })}
-                                      style={{
-                                        padding: "0.5rem 0.75rem",
-                                        border: "1px solid #ddd",
-                                        borderRadius: "4px",
-                                        background: "white",
-                                        cursor: "pointer",
-                                        fontSize: "1.2em",
-                                      }}
-                                    >
-                                      -
-                                    </cf-button>
 
-                                    <span style={{
-                                      flex: 1,
-                                      textAlign: "center",
-                                      fontSize: "1.1em",
-                                      fontWeight: "bold",
-                                    }}>
-                                      {currentValue || dim.numericMin}
-                                    </span>
+                                        <span
+                                          style={{
+                                            flex: 1,
+                                            textAlign: "center",
+                                            fontSize: "1.1em",
+                                            fontWeight: "bold",
+                                          }}
+                                        >
+                                          {currentValue || dim.numericMin}
+                                        </span>
 
-                                    <cf-button
-                                      onClick={changeNumericValue({
-                                        optionName: selectedData.name,
-                                        optionsCell,
-                                        dimensionName: dim.name,
-                                        delta: 10,
-                                        min: dim.numericMin,
-                                        max: dim.numericMax,
-                                      })}
-                                      style={{
-                                        padding: "0.5rem 0.75rem",
-                                        border: "1px solid #ddd",
-                                        borderRadius: "4px",
-                                        background: "white",
-                                        cursor: "pointer",
-                                        fontSize: "1.2em",
-                                      }}
-                                    >
-                                      +
-                                    </cf-button>
+                                        <cf-button
+                                          onClick={changeNumericValue({
+                                            optionName: selectedData.name,
+                                            optionsCell,
+                                            dimensionName: dim.name,
+                                            delta: 10,
+                                            min: dim.numericMin,
+                                            max: dim.numericMax,
+                                          })}
+                                          style={{
+                                            padding: "0.5rem 0.75rem",
+                                            border: "1px solid #ddd",
+                                            borderRadius: "4px",
+                                            background: "white",
+                                            cursor: "pointer",
+                                            fontSize: "1.2em",
+                                          }}
+                                        >
+                                          +
+                                        </cf-button>
 
-                                    <span style={{ color: "#666", fontSize: "0.85em", whiteSpace: "nowrap" }}>
-                                      ({dim.numericMin}-{dim.numericMax})
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                                        <span
+                                          style={{
+                                            color: "#666",
+                                            fontSize: "0.85em",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          ({dim.numericMin}-{dim.numericMax})
+                                        </span>
+                                      </div>
+                                    )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                     </div>
                   );
-                }
+                },
               )}
             </cf-vstack>
           </cf-hstack>
 
           {/* DIMENSIONS SECTION */}
-          <cf-vstack gap="1" style="margin-top: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+          <cf-vstack
+            gap="1"
+            style="margin-top: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;"
+          >
             <h3 style={{ margin: "0 0 1rem 0" }}>Dimensions</h3>
 
-            {dimensions.length === 0 ? (
-              <div style={{ color: "#999", fontStyle: "italic" }}>
-                No dimensions yet. Add some test dimensions!
-              </div>
-            ) : (
-              dimensions.map((dim) => (
-                <div style={{
-                  padding: "0.75rem",
-                  background: "white",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <strong>{dim.name}</strong>
-                      <span style={{ marginLeft: "0.5rem", color: "#666" }}>
-                        [{dim.type}]
-                      </span>
-                    </div>
-
-                    <cf-hstack gap="1">
-                      <span style={{ marginRight: "0.5rem" }}>
-                        Weight: {dim.multiplier.toFixed(1)}×
-                      </span>
-                      <cf-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: -0.5 })}>
-                        -
-                      </cf-button>
-                      <cf-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: 0.5 })}>
-                        +
-                      </cf-button>
-                    </cf-hstack>
-                  </div>
-
-                  {dim.type === "categorical" && dim.categories.length > 0 && (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#666" }}>
-                      Categories: {dim.categories.map(c => `${c.label}=${c.score}`).join(", ")}
-                    </div>
-                  )}
-
-                  {dim.type === "numeric" && (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#666" }}>
-                      Range: {dim.numericMin} - {dim.numericMax}
-                    </div>
-                  )}
+            {dimensions.length === 0
+              ? (
+                <div style={{ color: "#999", fontStyle: "italic" }}>
+                  No dimensions yet. Add some test dimensions!
                 </div>
-              ))
-            )}
+              )
+              : (
+                dimensions.map((dim) => (
+                  <div
+                    style={{
+                      padding: "0.75rem",
+                      background: "white",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <strong>{dim.name}</strong>
+                        <span style={{ marginLeft: "0.5rem", color: "#666" }}>
+                          [{dim.type}]
+                        </span>
+                      </div>
+
+                      <cf-hstack gap="1">
+                        <span style={{ marginRight: "0.5rem" }}>
+                          Weight: {dim.multiplier.toFixed(1)}×
+                        </span>
+                        <cf-button
+                          onClick={changeDimensionMultiplier({
+                            dimensionsCell: dimensions,
+                            dimensionName: dim.name,
+                            delta: -0.5,
+                          })}
+                        >
+                          -
+                        </cf-button>
+                        <cf-button
+                          onClick={changeDimensionMultiplier({
+                            dimensionsCell: dimensions,
+                            dimensionName: dim.name,
+                            delta: 0.5,
+                          })}
+                        >
+                          +
+                        </cf-button>
+                      </cf-hstack>
+                    </div>
+
+                    {dim.type === "categorical" && dim.categories.length > 0 &&
+                      (
+                        <div
+                          style={{
+                            marginTop: "0.5rem",
+                            fontSize: "0.85em",
+                            color: "#666",
+                          }}
+                        >
+                          Categories:{" "}
+                          {dim.categories.map((c) => `${c.label}=${c.score}`)
+                            .join(", ")}
+                        </div>
+                      )}
+
+                    {dim.type === "numeric" && (
+                      <div
+                        style={{
+                          marginTop: "0.5rem",
+                          fontSize: "0.85em",
+                          color: "#666",
+                        }}
+                      >
+                        Range: {dim.numericMin} - {dim.numericMax}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
           </cf-vstack>
 
           {/* DEBUG INFO */}
-          <details style={{ marginTop: "1rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
+          <details
+            style={{
+              marginTop: "1rem",
+              padding: "1rem",
+              background: "#f0f0f0",
+              borderRadius: "4px",
+            }}
+          >
             <summary style={{ cursor: "pointer", fontWeight: "bold" }}>
               Debug Info (Click to expand)
             </summary>
@@ -938,7 +1279,7 @@ Be precise with categorical values - use exact label matches.`;
       quickAddPrompt,
       quickAddSubmitted,
     };
-  }
+  },
 );
 
 export default SmartRubric;

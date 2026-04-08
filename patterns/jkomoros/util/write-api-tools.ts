@@ -36,7 +36,7 @@
  * }
  * ```
  */
-import { Writable, handler, JSONSchema } from "commonfabric";
+import { handler, JSONSchema, Writable } from "commonfabric";
 
 // =============================================================================
 // EMAIL SUGGESTION TOOL
@@ -135,7 +135,8 @@ export function suggestEmailTool(pendingDraft: Writable<EmailDraft | null>) {
 
       const result = {
         success: true,
-        message: `Email draft prepared for user confirmation. To: ${draft.to}, Subject: "${draft.subject}"`,
+        message:
+          `Email draft prepared for user confirmation. To: ${draft.to}, Subject: "${draft.subject}"`,
         requiresConfirmation: true,
       };
 
@@ -182,7 +183,8 @@ const SUGGEST_CALENDAR_EVENT_SCHEMA: JSONSchema = {
     },
     attendees: {
       type: "string",
-      description: "Comma-separated list of attendee email addresses (optional)",
+      description:
+        "Comma-separated list of attendee email addresses (optional)",
     },
     calendarId: {
       type: "string",
@@ -259,7 +261,8 @@ export function suggestCalendarEventTool(
 
       const result = {
         success: true,
-        message: `Calendar event prepared for user confirmation. "${event.summary}" from ${event.start} to ${event.end}`,
+        message:
+          `Calendar event prepared for user confirmation. "${event.summary}" from ${event.start} to ${event.end}`,
         requiresConfirmation: true,
       };
 
@@ -346,15 +349,15 @@ export function suggestLabelChangeTool(
         .filter(Boolean);
       const labelsToAdd = input.addLabels
         ? input.addLabels
-            .split(",")
-            .map((l) => l.trim())
-            .filter(Boolean)
+          .split(",")
+          .map((l) => l.trim())
+          .filter(Boolean)
         : [];
       const labelsToRemove = input.removeLabels
         ? input.removeLabels
-            .split(",")
-            .map((l) => l.trim())
-            .filter(Boolean)
+          .split(",")
+          .map((l) => l.trim())
+          .filter(Boolean)
         : [];
 
       const op: LabelChangeDraft = {
@@ -372,7 +375,10 @@ export function suggestLabelChangeTool(
 
       const result = {
         success: true,
-        message: `Label changes prepared for ${messageIds.length} message(s). Add: [${labelsToAdd.join(", ")}], Remove: [${labelsToRemove.join(", ")}]`,
+        message:
+          `Label changes prepared for ${messageIds.length} message(s). Add: [${
+            labelsToAdd.join(", ")
+          }], Remove: [${labelsToRemove.join(", ")}]`,
         requiresConfirmation: true,
       };
 
@@ -394,7 +400,8 @@ export function suggestLabelChangeTool(
  * Use these when adding tools to generateObject.
  */
 export const TOOL_DESCRIPTIONS = {
-  suggestEmail: `Suggest an email to send. The email will NOT be sent automatically - user must review and confirm.
+  suggestEmail:
+    `Suggest an email to send. The email will NOT be sent automatically - user must review and confirm.
 Parameters:
 - to: Recipient email (required)
 - subject: Email subject (required)
@@ -406,7 +413,8 @@ Parameters:
 
 Returns: Confirmation that draft is ready for user review.`,
 
-  suggestCalendarEvent: `Suggest a calendar event to create. The event will NOT be created automatically - user must review and confirm.
+  suggestCalendarEvent:
+    `Suggest a calendar event to create. The event will NOT be created automatically - user must review and confirm.
 Parameters:
 - summary: Event title (required)
 - start: Start datetime in ISO or YYYY-MM-DDTHH:MM format (required)
@@ -418,7 +426,8 @@ Parameters:
 
 Returns: Confirmation that event is ready for user review.`,
 
-  suggestLabelChange: `Suggest label changes for Gmail messages. Changes will NOT be applied automatically - user must review and confirm.
+  suggestLabelChange:
+    `Suggest label changes for Gmail messages. Changes will NOT be applied automatically - user must review and confirm.
 Parameters:
 - messageIds: Comma-separated list of Gmail message IDs (required)
 - addLabels: Comma-separated label IDs to add (optional)

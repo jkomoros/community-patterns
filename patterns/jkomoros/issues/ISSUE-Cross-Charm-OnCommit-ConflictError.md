@@ -2,7 +2,10 @@
 
 ## Summary
 
-When using `stream.send(value, onCommit)` for cross-charm communication (e.g., triggering token refresh from a consumer charm), the `onCommit` callback causes a massive ConflictError (~363KB). The callback receives the wrong transaction context.
+When using `stream.send(value, onCommit)` for cross-charm communication (e.g.,
+triggering token refresh from a consumer charm), the `onCommit` callback causes
+a massive ConflictError (~363KB). The callback receives the wrong transaction
+context.
 
 ## Error
 
@@ -12,11 +15,13 @@ in did:key:z6Mkr1hFJfbF9mzyb7fC2q5QEvYHrqMFPAAVDq1y82997rNM already exists as
 ba4jcbruc26dz5badeexe2gauh6qvxqrddxudn2pujy2qhoentbsbbepa
 ```
 
-The error is ~363KB because it serializes the full cell content, which includes ~60 `$alias` properties each embedding the complete `rootSchema`.
+The error is ~363KB because it serializes the full cell content, which includes
+~60 `$alias` properties each embedding the complete `rootSchema`.
 
 ## Reproduction
 
-1. Consumer charm (gmail-agentic-search) uses `wish()` to locate provider charm (google-auth)
+1. Consumer charm (gmail-agentic-search) uses `wish()` to locate provider charm
+   (google-auth)
 2. Consumer extracts refresh stream via `derive()`
 3. Consumer calls `refreshStream.send({}, onCommit)` with a callback
 4. Provider's handler runs and commits successfully
@@ -39,23 +44,29 @@ Note: Without the `onCommit` callback, `refreshStream.send({})` works fine.
 
 **Location:** `~/Code/labs/packages/runner/src/scheduler.ts` lines 552-557
 
-The `onCommit` callback receives the **handler's transaction**, not the **caller's transaction**.
+The `onCommit` callback receives the **handler's transaction**, not the
+**caller's transaction**.
 
 ### Transaction Flow
 
-1. **gmail-agentic-search** (consumer) runs a handler that calls `refreshStream.send({}, onCommit)`
+1. **gmail-agentic-search** (consumer) runs a handler that calls
+   `refreshStream.send({}, onCommit)`
 2. Framework queues the event with the callback (scheduler.ts ~line 349-353)
 3. In `execute()` (line 526), the event is dequeued
-4. A **NEW transaction** is created at line 569: `const tx = this.runtime.edit();`
+4. A **NEW transaction** is created at line 569:
+   `const tx = this.runtime.edit();`
 5. This `tx` is created in **google-auth's space**, not the caller's space
 6. The google-auth handler runs with this tx
-7. When commit completes, `onCommit(tx)` is called — but `tx` is **google-auth's transaction**
+7. When commit completes, `onCommit(tx)` is called — but `tx` is **google-auth's
+   transaction**
 8. The callback in gmail-agentic-search runs with wrong transaction context
-9. **ConflictError** because the CAS base state doesn't match gmail-agentic-search's expected state
+9. **ConflictError** because the CAS base state doesn't match
+   gmail-agentic-search's expected state
 
 ### Relevant Code
 
 **scheduler.ts execute():**
+
 ```typescript
 // Line 569 - transaction created INSIDE execute(), bound to handler's space
 const tx = this.runtime.edit();
@@ -82,10 +93,12 @@ const finalize = (error?: unknown) => {
 ### Why `conflict.expected == null`
 
 From `error.ts` lines 72-77, this specific error format means:
+
 - The transaction tried to create a new fact (first assertion for an entity)
 - But the entity already exists with a different fact reference
 
 This happens because:
+
 1. The transaction context (`tx`) belongs to google-auth's space
 2. The callback may be creating references in an unexpected space
 3. The CAS fails because entity IDs already exist from a different causal chain
@@ -94,7 +107,8 @@ This happens because:
 
 **Option 1: Status-Only Callback (Recommended)**
 
-Change the `onCommit` callback to NOT receive a transaction. Cross-charm callbacks should be for notification, not transaction continuation.
+Change the `onCommit` callback to NOT receive a transaction. Cross-charm
+callbacks should be for notification, not transaction continuation.
 
 **File:** `~/Code/labs/packages/runner/src/cell.ts` (lines 104-108)
 
@@ -141,7 +155,8 @@ interface IStreamable<T> {
 }
 ```
 
-**Rationale:** Any continuation work should create its own transaction in its own context.
+**Rationale:** Any continuation work should create its own transaction in its
+own context.
 
 ## Workaround (Not Implemented)
 
@@ -177,16 +192,22 @@ This avoids the `onCommit` callback entirely by watching for cell changes.
 These patterns demonstrate the issue and can be used to reproduce/debug:
 
 ### Consumer Pattern (where ConflictError occurs)
+
 **File:** `patterns/jkomoros/gmail-agentic-search.tsx`
+
 - **Line 774:** The `refreshStream.send()` call with `onCommit` callback
-- **Lines 771-790:** Full context of the token refresh attempt in `SearchGmail` tool
+- **Lines 771-790:** Full context of the token refresh attempt in `SearchGmail`
+  tool
 
 ```typescript
 // gmail-agentic-search.tsx:771-790
 console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
 await new Promise<void>((resolve, reject) => {
   // Cast to bypass TS types - runtime supports onCommit (verified in cell.ts:105-108)
-  (refreshStream.send as (event: Record<string, never>, onCommit?: (tx: any) => void) => void)(
+  (refreshStream.send as (
+    event: Record<string, never>,
+    onCommit?: (tx: any) => void,
+  ) => void)(
     {},
     (tx: any) => {
       // onCommit fires after the handler's transaction commits
@@ -196,13 +217,15 @@ await new Promise<void>((resolve, reject) => {
       } else {
         resolve();
       }
-    }
+    },
   );
 });
 ```
 
 ### Provider Pattern (handler that gets invoked)
+
 **File:** `patterns/jkomoros/google-auth.tsx`
+
 - **Line 161:** The `refreshTokenHandler` definition
 - **Line 434:** Where `refreshTokenHandler` is exported as `refreshToken` Stream
 
@@ -221,18 +244,27 @@ refreshToken: refreshTokenHandler({ auth }) as unknown as Stream<Record<string, 
 ```
 
 ### Utility Function
+
 **File:** `patterns/jkomoros/util/gmail-client.ts`
-- **Line 701:** Alternative location where `refreshStream.send({}, onCommit)` is called
+
+- **Line 701:** Alternative location where `refreshStream.send({}, onCommit)` is
+  called
 
 ### Test Harness
+
 **File:** `patterns/jkomoros/WIP/test-auth-consumer.tsx`
+
 - A minimal test pattern for cross-charm stream communication
 - Uses `Stream<T>` handler signature pattern that works WITHOUT onCommit
 
 ### Full Error Output
+
 **File:** `~/Downloads/auth-token-conflict.txt` (363KB)
+
 - Complete serialized ConflictError with the massive schema dump
 
 ## Impact
 
-This blocks the "elegant" approach to cross-charm token refresh where the consumer knows exactly when the refresh completed. Current workaround is a hardcoded delay or the polling approach above.
+This blocks the "elegant" approach to cross-charm token refresh where the
+consumer knows exactly when the refresh completed. Current workaround is a
+hardcoded delay or the polling approach above.

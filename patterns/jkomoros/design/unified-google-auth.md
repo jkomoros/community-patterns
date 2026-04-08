@@ -5,18 +5,24 @@
 ## Problem
 
 Currently there are separate auth patterns for each Google service:
+
 - `gmail-auth.tsx` - requests `gmail.readonly` scope, tag `#googleAuth`
-- `google-calendar-auth.tsx` - requests `calendar.readonly` scope, tag `#googleCalendarAuth`
+- `google-calendar-auth.tsx` - requests `calendar.readonly` scope, tag
+  `#googleCalendarAuth`
 
 This causes:
+
 1. **Multiple OAuth flows** - users authenticate separately for each service
-2. **Multiple charms to favorite** - need to favorite each auth pattern separately
-3. **Different wish tags** - importers can't share auth (`#googleAuth` vs `#googleCalendarAuth`)
+2. **Multiple charms to favorite** - need to favorite each auth pattern
+   separately
+3. **Different wish tags** - importers can't share auth (`#googleAuth` vs
+   `#googleCalendarAuth`)
 4. **Code duplication** - both auth patterns are nearly identical
 
 ## Proposed Solution
 
-Create a single `google-auth.tsx` pattern with configurable scopes via checkboxes.
+Create a single `google-auth.tsx` pattern with configurable scopes via
+checkboxes.
 
 ### User Experience
 
@@ -47,6 +53,7 @@ Create a single `google-auth.tsx` pattern with configurable scopes via checkboxe
 ### Technical Design
 
 **Input Schema:**
+
 ```typescript
 interface Input {
   selectedScopes: Default<{
@@ -60,11 +67,12 @@ interface Input {
     drive: false;
     contacts: false;
   }>;
-  auth: Default<Auth, { /* empty defaults */ }>;
+  auth: Default<Auth, {/* empty defaults */}>;
 }
 ```
 
 **Scope Mapping:**
+
 ```typescript
 const SCOPE_MAP = {
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
@@ -75,6 +83,7 @@ const SCOPE_MAP = {
 ```
 
 **Dynamic Scope Construction:**
+
 ```typescript
 const scopes = derive(selectedScopes, (selected) => {
   const base = ["email", "profile"];
@@ -88,11 +97,12 @@ const scopes = derive(selectedScopes, (selected) => {
 ```
 
 **Single Wish Tag:**
+
 ```typescript
 /** Google OAuth authentication for Google APIs. #googleAuth */
 interface Output {
   auth: Auth;
-  scopes: string[];  // Expose granted scopes for importers to check
+  scopes: string[]; // Expose granted scopes for importers to check
 }
 ```
 
@@ -104,16 +114,23 @@ Importers would check if required scope is present:
 // In calendar-importer.tsx
 const authCharm = wish<GoogleAuthCharm>("#googleAuth");
 
-const hasCalendarScope = derive(authCharm, (charm) =>
-  charm?.scopes?.includes("https://www.googleapis.com/auth/calendar.readonly")
+const hasCalendarScope = derive(
+  authCharm,
+  (charm) =>
+    charm?.scopes?.includes(
+      "https://www.googleapis.com/auth/calendar.readonly",
+    ),
 );
 
 // Show warning if scope not granted
-{!hasCalendarScope && (
-  <div style={{ color: "orange" }}>
-    Calendar permission not granted. Please enable Calendar in your Google Auth charm.
-  </div>
-)}
+{
+  !hasCalendarScope && (
+    <div style={{ color: "orange" }}>
+      Calendar permission not granted. Please enable Calendar in your Google
+      Auth charm.
+    </div>
+  );
+}
 ```
 
 ## Migration Path
@@ -132,13 +149,20 @@ const hasCalendarScope = derive(authCharm, (charm) =>
 
 ## Open Questions
 
-1. **Re-authentication for new scopes**: If user adds a new scope checkbox, do they need to re-authenticate? (Likely yes - Google requires new consent for additional scopes)
+1. **Re-authentication for new scopes**: If user adds a new scope checkbox, do
+   they need to re-authenticate? (Likely yes - Google requires new consent for
+   additional scopes)
 
-2. **Scope visualization**: Should we show which scopes are actually granted vs requested? (Token may have different scopes than requested if user denied some)
+2. **Scope visualization**: Should we show which scopes are actually granted vs
+   requested? (Token may have different scopes than requested if user denied
+   some)
 
-3. **Incremental authorization**: Google supports adding scopes incrementally without revoking existing token. Should we support this? (Would require backend changes)
+3. **Incremental authorization**: Google supports adding scopes incrementally
+   without revoking existing token. Should we support this? (Would require
+   backend changes)
 
-4. **Drive/Contacts**: Include these now or wait until there are importers that need them?
+4. **Drive/Contacts**: Include these now or wait until there are importers that
+   need them?
 
 ## Estimated Effort
 
@@ -162,16 +186,20 @@ const hasCalendarScope = derive(authCharm, (charm) =>
 ## Implementation Notes (2024)
 
 Created `google-auth.tsx` as the unified auth pattern with:
+
 - Checkboxes for Gmail, Calendar, Drive, and Contacts scopes
 - Dynamic scope construction based on selections
 - Re-auth detection when new scopes are added
 - Display of granted scopes after authentication
 
 Updated importers to check for required scopes:
+
 - `gmail-importer.tsx` - checks for Gmail scope, shows warning if missing
-- `google-calendar-importer.tsx` - now uses `#googleAuth`, checks for Calendar scope
+- `google-calendar-importer.tsx` - now uses `#googleAuth`, checks for Calendar
+  scope
 - `hotel-membership-extractor.tsx` - checks for Gmail scope
 
 Removed old auth patterns:
+
 - `gmail-auth.tsx` - removed (superseded by google-auth.tsx)
 - `WIP/google-calendar-auth.tsx` - removed (superseded by google-auth.tsx)

@@ -1,29 +1,34 @@
 # Race Conditions in Favorites System Cause wish() to Fail
 
-**Linear**: [CT-1126](https://linear.app/common-tools/issue/CT-1126/race-conditions-in-favorites-system-cause-wish-to-fail)
-**Status**: Open
-**Severity**: High
-**Affects**: All patterns using `wish({ query: "#tag" })` for charm discovery
-**Related**: ISSUE-favorites-not-persisting-across-navigation.md
+**Linear**:
+[CT-1126](https://linear.app/common-tools/issue/CT-1126/race-conditions-in-favorites-system-cause-wish-to-fail)
+**Status**: Open **Severity**: High **Affects**: All patterns using
+`wish({ query: "#tag" })` for charm discovery **Related**:
+ISSUE-favorites-not-persisting-across-navigation.md
 
 ---
 
 ## Executive Summary
 
-Two race conditions in the sync system cause `wish({ query: "#googleAuth" })` to return "No favorite found" even when charms are correctly favorited:
+Two race conditions in the sync system cause `wish({ query: "#googleAuth" })` to
+return "No favorite found" even when charms are correctly favorited:
 
-1. **Bug #1**: `get()` in `cell.ts` calls `sync()` without awaiting it - returns stale/empty data
-2. **Bug #2**: `addFavorite()` syncs favorites list but NOT the charm being favorited - stores empty tag
+1. **Bug #1**: `get()` in `cell.ts` calls `sync()` without awaiting it - returns
+   stale/empty data
+2. **Bug #2**: `addFavorite()` syncs favorites list but NOT the charm being
+   favorited - stores empty tag
 
-These bugs cause intermittent failures in charm discovery via `wish()`, breaking patterns like `gmail-importer`, `calendar-event-manager`, and any pattern that relies on `wish({ query: "#googleAuth" })`.
+These bugs cause intermittent failures in charm discovery via `wish()`, breaking
+patterns like `gmail-importer`, `calendar-event-manager`, and any pattern that
+relies on `wish({ query: "#googleAuth" })`.
 
 ---
 
 ## BUG #1: get() Doesn't Await sync()
 
 ### Location
-**File**: `packages/runner/src/cell.ts`
-**Lines**: 531-534
+
+**File**: `packages/runner/src/cell.ts` **Lines**: 531-534
 
 ### The Problematic Code
 
@@ -46,7 +51,8 @@ sync(): Promise<Cell<T>> | Cell<T> {
 }
 ```
 
-**Critical bug**: `this.synced = true` is set IMMEDIATELY at line 933, before the actual async sync operation completes.
+**Critical bug**: `this.synced = true` is set IMMEDIATELY at line 933, before
+the actual async sync operation completes.
 
 ### The syncCell() Implementation (storage/cache.ts lines 2175-2193)
 
@@ -97,25 +103,27 @@ T0+Xms: Eventually storageProvider.sync() completes
 
 ### 11 Methods with Same Bug Pattern
 
-| Line | Method | Code |
-|------|--------|------|
-| 532 | `get()` | `if (!this.synced) this.sync();` |
-| 545 | `sample()` | `if (!this.synced) this.sync();` |
-| 595 | `set()` | `if (!this.synced) this.sync();` |
-| 635 | `update()` | `if (!this.synced) this.sync();` |
-| 683 | `push()` | `if (!this.synced) this.sync();` |
-| 927 | `sink()` | `if (!this.synced) this.sync();` |
-| 953 | `getAsQueryResult()` | `if (!this.synced) this.sync();` |
-| 996 | `getRaw()` | `if (!this.synced) this.sync();` |
-| 1013 | `setRaw()` | `if (!this.synced) this.sync();` |
-| 1048 | `getSourceCell()` | `if (!this.synced) this.sync();` |
-| 1078 | `setSourceCell()` | `if (!this.synced) this.sync();` |
+| Line | Method               | Code                             |
+| ---- | -------------------- | -------------------------------- |
+| 532  | `get()`              | `if (!this.synced) this.sync();` |
+| 545  | `sample()`           | `if (!this.synced) this.sync();` |
+| 595  | `set()`              | `if (!this.synced) this.sync();` |
+| 635  | `update()`           | `if (!this.synced) this.sync();` |
+| 683  | `push()`             | `if (!this.synced) this.sync();` |
+| 927  | `sink()`             | `if (!this.synced) this.sync();` |
+| 953  | `getAsQueryResult()` | `if (!this.synced) this.sync();` |
+| 996  | `getRaw()`           | `if (!this.synced) this.sync();` |
+| 1013 | `setRaw()`           | `if (!this.synced) this.sync();` |
+| 1048 | `getSourceCell()`    | `if (!this.synced) this.sync();` |
+| 1078 | `setSourceCell()`    | `if (!this.synced) this.sync();` |
 
 ### Impact in wish.ts (line 241)
 
 ```typescript
-const favoritesCell = homeSpaceCell.key("favorites").asSchema(favoriteListSchema);
-const favorites = favoritesCell.get() || [];  // ← Gets [] because sync incomplete
+const favoritesCell = homeSpaceCell.key("favorites").asSchema(
+  favoriteListSchema,
+);
+const favorites = favoritesCell.get() || []; // ← Gets [] because sync incomplete
 ```
 
 **Result**: Empty array → no matches → "No favorite found matching #googleauth"
@@ -125,8 +133,8 @@ const favorites = favoritesCell.get() || [];  // ← Gets [] because sync incomp
 ## BUG #2: addFavorite() Doesn't Sync Charm
 
 ### Location
-**File**: `packages/charm/src/favorites.ts`
-**Lines**: 47-72
+
+**File**: `packages/charm/src/favorites.ts` **Lines**: 47-72
 
 ### The Problematic Code
 
@@ -136,7 +144,7 @@ export async function addFavorite(
   charm: Cell<unknown>,
 ): Promise<void> {
   const favorites = getHomeFavorites(runtime);
-  await favorites.sync();  // ← LINE 52: Only syncs FAVORITES list
+  await favorites.sync(); // ← LINE 52: Only syncs FAVORITES list
 
   const resolvedCharm = charm.resolveAsCell();
 
@@ -144,10 +152,13 @@ export async function addFavorite(
     const favoritesWithTx = favorites.withTx(tx);
     const current = favoritesWithTx.get() || [];
 
-    if (current.some((entry) => entry.cell.resolveAsCell().equals(resolvedCharm)))
+    if (
+      current.some((entry) => entry.cell.resolveAsCell().equals(resolvedCharm))
+    ) {
       return;
+    }
 
-    const tag = getCellDescription(charm);  // ← LINE 66: charm NOT synced!
+    const tag = getCellDescription(charm); // ← LINE 66: charm NOT synced!
     favoritesWithTx.push({ cell: charm, tag });
   });
 
@@ -155,7 +166,8 @@ export async function addFavorite(
 }
 ```
 
-**Critical bug**: Line 52 syncs only the favorites list. The `charm` parameter is never synced before `getCellDescription()` is called at line 66.
+**Critical bug**: Line 52 syncs only the favorites list. The `charm` parameter
+is never synced before `getCellDescription()` is called at line 66.
 
 ### getCellDescription() Function (lines 9-19)
 
@@ -169,13 +181,14 @@ function getCellDescription(cell: Cell<unknown>): string {
   } catch (e) {
     console.error("Failed to get cell schema for favorite tag:", e);
   }
-  return "";  // ← Returns empty string when schema undefined!
+  return ""; // ← Returns empty string when schema undefined!
 }
 ```
 
 ### Schema Resolution Chain (Why It Fails)
 
 **asSchemaFromLinks() - cell.ts lines 863-897**:
+
 ```typescript
 asSchemaFromLinks<T = unknown>(): Cell<T> {
   let { schema, rootSchema } = resolveLink(
@@ -193,11 +206,14 @@ asSchemaFromLinks<T = unknown>(): Cell<T> {
 }
 ```
 
-**resolveLink() - link-resolution.ts**: Requires cell to be synced so Sigil link metadata can be read from storage. Without sync, returns `{ schema: undefined }`.
+**resolveLink() - link-resolution.ts**: Requires cell to be synced so Sigil link
+metadata can be read from storage. Without sync, returns
+`{ schema: undefined }`.
 
 ### Star Button Call Chain
 
 **FavoriteButton.ts (lines 34-56)**:
+
 ```typescript
 private async handleFavoriteClick(e: Event) {
   // ...
@@ -209,6 +225,7 @@ private async handleFavoriteClick(e: Event) {
 ```
 
 **CharmManager.addFavorite() (manager.ts lines 1134-1136)**:
+
 ```typescript
 addFavorite(charm: Cell<unknown>): Promise<void> {
   return favorites.addFavorite(this.runtime, charm);
@@ -248,7 +265,8 @@ favorites.filter(...) finds no hashtags in empty tags
 
 ### Test 1: Basic Favorite Persistence Failure
 
-1. Deploy a pattern: `deno task ct charm new patterns/examples/counter.tsx --space test`
+1. Deploy a pattern:
+   `deno task ct charm new patterns/examples/counter.tsx --space test`
 2. Navigate to the charm URL
 3. Verify star is empty (☆)
 4. Click star button → star fills (⭐)
@@ -280,12 +298,12 @@ favorites.filter(...) finds no hashtags in empty tags
 
 From existing issue file: ISSUE-favorites-not-persisting-across-navigation.md
 
-| Commit | Description | Works? |
-|--------|-------------|--------|
-| d3d708b73 | Allow wish to read favorites | ✅ |
-| b7f349f99 | Shell view refactor | ✅ |
-| 62e03294a | Rename tag to query | ✅ |
-| **a83109850** | **Add home space to shell (#2170)** | ❌ |
+| Commit        | Description                         | Works? |
+| ------------- | ----------------------------------- | ------ |
+| d3d708b73     | Allow wish to read favorites        | ✅     |
+| b7f349f99     | Shell view refactor                 | ✅     |
+| 62e03294a     | Rename tag to query                 | ✅     |
+| **a83109850** | **Add home space to shell (#2170)** | ❌     |
 
 Root cause commit changed home space initialization/cell access.
 
@@ -304,7 +322,7 @@ export async function addFavorite(
   await favorites.sync();
 
   // ADD THIS LINE:
-  await charm.sync();  // Ensure charm has schema metadata
+  await charm.sync(); // Ensure charm has schema metadata
 
   const resolvedCharm = charm.resolveAsCell();
   // ... rest unchanged
@@ -314,6 +332,7 @@ export async function addFavorite(
 ### Fix #2: Add syncAndGet() helper or await sync in get() (cell.ts)
 
 **Option A** - Add helper method (non-breaking):
+
 ```typescript
 async syncAndGet(): Promise<Readonly<T>> {
   await this.sync();
@@ -322,6 +341,7 @@ async syncAndGet(): Promise<Readonly<T>> {
 ```
 
 **Option B** - Make sync blocking in get() (breaking change):
+
 ```typescript
 get(): Readonly<T> {
   // This would require making get() async - major breaking change
@@ -331,8 +351,10 @@ get(): Readonly<T> {
 ### Fix #3: Sync favorites before reading in wish.ts
 
 ```typescript
-const favoritesCell = homeSpaceCell.key("favorites").asSchema(favoriteListSchema);
-await favoritesCell.sync();  // ADD THIS
+const favoritesCell = homeSpaceCell.key("favorites").asSchema(
+  favoriteListSchema,
+);
+await favoritesCell.sync(); // ADD THIS
 const favorites = favoritesCell.get() || [];
 ```
 
@@ -340,22 +362,25 @@ const favorites = favoritesCell.get() || [];
 
 ## Files Requiring Changes
 
-| File | Line(s) | Change |
-|------|---------|--------|
-| `packages/charm/src/favorites.ts` | 52 | Add `await charm.sync()` before `getCellDescription()` |
-| `packages/runner/src/builtins/wish.ts` | 241 | Add `await favoritesCell.sync()` before `.get()` |
-| `packages/runner/src/cell.ts` | 531-534+ | Consider `syncAndGet()` helper for all 11 affected methods |
+| File                                   | Line(s)  | Change                                                     |
+| -------------------------------------- | -------- | ---------------------------------------------------------- |
+| `packages/charm/src/favorites.ts`      | 52       | Add `await charm.sync()` before `getCellDescription()`     |
+| `packages/runner/src/builtins/wish.ts` | 241      | Add `await favoritesCell.sync()` before `.get()`           |
+| `packages/runner/src/cell.ts`          | 531-534+ | Consider `syncAndGet()` helper for all 11 affected methods |
 
 ---
 
 ## Test Coverage Gap
 
-From `wish.test.ts` (lines 872-1090): 6 comprehensive tests exist but they work because:
+From `wish.test.ts` (lines 872-1090): 6 comprehensive tests exist but they work
+because:
+
 - Explicit `await tx.commit()` between setup and execution
 - Explicit `await runtime.idle()` to ensure storage sync
 - New transaction created before running pattern
 
-**No tests for the race condition** - tests pass due to careful transaction boundaries that real user flows don't have.
+**No tests for the race condition** - tests pass due to careful transaction
+boundaries that real user flows don't have.
 
 ### Suggested Test Addition
 
@@ -372,17 +397,22 @@ test("handles race condition when charm not synced before favoriting", async () 
 
 ## Related Issues
 
-- `ISSUE-favorites-not-persisting-across-navigation.md` - Documents persistence failure
+- `ISSUE-favorites-not-persisting-across-navigation.md` - Documents persistence
+  failure
 - Bisect identifies commit a83109850 as root cause
-- `wish({ query: "#favorites" })` object syntax compiles to `{}` (separate bug - see TODO in wish.ts line 457)
+- `wish({ query: "#favorites" })` object syntax compiles to `{}` (separate bug -
+  see TODO in wish.ts line 457)
 
 ---
 
 ## Workarounds (Until Fixed)
 
-1. **View charm before starring**: Ensure the charm has been loaded/viewed before clicking star
-2. **Wait after starring**: Give a few seconds for sync to complete before navigating away
+1. **View charm before starring**: Ensure the charm has been loaded/viewed
+   before clicking star
+2. **Wait after starring**: Give a few seconds for sync to complete before
+   navigating away
 3. **Refresh after starring**: Force a page refresh to ensure sync completes
-4. **Use explicit cell links**: Instead of `wish()`, pass cells directly via inputs
+4. **Use explicit cell links**: Instead of `wish()`, pass cells directly via
+   inputs
 
 None of these are acceptable long-term solutions.

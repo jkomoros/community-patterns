@@ -1,5 +1,13 @@
 /// <cts-enable />
-import { Writable, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  Default,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+  Writable,
+} from "commonfabric";
 
 /**
  * Debug Date Picker
@@ -46,9 +54,11 @@ const setToday = handler<unknown, { date: Writable<string> }>((_, { date }) => {
 });
 
 // Handler to clear date (use real date)
-const clearDate = handler<unknown, { date: Writable<string> }>((_, { date }) => {
-  date.set("");
-});
+const clearDate = handler<unknown, { date: Writable<string> }>(
+  (_, { date }) => {
+    date.set("");
+  },
+);
 
 export default pattern<DatePickerInput, DatePickerOutput>(({ date }) => {
   return {
@@ -132,7 +142,9 @@ export default pattern<DatePickerInput, DatePickerOutput>(({ date }) => {
           <div style={{ marginBottom: "4px" }}>
             <strong>Current value:</strong>
           </div>
-          <code style={{ color: "#1f2937" }}>{ifElse(date, date, "(empty - using real date)")}</code>
+          <code style={{ color: "#1f2937" }}>
+            {ifElse(date, date, "(empty - using real date)")}
+          </code>
         </div>
       </div>
     ),

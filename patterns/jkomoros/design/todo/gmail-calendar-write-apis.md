@@ -2,17 +2,22 @@
 
 ## Overview
 
-Design for adding write operations to Gmail and Calendar with **pattern-level confirmation UI** that can serve as declassification gates when policies are implemented (patterns with verified SHA can be trusted).
+Design for adding write operations to Gmail and Calendar with **pattern-level
+confirmation UI** that can serve as declassification gates when policies are
+implemented (patterns with verified SHA can be trusted).
 
 ## Current State
 
 ### Existing Read-Only Implementation
-- **gmail-importer.tsx**: Full email fetching with incremental sync via History API
+
+- **gmail-importer.tsx**: Full email fetching with incremental sync via History
+  API
 - **google-calendar-importer.tsx**: Calendar listing and event fetching
 - **google-auth.tsx**: OAuth authentication with scope management
 - **util/gmail-client.ts**: Shared API client with token refresh
 
 ### Current Scopes (Read-Only)
+
 ```typescript
 const SCOPE_MAP = {
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
@@ -23,13 +28,16 @@ const SCOPE_MAP = {
 ## Proposed Write Operations
 
 ### Gmail: Send Email
+
 - **Scope**: `https://www.googleapis.com/auth/gmail.send`
   - More restrictive than `gmail.compose` (which also allows draft access)
   - OAuth consent shows "Send email on your behalf" (less alarming)
-- **Endpoint**: `POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send`
+- **Endpoint**:
+  `POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send`
 - **Request Format**: RFC 2822 MIME message encoded as base64url in `raw` field
 
 ### Calendar: Full CRUD + RSVPs
+
 - **Scope**: `https://www.googleapis.com/auth/calendar.events`
 - **Operations**:
   - **Create**: `POST /calendars/{calendarId}/events`
@@ -43,15 +51,20 @@ const SCOPE_MAP = {
 
 ### Why Patterns as Declassification Gates?
 
-1. **SHA Verification**: Patterns with a verified SHA can be trusted for declassification
-2. **User-land flexibility**: No need to modify labs - patterns can be blessed by SHA
+1. **SHA Verification**: Patterns with a verified SHA can be trusted for
+   declassification
+2. **User-land flexibility**: No need to modify labs - patterns can be blessed
+   by SHA
 3. **Existing components**: Use ct-card, ct-button, ct-alert for confirmation UI
 4. **Auditability**: Pattern source is versioned and auditable
 
 ### Core Principle
-**User must explicitly see and confirm EXACTLY what will happen before any write operation.**
+
+**User must explicitly see and confirm EXACTLY what will happen before any write
+operation.**
 
 ### Future Policy Integration
+
 ```typescript
 // Conceptual policy - patterns with verified SHA can declassify
 const policy = {
@@ -62,8 +75,8 @@ const policy = {
         "calendar-manager.tsx@sha256:def456...",
       ],
       requiresUserConfirmation: true,
-    }
-  }
+    },
+  },
 };
 ```
 
@@ -78,8 +91,16 @@ const policy = {
 /// <cts-enable />
 
 import {
-  Cell, cell, Default, derive, handler, ifElse,
-  NAME, pattern, UI, wish
+  Cell,
+  cell,
+  Default,
+  derive,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+  wish,
 } from "commonfabric";
 import { GmailSendClient } from "./util/gmail-send-client.ts";
 import type { Auth } from "./google-auth.tsx";
@@ -110,9 +131,9 @@ interface Input {
 export default pattern<Input>(({ draft }) => {
   // Auth via wish
   const authCharm = wish<{ auth: Auth }>("#googleAuth");
-  const auth = derive(authCharm, c => c?.auth);
-  const senderEmail = derive(auth, a => a?.user?.email || "");
-  const hasAuth = derive(auth, a => !!a?.token);
+  const auth = derive(authCharm, (c) => c?.auth);
+  const senderEmail = derive(auth, (a) => a?.user?.email || "");
+  const hasAuth = derive(auth, (a) => !!a?.token);
 
   // Confirmation state
   const showConfirmation = cell(false);
@@ -123,19 +144,24 @@ export default pattern<Input>(({ draft }) => {
   const prepareToSend = handler<unknown, { showConfirmation: Cell<boolean> }>(
     (_, { showConfirmation }) => {
       showConfirmation.set(true);
-    }
+    },
   );
 
   const cancelSend = handler<unknown, { showConfirmation: Cell<boolean> }>(
     (_, { showConfirmation }) => {
       showConfirmation.set(false);
-    }
+    },
   );
 
   const confirmAndSend = handler<
     unknown,
-    { draft: Cell<EmailDraft>; auth: Cell<Auth>; sending: Cell<boolean>;
-      result: Cell<SendResult | null>; showConfirmation: Cell<boolean> }
+    {
+      draft: Cell<EmailDraft>;
+      auth: Cell<Auth>;
+      sending: Cell<boolean>;
+      result: Cell<SendResult | null>;
+      showConfirmation: Cell<boolean>;
+    }
   >(
     async (_, { draft, auth, sending, result, showConfirmation }) => {
       sending.set(true);
@@ -162,7 +188,7 @@ export default pattern<Input>(({ draft }) => {
       } finally {
         sending.set(false);
       }
-    }
+    },
   );
 
   return {
@@ -179,21 +205,27 @@ export default pattern<Input>(({ draft }) => {
             {ifElse(
               hasAuth,
               <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #d1fae5; border-radius: 6px;">
-                <span>Sending as: <strong>{senderEmail}</strong></span>
+                <span>
+                  Sending as: <strong>{senderEmail}</strong>
+                </span>
               </div>,
               <ct-alert variant="warning">
                 <span slot="title">Not authenticated</span>
                 <span slot="description">
-                  Please create and favorite a Google Auth charm with Gmail Send permission.
+                  Please create and favorite a Google Auth charm with Gmail Send
+                  permission.
                 </span>
-              </ct-alert>
+              </ct-alert>,
             )}
 
             {/* Compose form */}
             <ct-vstack gap="3">
               <div>
                 <ct-label>To</ct-label>
-                <ct-input $value={draft.to} placeholder="recipient@example.com" />
+                <ct-input
+                  $value={draft.to}
+                  placeholder="recipient@example.com"
+                />
               </div>
               <div>
                 <ct-label>CC (optional)</ct-label>
@@ -218,7 +250,8 @@ export default pattern<Input>(({ draft }) => {
                 disabled={derive(
                   { hasAuth, draft, sending },
                   ({ hasAuth, draft, sending }) =>
-                    !hasAuth || !draft.to || !draft.subject || !draft.body || sending
+                    !hasAuth || !draft.to || !draft.subject || !draft.body ||
+                    sending,
                 )}
               >
                 Review & Send
@@ -227,27 +260,34 @@ export default pattern<Input>(({ draft }) => {
 
             {/* Result display */}
             {ifElse(
-              derive(result, r => r?.success === true),
+              derive(result, (r) => r?.success === true),
               <ct-alert variant="success" dismissible>
                 <span slot="title">Email sent!</span>
-                <span slot="description">Message ID: {derive(result, r => r?.messageId)}</span>
+                <span slot="description">
+                  Message ID: {derive(result, (r) => r?.messageId)}
+                </span>
               </ct-alert>,
-              null
+              null,
             )}
             {ifElse(
-              derive(result, r => r?.success === false),
+              derive(result, (r) => r?.success === false),
               <ct-alert variant="destructive" dismissible>
                 <span slot="title">Failed to send</span>
-                <span slot="description">{derive(result, r => r?.error)}</span>
+                <span slot="description">
+                  {derive(result, (r) => r?.error)}
+                </span>
               </ct-alert>,
-              null
+              null,
             )}
 
             {/* CONFIRMATION DIALOG */}
             {ifElse(
               showConfirmation,
               <ct-card style="border: 2px solid #dc2626; margin-top: 16px;">
-                <div slot="header" style="display: flex; align-items: center; gap: 8px;">
+                <div
+                  slot="header"
+                  style="display: flex; align-items: center; gap: 8px;"
+                >
                   <span style="font-size: 20px;">📧</span>
                   <h3 style="margin: 0; color: #dc2626;">Confirm Send Email</h3>
                 </div>
@@ -255,27 +295,37 @@ export default pattern<Input>(({ draft }) => {
                 <div slot="content">
                   <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
                     <div style="margin-bottom: 8px;">
-                      <strong style="color: #6b7280; min-width: 60px; display: inline-block;">From:</strong>
+                      <strong style="color: #6b7280; min-width: 60px; display: inline-block;">
+                        From:
+                      </strong>
                       {senderEmail}
                     </div>
                     <div style="margin-bottom: 8px;">
-                      <strong style="color: #6b7280; min-width: 60px; display: inline-block;">To:</strong>
+                      <strong style="color: #6b7280; min-width: 60px; display: inline-block;">
+                        To:
+                      </strong>
                       <span style="font-weight: 500;">{draft.to}</span>
                     </div>
                     {ifElse(
-                      derive(draft.cc, cc => !!cc),
+                      derive(draft.cc, (cc) => !!cc),
                       <div style="margin-bottom: 8px;">
-                        <strong style="color: #6b7280; min-width: 60px; display: inline-block;">CC:</strong>
+                        <strong style="color: #6b7280; min-width: 60px; display: inline-block;">
+                          CC:
+                        </strong>
                         {draft.cc}
                       </div>,
-                      null
+                      null,
                     )}
                     <div style="margin-bottom: 12px;">
-                      <strong style="color: #6b7280; min-width: 60px; display: inline-block;">Subject:</strong>
+                      <strong style="color: #6b7280; min-width: 60px; display: inline-block;">
+                        Subject:
+                      </strong>
                       <span style="font-weight: 500;">{draft.subject}</span>
                     </div>
                     <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
-                      <strong style="color: #6b7280; display: block; margin-bottom: 8px;">Message:</strong>
+                      <strong style="color: #6b7280; display: block; margin-bottom: 8px;">
+                        Message:
+                      </strong>
                       <div style="background: white; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">
                         {draft.body}
                       </div>
@@ -285,13 +335,16 @@ export default pattern<Input>(({ draft }) => {
                   <ct-alert variant="warning">
                     <span slot="title">This will send a real email</span>
                     <span slot="description">
-                      The recipient will receive this email from your Google account.
-                      This action cannot be undone.
+                      The recipient will receive this email from your Google
+                      account. This action cannot be undone.
                     </span>
                   </ct-alert>
                 </div>
 
-                <div slot="footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                <div
+                  slot="footer"
+                  style="display: flex; gap: 12px; justify-content: flex-end;"
+                >
                   <ct-button
                     variant="outline"
                     onClick={cancelSend({ showConfirmation })}
@@ -301,14 +354,20 @@ export default pattern<Input>(({ draft }) => {
                   </ct-button>
                   <ct-button
                     variant="destructive"
-                    onClick={confirmAndSend({ draft, auth, sending, result, showConfirmation })}
+                    onClick={confirmAndSend({
+                      draft,
+                      auth,
+                      sending,
+                      result,
+                      showConfirmation,
+                    })}
                     disabled={sending}
                   >
                     {ifElse(sending, "Sending...", "Send Email")}
                   </ct-button>
                 </div>
               </ct-card>,
-              null
+              null,
             )}
           </ct-vstack>
         </ct-vscroll>
@@ -327,8 +386,16 @@ export default pattern<Input>(({ draft }) => {
 /// <cts-enable />
 
 import {
-  Cell, cell, Default, derive, handler, ifElse,
-  NAME, pattern, UI, wish
+  Cell,
+  cell,
+  Default,
+  derive,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+  wish,
 } from "commonfabric";
 import { CalendarWriteClient } from "./util/calendar-write-client.ts";
 import type { Auth } from "./google-auth.tsx";
@@ -339,21 +406,21 @@ type RSVPStatus = "accepted" | "declined" | "tentative";
 
 type EventDraft = {
   summary: string;
-  start: string;  // ISO datetime or YYYY-MM-DD for all-day
+  start: string; // ISO datetime or YYYY-MM-DD for all-day
   end: string;
   calendarId: string;
   calendarName?: string;
   description?: string;
   location?: string;
-  attendees?: string[];  // Email addresses
+  attendees?: string[]; // Email addresses
   isAllDay?: boolean;
 };
 
 type PendingOperation = {
   operation: CalendarOperation;
   event: EventDraft;
-  existingEventId?: string;  // For update/delete
-  rsvpStatus?: RSVPStatus;   // For RSVP
+  existingEventId?: string; // For update/delete
+  rsvpStatus?: RSVPStatus; // For RSVP
 };
 
 type OperationResult = {
@@ -372,9 +439,9 @@ interface Input {
 export default pattern<Input>(({ selectedEvent }) => {
   // Auth via wish
   const authCharm = wish<{ auth: Auth }>("#googleAuth");
-  const auth = derive(authCharm, c => c?.auth);
-  const userEmail = derive(auth, a => a?.user?.email || "");
-  const hasAuth = derive(auth, a => !!a?.token);
+  const auth = derive(authCharm, (c) => c?.auth);
+  const userEmail = derive(auth, (a) => a?.user?.email || "");
+  const hasAuth = derive(auth, (a) => !!a?.token);
 
   // Calendars list (fetched on load)
   const calendars = cell<Calendar[]>([]);
@@ -400,8 +467,12 @@ export default pattern<Input>(({ selectedEvent }) => {
     if (!iso) return "";
     const d = new Date(iso);
     return d.toLocaleString(undefined, {
-      weekday: 'short', year: 'numeric', month: 'short',
-      day: 'numeric', hour: '2-digit', minute: '2-digit'
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -413,27 +484,29 @@ export default pattern<Input>(({ selectedEvent }) => {
         return {
           title: "This will create a real calendar event",
           desc: hasAttendees
-            ? `Invitations will be sent to ${op.event.attendees!.length} attendee(s).`
-            : "The event will appear on your Google Calendar."
+            ? `Invitations will be sent to ${
+              op.event.attendees!.length
+            } attendee(s).`
+            : "The event will appear on your Google Calendar.",
         };
       case "update":
         return {
           title: "This will update the calendar event",
           desc: hasAttendees
             ? "Attendees will be notified of the changes."
-            : "The event will be modified on your calendar."
+            : "The event will be modified on your calendar.",
         };
       case "delete":
         return {
           title: "This will permanently delete the event",
           desc: hasAttendees
             ? "Attendees will be notified of the cancellation."
-            : "This action cannot be undone."
+            : "This action cannot be undone.",
         };
       case "rsvp":
         return {
           title: `You are responding "${op.rsvpStatus}"`,
-          desc: "The organizer will be notified of your response."
+          desc: "The organizer will be notified of your response.",
         };
     }
   };
@@ -441,7 +514,11 @@ export default pattern<Input>(({ selectedEvent }) => {
   // Handlers
   const prepareOperation = handler<
     { operation: CalendarOperation; rsvpStatus?: RSVPStatus },
-    { draft: Cell<EventDraft>; pendingOp: Cell<PendingOperation | null>; selectedEvent: Cell<CalendarEvent | null> }
+    {
+      draft: Cell<EventDraft>;
+      pendingOp: Cell<PendingOperation | null>;
+      selectedEvent: Cell<CalendarEvent | null>;
+    }
   >(
     ({ operation, rsvpStatus }, { draft, pendingOp, selectedEvent }) => {
       const event = draft.get();
@@ -452,20 +529,27 @@ export default pattern<Input>(({ selectedEvent }) => {
         existingEventId: existing?.id,
         rsvpStatus,
       });
-    }
+    },
   );
 
-  const cancelOperation = handler<unknown, { pendingOp: Cell<PendingOperation | null> }>(
+  const cancelOperation = handler<
+    unknown,
+    { pendingOp: Cell<PendingOperation | null> }
+  >(
     (_, { pendingOp }) => {
       pendingOp.set(null);
-    }
+    },
   );
 
   const confirmOperation = handler<
     unknown,
-    { pendingOp: Cell<PendingOperation | null>; auth: Cell<Auth>;
-      processing: Cell<boolean>; result: Cell<OperationResult | null>;
-      draft: Cell<EventDraft> }
+    {
+      pendingOp: Cell<PendingOperation | null>;
+      auth: Cell<Auth>;
+      processing: Cell<boolean>;
+      result: Cell<OperationResult | null>;
+      draft: Cell<EventDraft>;
+    }
   >(
     async (_, { pendingOp, auth, processing, result, draft }) => {
       const op = pendingOp.get();
@@ -503,7 +587,7 @@ export default pattern<Input>(({ selectedEvent }) => {
                 description: op.event.description,
                 location: op.event.location,
                 attendees: op.event.attendees,
-              }
+              },
             );
             eventId = updated.id;
             break;
@@ -516,7 +600,7 @@ export default pattern<Input>(({ selectedEvent }) => {
             const rsvped = await client.rsvpToEvent(
               op.event.calendarId,
               op.existingEventId!,
-              op.rsvpStatus!
+              op.rsvpStatus!,
             );
             eventId = rsvped.id;
             break;
@@ -529,8 +613,13 @@ export default pattern<Input>(({ selectedEvent }) => {
         // Clear draft on create success
         if (op.operation === "create") {
           draft.set({
-            summary: "", start: "", end: "", calendarId: "primary",
-            description: "", location: "", attendees: []
+            summary: "",
+            start: "",
+            end: "",
+            calendarId: "primary",
+            description: "",
+            location: "",
+            attendees: [],
           });
         }
       } catch (error) {
@@ -542,7 +631,7 @@ export default pattern<Input>(({ selectedEvent }) => {
       } finally {
         processing.set(false);
       }
-    }
+    },
   );
 
   return {
@@ -559,21 +648,27 @@ export default pattern<Input>(({ selectedEvent }) => {
             {ifElse(
               hasAuth,
               <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #d1fae5; border-radius: 6px;">
-                <span>Managing calendar for: <strong>{userEmail}</strong></span>
+                <span>
+                  Managing calendar for: <strong>{userEmail}</strong>
+                </span>
               </div>,
               <ct-alert variant="warning">
                 <span slot="title">Not authenticated</span>
                 <span slot="description">
-                  Please create and favorite a Google Auth charm with Calendar Write permission.
+                  Please create and favorite a Google Auth charm with Calendar
+                  Write permission.
                 </span>
-              </ct-alert>
+              </ct-alert>,
             )}
 
             {/* Event form */}
             <ct-vstack gap="3">
               <div>
                 <ct-label>Event Title</ct-label>
-                <ct-input $value={draft.summary} placeholder="Meeting with team" />
+                <ct-input
+                  $value={draft.summary}
+                  placeholder="Meeting with team"
+                />
               </div>
               <ct-hstack gap="3">
                 <div style="flex: 1;">
@@ -587,18 +682,26 @@ export default pattern<Input>(({ selectedEvent }) => {
               </ct-hstack>
               <div>
                 <ct-label>Location (optional)</ct-label>
-                <ct-input $value={draft.location} placeholder="Conference Room A" />
+                <ct-input
+                  $value={draft.location}
+                  placeholder="Conference Room A"
+                />
               </div>
               <div>
                 <ct-label>Description (optional)</ct-label>
-                <ct-textarea $value={draft.description} placeholder="Event details..." />
+                <ct-textarea
+                  $value={draft.description}
+                  placeholder="Event details..."
+                />
               </div>
               <div>
                 <ct-label>Attendees (comma-separated emails)</ct-label>
                 <ct-input
-                  value={derive(draft.attendees, a => (a || []).join(", "))}
+                  value={derive(draft.attendees, (a) => (a || []).join(", "))}
                   onchange={(e: any) => {
-                    const emails = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                    const emails = e.target.value.split(",").map((s: string) =>
+                      s.trim()
+                    ).filter(Boolean);
                     draft.update({ attendees: emails });
                   }}
                   placeholder="alice@example.com, bob@example.com"
@@ -608,11 +711,16 @@ export default pattern<Input>(({ selectedEvent }) => {
               <ct-hstack gap="3">
                 <ct-button
                   variant="primary"
-                  onClick={prepareOperation({ operation: "create" }, { draft, pendingOp, selectedEvent })}
+                  onClick={prepareOperation({ operation: "create" }, {
+                    draft,
+                    pendingOp,
+                    selectedEvent,
+                  })}
                   disabled={derive(
                     { hasAuth, draft, processing },
                     ({ hasAuth, draft, processing }) =>
-                      !hasAuth || !draft.summary || !draft.start || !draft.end || processing
+                      !hasAuth || !draft.summary || !draft.start ||
+                      !draft.end || processing,
                   )}
                 >
                   Create Event
@@ -622,49 +730,69 @@ export default pattern<Input>(({ selectedEvent }) => {
 
             {/* Result display */}
             {ifElse(
-              derive(result, r => r?.success === true),
+              derive(result, (r) => r?.success === true),
               <ct-alert variant="success" dismissible>
                 <span slot="title">
-                  {derive(result, r => {
+                  {derive(result, (r) => {
                     switch (r?.operation) {
-                      case "create": return "Event created!";
-                      case "update": return "Event updated!";
-                      case "delete": return "Event deleted!";
-                      case "rsvp": return "RSVP sent!";
-                      default: return "Success!";
+                      case "create":
+                        return "Event created!";
+                      case "update":
+                        return "Event updated!";
+                      case "delete":
+                        return "Event deleted!";
+                      case "rsvp":
+                        return "RSVP sent!";
+                      default:
+                        return "Success!";
                     }
                   })}
                 </span>
               </ct-alert>,
-              null
+              null,
             )}
             {ifElse(
-              derive(result, r => r?.success === false),
+              derive(result, (r) => r?.success === false),
               <ct-alert variant="destructive" dismissible>
                 <span slot="title">Operation failed</span>
-                <span slot="description">{derive(result, r => r?.error)}</span>
+                <span slot="description">
+                  {derive(result, (r) => r?.error)}
+                </span>
               </ct-alert>,
-              null
+              null,
             )}
 
             {/* CONFIRMATION DIALOG */}
             {ifElse(
-              derive(pendingOp, op => op !== null),
-              derive(pendingOp, op => {
+              derive(pendingOp, (op) => op !== null),
+              derive(pendingOp, (op) => {
                 if (!op) return null;
                 const warning = getWarning(op);
                 const isDelete = op.operation === "delete";
                 const borderColor = isDelete ? "#dc2626" : "#2563eb";
-                const icon = isDelete ? "🗑️" : op.operation === "rsvp" ? "📬" : "📅";
+                const icon = isDelete
+                  ? "🗑️"
+                  : op.operation === "rsvp"
+                  ? "📬"
+                  : "📅";
 
                 return (
-                  <ct-card style={`border: 2px solid ${borderColor}; margin-top: 16px;`}>
-                    <div slot="header" style="display: flex; align-items: center; gap: 8px;">
+                  <ct-card
+                    style={`border: 2px solid ${borderColor}; margin-top: 16px;`}
+                  >
+                    <div
+                      slot="header"
+                      style="display: flex; align-items: center; gap: 8px;"
+                    >
                       <span style="font-size: 20px;">{icon}</span>
                       <h3 style={`margin: 0; color: ${borderColor};`}>
-                        {op.operation === "create" ? "Create Event" :
-                         op.operation === "update" ? "Update Event" :
-                         op.operation === "delete" ? "Delete Event" : "RSVP to Event"}
+                        {op.operation === "create"
+                          ? "Create Event"
+                          : op.operation === "update"
+                          ? "Update Event"
+                          : op.operation === "delete"
+                          ? "Delete Event"
+                          : "RSVP to Event"}
                       </h3>
                     </div>
 
@@ -675,7 +803,10 @@ export default pattern<Input>(({ selectedEvent }) => {
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: #4b5563;">
                           <span>🕐</span>
-                          <span>{formatDateTime(op.event.start)} - {formatDateTime(op.event.end)}</span>
+                          <span>
+                            {formatDateTime(op.event.start)} -{" "}
+                            {formatDateTime(op.event.end)}
+                          </span>
                         </div>
                         {op.event.location && (
                           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: #4b5563;">
@@ -683,26 +814,34 @@ export default pattern<Input>(({ selectedEvent }) => {
                             <span>{op.event.location}</span>
                           </div>
                         )}
-                        {op.event.attendees && op.event.attendees.length > 0 && (
-                          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
-                            <div style="display: flex; align-items: center; gap: 8px; font-weight: 500; margin-bottom: 8px;">
-                              <span>👥</span>
-                              <span>Attendees ({op.event.attendees.length})</span>
-                            </div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                              {op.event.attendees.map(email => (
-                                <span style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 4px 10px; font-size: 13px;">
-                                  {email}
+                        {op.event.attendees && op.event.attendees.length > 0 &&
+                          (
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                              <div style="display: flex; align-items: center; gap: 8px; font-weight: 500; margin-bottom: 8px;">
+                                <span>👥</span>
+                                <span>
+                                  Attendees ({op.event.attendees.length})
                                 </span>
-                              ))}
+                              </div>
+                              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                {op.event.attendees.map((email) => (
+                                  <span style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 4px 10px; font-size: 13px;">
+                                    {email}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
                         {op.operation === "rsvp" && op.rsvpStatus && (
-                          <div style={`margin-top: 12px; padding: 8px 12px; border-radius: 6px; text-align: center; background: ${
-                            op.rsvpStatus === "accepted" ? "#d1fae5" :
-                            op.rsvpStatus === "declined" ? "#fee2e2" : "#fef3c7"
-                          };`}>
+                          <div
+                            style={`margin-top: 12px; padding: 8px 12px; border-radius: 6px; text-align: center; background: ${
+                              op.rsvpStatus === "accepted"
+                                ? "#d1fae5"
+                                : op.rsvpStatus === "declined"
+                                ? "#fee2e2"
+                                : "#fef3c7"
+                            };`}
+                          >
                             Your response: <strong>{op.rsvpStatus}</strong>
                           </div>
                         )}
@@ -714,7 +853,10 @@ export default pattern<Input>(({ selectedEvent }) => {
                       </ct-alert>
                     </div>
 
-                    <div slot="footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <div
+                      slot="footer"
+                      style="display: flex; gap: 12px; justify-content: flex-end;"
+                    >
                       <ct-button
                         variant="outline"
                         onClick={cancelOperation({ pendingOp })}
@@ -724,20 +866,32 @@ export default pattern<Input>(({ selectedEvent }) => {
                       </ct-button>
                       <ct-button
                         variant={isDelete ? "destructive" : "primary"}
-                        onClick={confirmOperation({ pendingOp, auth, processing, result, draft })}
+                        onClick={confirmOperation({
+                          pendingOp,
+                          auth,
+                          processing,
+                          result,
+                          draft,
+                        })}
                         disabled={processing}
                       >
-                        {ifElse(processing, "Processing...",
-                          op.operation === "create" ? "Create Event" :
-                          op.operation === "update" ? "Update Event" :
-                          op.operation === "delete" ? "Delete Event" : "Send RSVP"
+                        {ifElse(
+                          processing,
+                          "Processing...",
+                          op.operation === "create"
+                            ? "Create Event"
+                            : op.operation === "update"
+                            ? "Update Event"
+                            : op.operation === "delete"
+                            ? "Delete Event"
+                            : "Send RSVP",
                         )}
                       </ct-button>
                     </div>
                   </ct-card>
                 );
               }),
-              null
+              null,
             )}
           </ct-vstack>
         </ct-vscroll>
@@ -806,7 +960,7 @@ export class GmailSendClient {
     if (params.bcc) messageParts.push(`Bcc: ${params.bcc}`);
     messageParts.push(`Subject: ${params.subject}`);
     messageParts.push('Content-Type: text/plain; charset="UTF-8"');
-    messageParts.push('MIME-Version: 1.0');
+    messageParts.push("MIME-Version: 1.0");
 
     // Thread reply headers
     if (params.replyToMessageId) {
@@ -815,16 +969,16 @@ export class GmailSendClient {
     }
 
     // Empty line between headers and body
-    messageParts.push('');
+    messageParts.push("");
     messageParts.push(params.body);
 
-    const message = messageParts.join('\r\n');
+    const message = messageParts.join("\r\n");
 
     // Base64url encode
     const encoded = btoa(unescape(encodeURIComponent(message)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
 
     // Build request body
     const requestBody: Record<string, string> = { raw: encoded };
@@ -841,21 +995,23 @@ export class GmailSendClient {
     }
 
     const res = await fetch(
-      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
-      }
+      },
     );
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
       throw new Error(
-        `Gmail API error: ${res.status} ${error.error?.message || res.statusText}`
+        `Gmail API error: ${res.status} ${
+          error.error?.message || res.statusText
+        }`,
       );
     }
 
@@ -874,7 +1030,7 @@ export class GmailSendClient {
       {
         method: "POST",
         body: JSON.stringify({ refreshToken }),
-      }
+      },
     );
 
     if (!res.ok) throw new Error("Token refresh failed");
@@ -925,8 +1081,10 @@ export class CalendarWriteClient {
     this.debugMode = debugMode;
   }
 
-  private formatDateTime(dt: string | Date): { dateTime: string; timeZone: string } {
-    const date = typeof dt === 'string' ? new Date(dt) : dt;
+  private formatDateTime(
+    dt: string | Date,
+  ): { dateTime: string; timeZone: string } {
+    const date = typeof dt === "string" ? new Date(dt) : dt;
     return {
       dateTime: date.toISOString(),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -949,14 +1107,16 @@ export class CalendarWriteClient {
     if (params.description) body.description = params.description;
     if (params.location) body.location = params.location;
     if (params.attendees?.length) {
-      body.attendees = params.attendees.map(email => ({ email }));
+      body.attendees = params.attendees.map((email) => ({ email }));
     }
 
     const url = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(params.calendarId)}/events`
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(params.calendarId)
+      }/events`,
     );
     if (params.sendUpdates) {
-      url.searchParams.set('sendUpdates', params.sendUpdates);
+      url.searchParams.set("sendUpdates", params.sendUpdates);
     }
 
     if (this.debugMode) {
@@ -964,10 +1124,10 @@ export class CalendarWriteClient {
     }
 
     const res = await fetch(url.toString(), {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     });
@@ -975,7 +1135,9 @@ export class CalendarWriteClient {
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
       throw new Error(
-        `Calendar API error: ${res.status} ${error.error?.message || res.statusText}`
+        `Calendar API error: ${res.status} ${
+          error.error?.message || res.statusText
+        }`,
       );
     }
 
@@ -989,7 +1151,7 @@ export class CalendarWriteClient {
     calendarId: string,
     eventId: string,
     params: UpdateEventParams,
-    sendUpdates: "all" | "externalOnly" | "none" = "all"
+    sendUpdates: "all" | "externalOnly" | "none" = "all",
   ): Promise<CalendarEvent> {
     const token = this.auth.get().token;
     if (!token) throw new Error("No authorization token");
@@ -998,26 +1160,30 @@ export class CalendarWriteClient {
     if (params.summary !== undefined) body.summary = params.summary;
     if (params.description !== undefined) body.description = params.description;
     if (params.location !== undefined) body.location = params.location;
-    if (params.start !== undefined) body.start = this.formatDateTime(params.start);
+    if (params.start !== undefined) {
+      body.start = this.formatDateTime(params.start);
+    }
     if (params.end !== undefined) body.end = this.formatDateTime(params.end);
     if (params.attendees !== undefined) {
-      body.attendees = params.attendees.map(email => ({ email }));
+      body.attendees = params.attendees.map((email) => ({ email }));
     }
 
     const url = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
-    url.searchParams.set('sendUpdates', sendUpdates);
+    url.searchParams.set("sendUpdates", sendUpdates);
 
     if (this.debugMode) {
       console.log("[CalendarWriteClient] Updating event:", eventId, body);
     }
 
     const res = await fetch(url.toString(), {
-      method: 'PATCH',
+      method: "PATCH",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     });
@@ -1025,7 +1191,9 @@ export class CalendarWriteClient {
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));
       throw new Error(
-        `Calendar API error: ${res.status} ${error.error?.message || res.statusText}`
+        `Calendar API error: ${res.status} ${
+          error.error?.message || res.statusText
+        }`,
       );
     }
 
@@ -1038,31 +1206,35 @@ export class CalendarWriteClient {
   async deleteEvent(
     calendarId: string,
     eventId: string,
-    sendUpdates: "all" | "externalOnly" | "none" = "all"
+    sendUpdates: "all" | "externalOnly" | "none" = "all",
   ): Promise<void> {
     const token = this.auth.get().token;
     if (!token) throw new Error("No authorization token");
 
     const url = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
-    url.searchParams.set('sendUpdates', sendUpdates);
+    url.searchParams.set("sendUpdates", sendUpdates);
 
     if (this.debugMode) {
       console.log("[CalendarWriteClient] Deleting event:", eventId);
     }
 
     const res = await fetch(url.toString(), {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Authorization': `Bearer ${token}`,
+        "Authorization": `Bearer ${token}`,
       },
     });
 
     if (!res.ok && res.status !== 204) {
       const error = await res.json().catch(() => ({}));
       throw new Error(
-        `Calendar API error: ${res.status} ${error.error?.message || res.statusText}`
+        `Calendar API error: ${res.status} ${
+          error.error?.message || res.statusText
+        }`,
       );
     }
   }
@@ -1073,7 +1245,7 @@ export class CalendarWriteClient {
   async rsvpToEvent(
     calendarId: string,
     eventId: string,
-    status: "accepted" | "declined" | "tentative"
+    status: "accepted" | "declined" | "tentative",
   ): Promise<CalendarEvent> {
     const token = this.auth.get().token;
     if (!token) throw new Error("No authorization token");
@@ -1083,11 +1255,13 @@ export class CalendarWriteClient {
 
     // First, get the current event to find attendee list
     const getUrl = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
 
     const getRes = await fetch(getUrl.toString(), {
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers: { "Authorization": `Bearer ${token}` },
     });
 
     if (!getRes.ok) {
@@ -1105,7 +1279,9 @@ export class CalendarWriteClient {
     });
 
     // Patch the event
-    return this.updateEvent(calendarId, eventId, { attendees: attendees.map((a: any) => a.email) });
+    return this.updateEvent(calendarId, eventId, {
+      attendees: attendees.map((a: any) => a.email),
+    });
   }
 }
 ```
@@ -1115,21 +1291,25 @@ export class CalendarWriteClient {
 ## Implementation Plan
 
 ### Phase 1: Auth Scope Extension
+
 1. [ ] Add `gmailSend` scope to google-auth.tsx SCOPE_MAP
 2. [ ] Add `calendarWrite` scope (calendar.events)
 3. [ ] Update UI to show new scope options
 
 ### Phase 2: API Clients
+
 1. [ ] Create `util/gmail-send-client.ts`
 2. [ ] Create `util/calendar-write-client.ts` with full CRUD + RSVP
 3. [ ] Test clients with manual API calls
 
 ### Phase 3: Patterns
+
 1. [ ] Create `gmail-sender.tsx` with confirmation UI
 2. [ ] Create `calendar-event-manager.tsx` with CRUD + RSVP
 3. [ ] Test with real accounts
 
 ### Phase 4: Integration
+
 1. [ ] Add LLM tool wrappers (suggestEmail, suggestEvent)
 2. [ ] Test agent integration (agents suggest, users confirm)
 

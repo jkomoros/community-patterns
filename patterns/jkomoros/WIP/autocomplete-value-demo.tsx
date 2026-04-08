@@ -14,7 +14,7 @@
  * - Custom values with "Add X" option
  */
 
-import { Writable, computed, Default, NAME, pattern, UI } from "commonfabric";
+import { computed, Default, NAME, pattern, UI, Writable } from "commonfabric";
 
 // Sample items for demo
 const CATEGORY_ITEMS = [
@@ -41,7 +41,7 @@ type Result = {
 
 // Get label for a value
 const getLabel = (value: string) => {
-  const item = CATEGORY_ITEMS.find(i => i.value === value);
+  const item = CATEGORY_ITEMS.find((i) => i.value === value);
   return item?.label || value;
 };
 
@@ -53,14 +53,16 @@ export default pattern<Input, Result>(
         <cf-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
           <h2>Autocomplete Value Binding Demo</h2>
           <p style={{ color: "#666", fontSize: "0.875rem" }}>
-            Demonstrates the new <code>$value</code> binding for ct-autocomplete
-            in single-select and multi-select modes.
+            Demonstrates the new <code>$value</code>{" "}
+            binding for ct-autocomplete in single-select and multi-select modes.
           </p>
 
           {/* Single Select Section */}
           <cf-card>
             <cf-vstack gap="3">
-              <label style={{ fontWeight: "500" }}>Single Select (with $value)</label>
+              <label style={{ fontWeight: "500" }}>
+                Single Select (with $value)
+              </label>
               <cf-autocomplete
                 items={CATEGORY_ITEMS}
                 $value={singleValue}
@@ -68,7 +70,8 @@ export default pattern<Input, Result>(
                 allowCustom={true}
               />
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
-                Selected: <strong>{computed(() => singleValue.get() || "(none)")}</strong>
+                Selected:{" "}
+                <strong>{computed(() => singleValue.get() || "(none)")}</strong>
               </div>
             </cf-vstack>
           </cf-card>
@@ -76,15 +79,19 @@ export default pattern<Input, Result>(
           {/* Multi Select Section */}
           <cf-card>
             <cf-vstack gap="3">
-              <label style={{ fontWeight: "500" }}>Multi Select (with $value + multiple)</label>
+              <label style={{ fontWeight: "500" }}>
+                Multi Select (with $value + multiple)
+              </label>
 
               {/* Tag display for selected items */}
-              <div style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.5rem",
-                minHeight: "2rem",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  minHeight: "2rem",
+                }}
+              >
                 {multiValues.map((value: string) => (
                   <span
                     style={{
@@ -102,7 +109,7 @@ export default pattern<Input, Result>(
                     <button
                       onClick={() => {
                         const current = multiValues.get() || [];
-                        multiValues.set(current.filter(v => v !== value));
+                        multiValues.set(current.filter((v) => v !== value));
                       }}
                       style={{
                         display: "inline-flex",
@@ -134,7 +141,8 @@ export default pattern<Input, Result>(
                 allowCustom={true}
               />
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
-                Count: {computed(() => (multiValues.get() || []).length)} selected
+                Count: {computed(() => (multiValues.get() || []).length)}{" "}
+                selected
               </div>
             </cf-vstack>
           </cf-card>
@@ -142,25 +150,31 @@ export default pattern<Input, Result>(
           {/* Debug output */}
           <cf-card>
             <cf-vstack gap="2">
-              <label style={{ fontWeight: "500", fontSize: "0.875rem" }}>Debug State</label>
-              <code style={{
-                padding: "0.5rem",
-                backgroundColor: "#f3f4f6",
-                borderRadius: "0.25rem",
-                fontSize: "0.75rem",
-                whiteSpace: "pre-wrap",
-              }}>
+              <label style={{ fontWeight: "500", fontSize: "0.875rem" }}>
+                Debug State
+              </label>
+              <code
+                style={{
+                  padding: "0.5rem",
+                  backgroundColor: "#f3f4f6",
+                  borderRadius: "0.25rem",
+                  fontSize: "0.75rem",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {computed(() =>
                   `singleValue: ${JSON.stringify(singleValue.get())}`
                 )}
               </code>
-              <code style={{
-                padding: "0.5rem",
-                backgroundColor: "#f3f4f6",
-                borderRadius: "0.25rem",
-                fontSize: "0.75rem",
-                whiteSpace: "pre-wrap",
-              }}>
+              <code
+                style={{
+                  padding: "0.5rem",
+                  backgroundColor: "#f3f4f6",
+                  borderRadius: "0.25rem",
+                  fontSize: "0.75rem",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {computed(() =>
                   `multiValues: ${JSON.stringify(multiValues.get() || [])}`
                 )}
@@ -169,13 +183,13 @@ export default pattern<Input, Result>(
           </cf-card>
 
           <p style={{ color: "#666", fontSize: "0.75rem" }}>
-            The single-select shows the selected label in the input. The multi-select
-            filters out already-selected items from the dropdown.
+            The single-select shows the selected label in the input. The
+            multi-select filters out already-selected items from the dropdown.
           </p>
         </cf-vstack>
       ),
       singleValue,
       multiValues,
     };
-  }
+  },
 );

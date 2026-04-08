@@ -2,20 +2,27 @@
 
 ## Summary
 
-A "Frame mismatch" error occurs when mapping over a nested array property in JSX. The error appears both during deployment and in the browser console when the pattern runs.
+A "Frame mismatch" error occurs when mapping over a nested array property in
+JSX. The error appears both during deployment and in the browser console when
+the pattern runs.
 
 ## Use Case
 
 **Pattern:** assumption-surfacer
 
 **What you're trying to accomplish:**
-- Display a list of "assumptions" where each assumption has an array of "alternatives"
-- Each assumption is rendered with its alternatives listed (radio buttons, spans, etc.)
+
+- Display a list of "assumptions" where each assumption has an array of
+  "alternatives"
+- Each assumption is rendered with its alternatives listed (radio buttons,
+  spans, etc.)
 - The assumption data comes from a Cell that gets populated via `generateObject`
 
 **Why you need this behavior:**
+
 - Classic nested data structure: parent items with child items
-- Very common UI pattern (e.g., categories with items, messages with attachments)
+- Very common UI pattern (e.g., categories with items, messages with
+  attachments)
 
 ## Minimal Reproduction
 
@@ -180,25 +187,25 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
           </div>
           <div style={{ flex: 1 }}>
             <h3>Assumptions</h3>
-            {hasAssumptions ? (
-              assumptions.map((a) => (
-                <div key={a.id}>
-                  <strong>{a.label}</strong>
-                  <div>
-                    {/* THIS NESTED MAP TRIGGERS THE FRAME MISMATCH ERROR */}
-                    {a.alternatives.map((alt, i) => (
-                      <span key={i}>
-                        {i === a.selectedIndex ? "* " : ""}
-                        {alt.value}
-                        {i < a.alternatives.length - 1 ? ", " : ""}
-                      </span>
-                    ))}
+            {hasAssumptions
+              ? (
+                assumptions.map((a) => (
+                  <div key={a.id}>
+                    <strong>{a.label}</strong>
+                    <div>
+                      {/* THIS NESTED MAP TRIGGERS THE FRAME MISMATCH ERROR */}
+                      {a.alternatives.map((alt, i) => (
+                        <span key={i}>
+                          {i === a.selectedIndex ? "* " : ""}
+                          {alt.value}
+                          {i < a.alternatives.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <p>No assumptions yet</p>
-            )}
+                ))
+              )
+              : <p>No assumptions yet</p>}
           </div>
         </div>
         <ct-prompt-input
@@ -251,7 +258,7 @@ interface Assumption {
   id: string;
   label: string;
   description?: string;
-  alternatives: Alternative[];  // NESTED ARRAY
+  alternatives: Alternative[]; // NESTED ARRAY
   selectedIndex: number;
   messageId: string;
   status: "active" | "resolved" | "dismissed";
@@ -373,17 +380,17 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
           </div>
           <div style={{ flex: 1 }}>
             <h3>Assumptions</h3>
-            {hasAssumptions ? (
-              assumptions.map((a) => (
-                <div key={a.id}>
-                  {/* Only show label, NOT alternatives - NO NESTED MAP */}
-                  <strong>{a.label}</strong>
-                  <div>({a.alternatives.length} alternatives)</div>
-                </div>
-              ))
-            ) : (
-              <p>No assumptions yet</p>
-            )}
+            {hasAssumptions
+              ? (
+                assumptions.map((a) => (
+                  <div key={a.id}>
+                    {/* Only show label, NOT alternatives - NO NESTED MAP */}
+                    <strong>{a.label}</strong>
+                    <div>({a.alternatives.length} alternatives)</div>
+                  </div>
+                ))
+              )
+              : <p>No assumptions yet</p>}
           </div>
         </div>
         <ct-prompt-input
@@ -400,16 +407,19 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
 });
 ```
 
-**Key Difference:** Repro-3 maps over `a.alternatives` in JSX (triggers error), Repro-4 only accesses `a.alternatives.length` (no error).
+**Key Difference:** Repro-3 maps over `a.alternatives` in JSX (triggers error),
+Repro-4 only accesses `a.alternatives.length` (no error).
 
 ## Error Details
 
 The error appears as:
+
 ```
 Frame mismatch
 ```
 
 It occurs:
+
 1. During `deno task ct charm new` deployment
 2. In browser console when the pattern loads/runs
 
@@ -425,7 +435,8 @@ Added llmDialog for multi-turn chat - **NO ERROR**
 
 ### Attempt 3: Nested Types + Nested JSX Map (frame-mismatch-repro-3.tsx)
 
-Added nested Alternative[] inside Assumption + mapped over it in JSX - **ERROR!**
+Added nested Alternative[] inside Assumption + mapped over it in JSX -
+**ERROR!**
 
 ### Attempt 4: Nested Types, NO Nested JSX Map (frame-mismatch-repro-4.tsx)
 
@@ -434,10 +445,12 @@ Same nested types, but only accessed `.length` instead of mapping - **NO ERROR**
 ## Analysis
 
 The error is specifically triggered by:
+
 1. Having a nested array type (array inside array item)
 2. Mapping over that nested array in JSX
 
 It is NOT triggered by:
+
 - Having nested types alone
 - Accessing properties of nested array items (like `.length`)
 - Single-level array mapping
@@ -448,33 +461,43 @@ It is NOT triggered by:
 1. **Is this a known limitation of the reactive system with nested arrays?**
 2. **Is there a correct way to render nested arrays in JSX?**
 3. **Should we flatten the data structure as a workaround?**
-4. **Is there a special syntax needed for nested array access in JSX (like `$` prefix)?**
+4. **Is there a special syntax needed for nested array access in JSX (like `$`
+   prefix)?**
 
 ## Desired Behavior
 
 Should be able to:
+
 1. Have data structures with nested arrays (very common)
 2. Map over both the outer and inner arrays in JSX
 3. Render without Frame mismatch errors
 
 ## Workaround Attempts
 
-**Potential workaround:** Flatten the alternatives into a separate top-level array with parent references, then join them in the UI. This is awkward but might avoid the issue.
+**Potential workaround:** Flatten the alternatives into a separate top-level
+array with parent references, then join them in the UI. This is awkward but
+might avoid the issue.
 
 ## Environment
 
 - CommonTools framework (latest)
-- Pattern features used: `generateObject`, `llmDialog`, `computed`, `Cell`, `handler`
+- Pattern features used: `generateObject`, `llmDialog`, `computed`, `Cell`,
+  `handler`
 - All repro patterns are in `patterns/jkomoros/WIP/`
 
 ## Related Files
 
 - `patterns/jkomoros/WIP/frame-mismatch-repro.tsx` - Base repro (no error)
 - `patterns/jkomoros/WIP/frame-mismatch-repro-2.tsx` - With llmDialog (no error)
-- `patterns/jkomoros/WIP/frame-mismatch-repro-3.tsx` - **TRIGGERS ERROR** (nested JSX map)
-- `patterns/jkomoros/WIP/frame-mismatch-repro-4.tsx` - Same types, no nested map (no error)
-- `patterns/jkomoros/WIP/assumption-surfacer.tsx` - Original pattern where discovered
+- `patterns/jkomoros/WIP/frame-mismatch-repro-3.tsx` - **TRIGGERS ERROR**
+  (nested JSX map)
+- `patterns/jkomoros/WIP/frame-mismatch-repro-4.tsx` - Same types, no nested map
+  (no error)
+- `patterns/jkomoros/WIP/assumption-surfacer.tsx` - Original pattern where
+  discovered
 
 ---
 
-**This is blocking the assumption-surfacer pattern which needs to display alternatives for each assumption. Any guidance on the correct approach would be greatly appreciated!**
+**This is blocking the assumption-surfacer pattern which needs to display
+alternatives for each assumption. Any guidance on the correct approach would be
+greatly appreciated!**

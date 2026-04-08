@@ -1,21 +1,24 @@
 # cf-google-oauth Component Displays OAuth Tokens in HTML
 
-**Related to**: QA-BUGS-google-auth-1219.md (Bug #2)
-**Severity**: High (Security Concern)
-**Component**: `cf-google-oauth` web component (framework)
+**Related to**: QA-BUGS-google-auth-1219.md (Bug #2) **Severity**: High
+(Security Concern) **Component**: `cf-google-oauth` web component (framework)
 **Location**: `packages/ui/src/v2/components/cf-google-oauth/cf-google-oauth.ts`
 
 ---
 
 ## Summary
 
-After completing OAuth flow, the `cf-google-oauth` component renders a debug block that displays the complete `authResult` object as JSON, including:
+After completing OAuth flow, the `cf-google-oauth` component renders a debug
+block that displays the complete `authResult` object as JSON, including:
+
 - OAuth access token (in plain text)
 - OAuth refresh token
 - Token expiry
 - Full user info
 
-This is a **security concern** as tokens are exposed in rendered HTML where they could be:
+This is a **security concern** as tokens are exposed in rendered HTML where they
+could be:
+
 - Visible to anyone viewing the screen
 - Captured by browser extensions
 - Logged by debugging tools
@@ -34,13 +37,15 @@ This is a **security concern** as tokens are exposed in rendered HTML where they
 
 ## Expected Behavior
 
-No debug output visible to users. Auth tokens should never be rendered in the DOM.
+No debug output visible to users. Auth tokens should never be rendered in the
+DOM.
 
 ---
 
 ## Actual Behavior
 
 Large JSON blob displayed including:
+
 ```json
 {
   "token": "ya29.a0ARW5m...",
@@ -56,7 +61,8 @@ Large JSON blob displayed including:
 
 Navigate away and back - the debug output disappears on second render.
 
-No permanent pattern-level fix exists since the debug block is in the framework component.
+No permanent pattern-level fix exists since the debug block is in the framework
+component.
 
 ---
 
@@ -75,7 +81,9 @@ ${this.authResult
   : ""}
 ```
 
-The component renders `authResult` for debugging purposes but this block should either:
+The component renders `authResult` for debugging purposes but this block should
+either:
+
 1. Be removed entirely
 2. Be gated behind a `debug` attribute
 3. Redact sensitive fields (tokens)
@@ -100,7 +108,8 @@ ${this.debug && this.authResult
 
 ## Impact
 
-- **Users affected**: Any user completing OAuth in patterns using cf-google-oauth
+- **Users affected**: Any user completing OAuth in patterns using
+  cf-google-oauth
 - **Data exposed**: Access tokens, refresh tokens, user email/name
 - **Transient**: Only visible immediately after OAuth, disappears on navigation
 
@@ -108,4 +117,5 @@ ${this.debug && this.authResult
 
 ## Notes
 
-Discovered during QA testing 2025-12-19. Filed as local issue per user preference.
+Discovered during QA testing 2025-12-19. Filed as local issue per user
+preference.

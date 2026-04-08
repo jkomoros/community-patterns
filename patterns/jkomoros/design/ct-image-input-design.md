@@ -2,12 +2,15 @@
 
 ## Overview
 
-A Common UI v2 component for capturing and uploading images with an emphasis on mobile-first camera capture while supporting traditional file upload flows.
+A Common UI v2 component for capturing and uploading images with an emphasis on
+mobile-first camera capture while supporting traditional file upload flows.
 
 ## Use Cases
 
 ### Primary Use Cases
-1. **Quick Camera Capture** - Take a photo directly from the camera (mobile/desktop)
+
+1. **Quick Camera Capture** - Take a photo directly from the camera
+   (mobile/desktop)
    - Shopping receipts → extract items
    - Whiteboard notes → extract text
    - Product photos → identify/catalog
@@ -25,6 +28,7 @@ A Common UI v2 component for capturing and uploading images with an emphasis on 
    - Asset management
 
 ### Integration Patterns
+
 - **With LLM Vision** - Pass base64 image to `llm()` with vision model
 - **With Pattern Tools** - Image as input to pattern processing
 - **With Cell Binding** - Reactive image data storage
@@ -34,21 +38,26 @@ A Common UI v2 component for capturing and uploading images with an emphasis on 
 
 1. **Mobile-First Camera UX** - One tap to camera, not buried in file picker
 2. **Progressive Enhancement** - Works with plain values, enhanced with Cells
-3. **Flexible Output** - Support multiple formats (base64, blob URL, File object)
+3. **Flexible Output** - Support multiple formats (base64, blob URL, File
+   object)
 4. **Preview Built-In** - Show captured/uploaded images inline
 5. **Multiple Images** - Support single or multiple image capture
 6. **Minimal Configuration** - Works with sensible defaults
-7. **EXIF Metadata** - Extract and expose image metadata (orientation, timestamp, location, etc.)
+7. **EXIF Metadata** - Extract and expose image metadata (orientation,
+   timestamp, location, etc.)
 
 ## Architecture Decision: Single Component
 
 **One component handles both file upload and camera capture.**
 
 The HTML5 `<input type="file">` naturally supports both:
-- **Without `capture` attribute**: Shows file picker (desktop) or camera option in picker (mobile)
+
+- **Without `capture` attribute**: Shows file picker (desktop) or camera option
+  in picker (mobile)
 - **With `capture` attribute**: Opens camera directly on mobile devices
 
-This means one `ct-image-input` component can handle all use cases via props, without needing separate components.
+This means one `ct-image-input` component can handle all use cases via props,
+without needing separate components.
 
 ## API Design
 
@@ -59,8 +68,8 @@ This means one `ct-image-input` component can handle all use cases via props, wi
 ```typescript
 interface CTImageInput {
   // Core behavior
-  multiple?: boolean;              // Allow multiple images (default: false)
-  maxImages?: number;              // Max number of images (default: unlimited)
+  multiple?: boolean; // Allow multiple images (default: false)
+  maxImages?: number; // Max number of images (default: unlimited)
 
   // Capture mode (maps to HTML5 capture attribute)
   capture?: "user" | "environment" | false;
@@ -73,43 +82,43 @@ interface CTImageInput {
   format?: "base64" | "blob" | "file"; // Default: "base64"
 
   // UI customization
-  buttonText?: string;             // Custom button text (default: "📷 Add Photo")
-  variant?: ButtonVariant;         // Button style (default: "outline")
-  size?: ButtonSize;               // Button size (default: "default")
+  buttonText?: string; // Custom button text (default: "📷 Add Photo")
+  variant?: ButtonVariant; // Button style (default: "outline")
+  size?: ButtonSize; // Button size (default: "default")
 
   // Preview
-  showPreview?: boolean;           // Show image previews (default: true)
+  showPreview?: boolean; // Show image previews (default: true)
   previewSize?: "sm" | "md" | "lg"; // Preview thumbnail size (default: "md")
-  removable?: boolean;             // Allow removing images (default: true)
+  removable?: boolean; // Allow removing images (default: true)
 
   // State
   disabled?: boolean;
 
   // Cell integration (for reactive patterns)
-  images?: Cell<ImageData[]>;      // Bidirectional binding
+  images?: Cell<ImageData[]>; // Bidirectional binding
 }
 
 interface ImageData {
-  id: string;                      // Unique ID
-  name: string;                    // Filename or "Camera Photo"
-  url: string;                     // Data URL or blob URL for preview
-  data: string | Blob | File;      // Actual data in requested format
-  timestamp: number;               // Capture time
-  width?: number;                  // Image dimensions
+  id: string; // Unique ID
+  name: string; // Filename or "Camera Photo"
+  url: string; // Data URL or blob URL for preview
+  data: string | Blob | File; // Actual data in requested format
+  timestamp: number; // Capture time
+  width?: number; // Image dimensions
   height?: number;
-  size: number;                    // File size in bytes
-  type: string;                    // MIME type (e.g., "image/jpeg")
-  exif?: ExifData;                 // EXIF metadata if available
+  size: number; // File size in bytes
+  type: string; // MIME type (e.g., "image/jpeg")
+  exif?: ExifData; // EXIF metadata if available
 }
 
 interface ExifData {
   // Core metadata
-  dateTime?: string;               // Original capture date/time
-  make?: string;                   // Camera manufacturer
-  model?: string;                  // Camera model
+  dateTime?: string; // Original capture date/time
+  make?: string; // Camera manufacturer
+  model?: string; // Camera model
 
   // Orientation
-  orientation?: number;            // EXIF orientation (1-8)
+  orientation?: number; // EXIF orientation (1-8)
 
   // Location (if available)
   gpsLatitude?: number;
@@ -117,20 +126,20 @@ interface ExifData {
   gpsAltitude?: number;
 
   // Camera settings
-  fNumber?: number;                // Aperture
-  exposureTime?: string;           // Shutter speed
-  iso?: number;                    // ISO speed
-  focalLength?: number;            // Focal length in mm
+  fNumber?: number; // Aperture
+  exposureTime?: string; // Shutter speed
+  iso?: number; // ISO speed
+  focalLength?: number; // Focal length in mm
 
   // Dimensions
   pixelXDimension?: number;
   pixelYDimension?: number;
 
   // Software
-  software?: string;               // Editing software used
+  software?: string; // Editing software used
 
   // Raw EXIF tags for advanced use
-  raw?: Record<string, any>;       // All EXIF tags
+  raw?: Record<string, any>; // All EXIF tags
 }
 ```
 
@@ -179,20 +188,21 @@ const handlePhotoUpload = handler<
             source: {
               type: "base64",
               media_type: image.type, // Use actual MIME type
-              data: image.data.split(',')[1], // Remove data:image/jpeg;base64, prefix
-            }
+              data: image.data.split(",")[1], // Remove data:image/jpeg;base64, prefix
+            },
           },
           {
             type: "text",
-            text: "Extract all shopping items from this image as a JSON array of strings. Example: [\"milk\", \"eggs\", \"bread\"]"
-          }
-        ]
-      }]
+            text:
+              'Extract all shopping items from this image as a JSON array of strings. Example: ["milk", "eggs", "bread"]',
+          },
+        ],
+      }],
     });
 
     // Parse and add items
     const itemList = JSON.parse(extractedItems.result);
-    itemList.forEach(itemText => {
+    itemList.forEach((itemText) => {
       items.push({ title: itemText, done: false });
     });
   }
@@ -203,7 +213,7 @@ const handlePhotoUpload = handler<
   capture="environment"
   buttonText="📸 Scan Shopping List"
   onct-change={handlePhotoUpload({ items })}
-/>
+/>;
 ```
 
 ### Example 2: Profile Picture Upload (Camera or File)
@@ -219,7 +229,7 @@ const profilePhoto = cell<ImageData | null>(null);
   buttonText="Upload Photo"
   variant="primary"
   $images={profilePhoto}
-/>
+/>;
 ```
 
 ### Example 2b: Profile Picture (File Only - No Camera)
@@ -234,7 +244,7 @@ const profilePhoto = cell<ImageData | null>(null);
   buttonText="Choose Photo"
   variant="primary"
   $images={profilePhoto}
-/>
+/>;
 ```
 
 ### Example 3: Multiple Images with Preview (File Picker)
@@ -250,7 +260,7 @@ const photos = cell<ImageData[]>([]);
   showPreview
   removable
   $images={photos}
-/>
+/>;
 ```
 
 ### Example 4: Receipt Scanner with EXIF
@@ -262,20 +272,35 @@ const handleReceipt = handler<{ detail: { images: ImageData[] } }>(
 
     // Log when the receipt was captured
     console.log("Receipt captured at:", receipt.exif?.dateTime);
-    console.log("Location:", receipt.exif?.gpsLatitude, receipt.exif?.gpsLongitude);
+    console.log(
+      "Location:",
+      receipt.exif?.gpsLatitude,
+      receipt.exif?.gpsLongitude,
+    );
 
     const analysis = await llm({
       model: "claude-3-5-sonnet-20241022",
       messages: [{
         role: "user",
         content: [
-          { type: "image", source: { type: "base64", media_type: receipt.type, data: receipt.data.split(',')[1] } },
-          { type: "text", text: "Extract total, date, merchant, and line items from this receipt as JSON" }
-        ]
-      }]
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: receipt.type,
+              data: receipt.data.split(",")[1],
+            },
+          },
+          {
+            type: "text",
+            text:
+              "Extract total, date, merchant, and line items from this receipt as JSON",
+          },
+        ],
+      }],
     });
     // Process receipt data...
-  }
+  },
 );
 
 <ct-image-input
@@ -283,12 +308,13 @@ const handleReceipt = handler<{ detail: { images: ImageData[] } }>(
   buttonText="📄 Scan Receipt"
   showPreview={false}
   onct-change={handleReceipt}
-/>
+/>;
 ```
 
 ## Technical Implementation Notes
 
 ### HTML5 Capture Attribute
+
 ```html
 <!-- File picker (default) -->
 <input type="file" accept="image/*">
@@ -301,36 +327,44 @@ const handleReceipt = handler<{ detail: { images: ImageData[] } }>(
 ```
 
 **Behavior by device:**
+
 - **Mobile with `capture`**: Opens camera directly
 - **Mobile without `capture`**: Shows picker with camera option
-- **Desktop (always)**: Shows file picker (some browsers may offer webcam option)
+- **Desktop (always)**: Shows file picker (some browsers may offer webcam
+  option)
 
 This is why one component works for both use cases.
 
 ### File Reading Strategy
+
 - Use `FileReader.readAsDataURL()` for base64
-- Use `URL.createObjectURL()` for blob URLs (better performance for large images)
+- Use `URL.createObjectURL()` for blob URLs (better performance for large
+  images)
 - Provide raw `File` object when requested
 
 ### EXIF Extraction
+
 - Use a lightweight EXIF parser library (e.g., `exif-js` or `piexifjs`)
 - Extract on file load, before emitting event
 - Handle missing EXIF gracefully (many images don't have it)
 - Auto-rotate images based on EXIF orientation if needed
 
 ### Preview Rendering
+
 - Use `<img>` with blob URL or data URL
 - Add remove button overlay when `removable={true}`
 - Grid layout for multiple images
 - Loading state while reading files
 
 ### Mobile Considerations
+
 - Large touch target for camera button
 - Handle orientation changes
 - Compress large images before upload (optional prop?)
 - Show image count badge when multiple
 
 ### Accessibility
+
 - Proper ARIA labels for file input
 - Keyboard navigation for remove buttons
 - Alt text for preview images
@@ -347,15 +381,18 @@ packages/ui/src/v2/components/ct-image-input/
 
 ## Design Decisions (Finalized)
 
-✅ **Single Component** - One `ct-image-input` handles both file upload and camera capture via `capture` prop
+✅ **Single Component** - One `ct-image-input` handles both file upload and
+camera capture via `capture` prop
 
 ✅ **EXIF Metadata** - Extract and include in `ImageData.exif` field
 
-✅ **No Crop/Edit UI** - Keep component focused; create separate `ct-image-editor` if needed later
+✅ **No Crop/Edit UI** - Keep component focused; create separate
+`ct-image-editor` if needed later
 
 ## Open Questions
 
-1. **Image Compression?** - Should we auto-compress large images or leave that to the pattern?
+1. **Image Compression?** - Should we auto-compress large images or leave that
+   to the pattern?
    - Pro: Better performance, smaller payloads to LLM
    - Con: Loss of quality, added complexity
    - **Proposal**: Add optional `maxWidth` / `maxHeight` / `quality` props

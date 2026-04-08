@@ -17,14 +17,7 @@
  * IMPORTANT: This is the ACTUAL code structure from the problematic
  * pattern, simplified only by removing Gmail-specific logic.
  */
-import {
-  Default,
-  derive,
-  NAME,
-  pattern,
-  UI,
-  wish,
-} from "commonfabric";
+import { Default, derive, NAME, pattern, UI, wish } from "commonfabric";
 
 // ============================================================================
 // DATA STRUCTURES (simplified from MembershipRecord)
@@ -59,12 +52,16 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
     // ========================================================================
 
     // Wish for existing items - but this pattern ALSO exports items!
-    const wishedItemsCharm = wish<SelfWishReproOutput>({ query: "#selfWishRepro" });
+    const wishedItemsCharm = wish<SelfWishReproOutput>({
+      query: "#selfWishRepro",
+    });
 
     // Extract wished items (if any)
     // EXACT CODE from hotel-membership-gmail-agent.tsx line 141-143
-    const wishedItems = derive(wishedItemsCharm, (wishState: { result?: SelfWishReproOutput; error?: any }) =>
-      wishState?.result?.items || []
+    const wishedItems = derive(
+      wishedItemsCharm,
+      (wishState: { result?: SelfWishReproOutput; error?: any }) =>
+        wishState?.result?.items || [],
     );
 
     // Merge local items with wished items (deduplicated)
@@ -89,12 +86,16 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
           const key = `${item.name}:${item.id}`;
           if (!seen.has(key)) {
             seen.add(key);
-            merged.push({ ...item, _fromWish: true } as ItemRecord & { _fromWish?: boolean });
+            merged.push(
+              { ...item, _fromWish: true } as ItemRecord & {
+                _fromWish?: boolean;
+              },
+            );
           }
         }
 
         return merged;
-      }
+      },
     );
 
     // Track counts
@@ -122,16 +123,19 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
           <h2>Self-Referential Wish Repro (CT-1098)</h2>
 
-          <div style={{
-            padding: "16px",
-            background: "#fef3c7",
-            border: "1px solid #fde68a",
-            borderRadius: "8px",
-            marginBottom: "16px",
-          }}>
+          <div
+            style={{
+              padding: "16px",
+              background: "#fef3c7",
+              border: "1px solid #fde68a",
+              borderRadius: "8px",
+              marginBottom: "16px",
+            }}
+          >
             <strong>Warning:</strong> This pattern may cause an infinite loop!
             <br />
-            It wishes for #selfWishRepro but also exports data matching that query.
+            It wishes for #selfWishRepro but also exports data matching that
+            query.
           </div>
 
           <div style={{ marginBottom: "16px" }}>
@@ -147,15 +151,25 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
             }
             return (
               <ul>
-                {list.map((item: ItemRecord & { _fromWish?: boolean }, index: number) => (
-                  <li key={index} style={{
-                    background: (item as any)._fromWish ? "#e0f2fe" : "#f8f9fa",
-                    padding: "8px",
-                    marginBottom: "4px",
-                    borderRadius: "4px",
-                  }}>
+                {list.map((
+                  item: ItemRecord & { _fromWish?: boolean },
+                  index: number,
+                ) => (
+                  <li
+                    key={index}
+                    style={{
+                      background: (item as any)._fromWish
+                        ? "#e0f2fe"
+                        : "#f8f9fa",
+                      padding: "8px",
+                      marginBottom: "4px",
+                      borderRadius: "4px",
+                    }}
+                  >
                     {item.name} ({item.source})
-                    {(item as any)._fromWish && <span style={{ color: "#0ea5e9" }}> [imported]</span>}
+                    {(item as any)._fromWish && (
+                      <span style={{ color: "#0ea5e9" }}>[imported]</span>
+                    )}
                   </li>
                 ))}
               </ul>

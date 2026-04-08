@@ -10,124 +10,187 @@ interface SubstackInput {
 /** Substack newsletter summarizer with email grouping. #substackSummaries */
 interface Output {
   /** Emails grouped by newsletter name */
-  groupedByNewsletter: Record<string, Array<{ subject: string; date: string; from: string }>>;
+  groupedByNewsletter: Record<
+    string,
+    Array<{ subject: string; date: string; from: string }>
+  >;
   /** Number of unique newsletters found */
   newsletterCount: number;
   /** Total number of emails */
   totalEmails: number;
 }
 
-const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, limit }) => {
-  // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
-  const importer = GmailImporter({
-    settings: {
-      gmailFilterQuery,
-      limit,
-      debugMode: false,
-      autoFetchOnAuth: false,
-      resolveInlineImages: false,
-    },
-  });
+const SubstackSummarizer = pattern<SubstackInput, Output>(
+  ({ gmailFilterQuery, limit }) => {
+    // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
+    const importer = GmailImporter({
+      settings: {
+        gmailFilterQuery,
+        limit,
+        debugMode: false,
+        autoFetchOnAuth: false,
+        resolveInlineImages: false,
+      },
+    });
 
-  const emails = importer.emails;
+    const emails = importer.emails;
 
-  // Group emails by newsletter (extract from 'from' field)
-  const groupedByNewsletter = computed(() => {
-    const groups: Record<string, Array<{ subject: string; date: string; from: string }>> = {};
+    // Group emails by newsletter (extract from 'from' field)
+    const groupedByNewsletter = computed(() => {
+      const groups: Record<
+        string,
+        Array<{ subject: string; date: string; from: string }>
+      > = {};
 
-    for (const email of emails as any[]) {
-      const subject = email.subject || "No Subject";
-      const date = email.date || "";
-      const from = email.from || "";
+      for (const email of emails as any[]) {
+        const subject = email.subject || "No Subject";
+        const date = email.date || "";
+        const from = email.from || "";
 
-      // Extract newsletter name from 'from' field
-      // Format is typically: "Newsletter Name <newsletter@substack.com>" or just "newsletter@substack.com"
-      let newsletter = "Unknown Newsletter";
+        // Extract newsletter name from 'from' field
+        // Format is typically: "Newsletter Name <newsletter@substack.com>" or just "newsletter@substack.com"
+        let newsletter = "Unknown Newsletter";
 
-      if (from) {
-        // Try to extract name before <email>
-        const nameMatch = from.match(/^([^<]+)</);
-        if (nameMatch) {
-          newsletter = nameMatch[1].trim();
-        } else {
-          // If no angle brackets, use the email but clean it up
-          // Remove @substack.com suffix for readability
-          newsletter = from.trim().replace(/@substack\.com$/, '');
+        if (from) {
+          // Try to extract name before <email>
+          const nameMatch = from.match(/^([^<]+)</);
+          if (nameMatch) {
+            newsletter = nameMatch[1].trim();
+          } else {
+            // If no angle brackets, use the email but clean it up
+            // Remove @substack.com suffix for readability
+            newsletter = from.trim().replace(/@substack\.com$/, "");
+          }
         }
+
+        if (!groups[newsletter]) {
+          groups[newsletter] = [];
+        }
+
+        groups[newsletter].push({ subject, date, from });
       }
 
-      if (!groups[newsletter]) {
-        groups[newsletter] = [];
-      }
+      return groups;
+    });
 
-      groups[newsletter].push({ subject, date, from });
-    }
+    const newsletterCount = computed(() =>
+      Object.keys(groupedByNewsletter).length
+    );
+    const totalEmails = computed(() => emails.length);
 
-    return groups;
-  });
-
-  const newsletterCount = computed(() => Object.keys(groupedByNewsletter).length);
-  const totalEmails = computed(() => emails.length);
-
-  return {
-    [NAME]: "📧 Substack Summarizer",
-    [UI]: (
-      <cf-screen>
-        <cf-vscroll>
-          <cf-vstack gap={4} style="padding: 1rem;">
-            {/* Grouped by Newsletter - at top */}
-            <div>
-              <div style={{ display: "flex", gap: "1rem", alignItems: "center", marginBottom: "0.5rem" }}>
-                <h3 style={{ margin: 0, fontSize: "15px" }}>Newsletters</h3>
-                <span style={{ fontSize: "13px", color: "#666" }}>📧 {totalEmails} emails · 📰 {newsletterCount} newsletters</span>
-              </div>
-              {computed(() => {
-                const groups = groupedByNewsletter;
-                const newsletters = Object.keys(groups).sort();
-                if (newsletters.length === 0) {
-                  return <div style={{ padding: "1rem", textAlign: "center", color: "#999" }}>
-                    No emails yet. Import emails above.
-                  </div>;
-                }
-
-                return newsletters.map((newsletter) => {
-                  // Convert to plain array to avoid reactive proxy issues with nested .map()
-                  const emailsForNewsletter = [...(groups[newsletter] || [])];
-                  return (
-                    <details open style={{ borderBottom: "1px solid #ddd", marginBottom: "0.5rem" }}>
-                      <summary style={{ cursor: "pointer", padding: "0.5rem", fontWeight: "600", fontSize: "14px" }}>
-                        {newsletter} <span style={{ color: "#666", fontWeight: "normal" }}>({emailsForNewsletter.length})</span>
-                      </summary>
-                      <div style={{ paddingLeft: "1.5rem", paddingBottom: "0.5rem" }}>
-                        {emailsForNewsletter.map((email: any) => (
-                          <div style={{ fontSize: "13px", padding: "4px 0", color: "#333" }}>
-                            • {email.subject}
-                          </div>
-                        ))}
+    return {
+      [NAME]: "📧 Substack Summarizer",
+      [UI]: (
+        <cf-screen>
+          <cf-vscroll>
+            <cf-vstack gap={4} style="padding: 1rem;">
+              {/* Grouped by Newsletter - at top */}
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    alignItems: "center",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <h3 style={{ margin: 0, fontSize: "15px" }}>Newsletters</h3>
+                  <span style={{ fontSize: "13px", color: "#666" }}>
+                    📧 {totalEmails} emails · 📰 {newsletterCount} newsletters
+                  </span>
+                </div>
+                {computed(() => {
+                  const groups = groupedByNewsletter;
+                  const newsletters = Object.keys(groups).sort();
+                  if (newsletters.length === 0) {
+                    return (
+                      <div
+                        style={{
+                          padding: "1rem",
+                          textAlign: "center",
+                          color: "#999",
+                        }}
+                      >
+                        No emails yet. Import emails above.
                       </div>
-                    </details>
-                  );
-                });
-              })}
-            </div>
+                    );
+                  }
 
-            {/* Import Settings - Gmail Importer handles auth via wish */}
-            <details style={{ marginTop: "1rem" }}>
-              <summary style={{ cursor: "pointer", padding: "0.5rem", background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: "4px", fontSize: "13px" }}>
-                ⚙️ Settings & Import
-              </summary>
-              <div style={{ padding: "0.75rem", marginTop: "0.5rem" }}>
-                {importer}
+                  return newsletters.map((newsletter) => {
+                    // Convert to plain array to avoid reactive proxy issues with nested .map()
+                    const emailsForNewsletter = [...(groups[newsletter] || [])];
+                    return (
+                      <details
+                        open
+                        style={{
+                          borderBottom: "1px solid #ddd",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        <summary
+                          style={{
+                            cursor: "pointer",
+                            padding: "0.5rem",
+                            fontWeight: "600",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {newsletter}{" "}
+                          <span style={{ color: "#666", fontWeight: "normal" }}>
+                            ({emailsForNewsletter.length})
+                          </span>
+                        </summary>
+                        <div
+                          style={{
+                            paddingLeft: "1.5rem",
+                            paddingBottom: "0.5rem",
+                          }}
+                        >
+                          {emailsForNewsletter.map((email: any) => (
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                padding: "4px 0",
+                                color: "#333",
+                              }}
+                            >
+                              • {email.subject}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  });
+                })}
               </div>
-            </details>
-          </cf-vstack>
-        </cf-vscroll>
-      </cf-screen>
-    ),
-    groupedByNewsletter,
-    newsletterCount,
-    totalEmails,
-  };
-});
+
+              {/* Import Settings - Gmail Importer handles auth via wish */}
+              <details style={{ marginTop: "1rem" }}>
+                <summary
+                  style={{
+                    cursor: "pointer",
+                    padding: "0.5rem",
+                    background: "#f8f9fa",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                  }}
+                >
+                  ⚙️ Settings & Import
+                </summary>
+                <div style={{ padding: "0.75rem", marginTop: "0.5rem" }}>
+                  {importer}
+                </div>
+              </details>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
+      ),
+      groupedByNewsletter,
+      newsletterCount,
+      totalEmails,
+    };
+  },
+);
 
 export default SubstackSummarizer;

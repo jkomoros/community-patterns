@@ -2,19 +2,27 @@
 
 ## Overview
 
-Spindle is a collaborative AI writing tool that transforms how humans work with LLMs for complex, multi-step generation tasks like story writing. Instead of getting one output and being stuck if you don't like it, Spindle shows you multiple possibilities at each step. You pick the best one, and that choice guides the next round of generation.
+Spindle is a collaborative AI writing tool that transforms how humans work with
+LLMs for complex, multi-step generation tasks like story writing. Instead of
+getting one output and being stuck if you don't like it, Spindle shows you
+multiple possibilities at each step. You pick the best one, and that choice
+guides the next round of generation.
 
 ### The Core Problem
 
 Current AI tools position you as either:
+
 - **Prompt engineer**: Carefully craft prompts hoping for the right output
 - **Accept/reject arbiter**: Take what the AI gives you or start over
 
-Neither leverages human taste effectively. Spindle changes this by making selection the primary interaction, not prompting.
+Neither leverages human taste effectively. Spindle changes this by making
+selection the primary interaction, not prompting.
 
 ### The Spindle Metaphor
 
-A spindle is a tool that transforms raw material through controlled rotation. In textiles, it turns loose fiber into strong thread. Spindle does the same with ideas:
+A spindle is a tool that transforms raw material through controlled rotation. In
+textiles, it turns loose fiber into strong thread. Spindle does the same with
+ideas:
 
 - **Raw material**: Your initial concept, synopsis, or seed idea
 - **Spinning**: LLM generates multiple options
@@ -27,7 +35,8 @@ A spindle is a tool that transforms raw material through controlled rotation. In
 
 ### Level-Based Architecture (v2)
 
-**NEW IN V2:** Spindle uses a **level-based** design rather than individual spindle configuration. This simplifies the UI and makes branching intuitive.
+**NEW IN V2:** Spindle uses a **level-based** design rather than individual
+spindle configuration. This simplifies the UI and makes branching intuitive.
 
 ```
 Level 0: Synopsis (1 spindle, root, generate=false)
@@ -40,6 +49,7 @@ Level 3: Scenes (15 spindles per chapter = 75 total? No - lazy creation)
 ```
 
 **Key insight:** You configure LEVELS, not individual spindles. Each level has:
+
 - A **title** (e.g., "Chapters")
 - A **default prompt** (applied to all spindles at that level)
 - A **branching factor** (how many children per parent)
@@ -77,9 +87,11 @@ A **spindle** is the atomic unit of generation. It:
 
 ### Board
 
-A **board** is a collection of levels and spindles forming a tree. It represents a complete project like "My Detective Novel".
+A **board** is a collection of levels and spindles forming a tree. It represents
+a complete project like "My Detective Novel".
 
 Board contains:
+
 - **Title** and **description**
 - **Levels** with their configuration (title, prompt, branching)
 - **Spindles** (created lazily as parents are pinned)
@@ -90,9 +102,9 @@ Each **level** defines:
 
 ```typescript
 interface LevelConfig {
-  title: string;           // "Chapters"
-  defaultPrompt: string;   // "Write this chapter based on the outline above"
-  branchFactor: number;    // How many children per parent (1, 2, 4, 5, etc.)
+  title: string; // "Chapters"
+  defaultPrompt: string; // "Write this chapter based on the outline above"
+  branchFactor: number; // How many children per parent (1, 2, 4, 5, etc.)
 }
 ```
 
@@ -105,15 +117,18 @@ interface LevelConfig {
 Every spindle's prompt automatically includes position information:
 
 **Format:** `Peer X of Y` where:
+
 - X = position among siblings (children of same parent)
 - Y = total siblings
 
 **Example for Chapters level with branchFactor=5:**
+
 - "Write this chapter. Peer 1 of 5"
 - "Write this chapter. Peer 2 of 5"
 - etc.
 
 **If level has total > sibling count, also show:**
+
 - "Peer 3 of 5 | Spindle 13 of 25 in level"
 
 (Omit the second part if redundant - i.e., if there's only one parent)
@@ -150,6 +165,7 @@ This prevents creating spindles for branches that will never be used.
 - **Respin (explicit)** → Regenerates all options fresh
 
 **Auto-respin behavior (when parent output changes):**
+
 - **Nothing pinned** → Auto-respin ALL options
 - **Something pinned** → Show "stale" indicator, do NOT auto-respin
 - **User clicks "Refresh" on stale spindle** → Clears pin, regenerates fresh
@@ -188,13 +204,18 @@ Each option should take a meaningfully different approach.
 ### Example
 
 **Level 0 - Synopsis** (root, generate=false):
-- Output: "A detective in 1920s Chicago discovers her missing sister is running a speakeasy..."
+
+- Output: "A detective in 1920s Chicago discovers her missing sister is running
+  a speakeasy..."
 
 **Level 1 - Outline** (branchFactor=1):
-- Default prompt: "Develop this into a 5-act story outline with major plot beats"
+
+- Default prompt: "Develop this into a 5-act story outline with major plot
+  beats"
 - Composed: `[synopsis]\n\nDevelop this into a 5-act...\n\nPeer 1 of 1`
 
 **Level 2 - Chapters** (branchFactor=5):
+
 - Default prompt: "Now write this chapter"
 - Chapter 3 composed: `[outline]\n\nNow write this chapter\n\nPeer 3 of 5`
 
@@ -206,10 +227,10 @@ Each option should take a meaningfully different approach.
 
 ```typescript
 interface LevelConfig {
-  id: string;              // Auto-generated UUID
-  title: string;           // "Chapters"
-  defaultPrompt: string;   // "Write this chapter"
-  branchFactor: number;    // 5
+  id: string; // Auto-generated UUID
+  title: string; // "Chapters"
+  defaultPrompt: string; // "Write this chapter"
+  branchFactor: number; // 5
 }
 ```
 
@@ -217,20 +238,20 @@ interface LevelConfig {
 
 ```typescript
 interface SpindleConfig {
-  id: string;              // Auto-generated UUID
-  levelIndex: number;      // Which level (0, 1, 2, ...)
+  id: string; // Auto-generated UUID
+  levelIndex: number; // Which level (0, 1, 2, ...)
   positionInLevel: number; // 0-based position across entire level
-  siblingIndex: number;    // 0-based position among siblings (same parent)
-  siblingCount: number;    // Total siblings
+  siblingIndex: number; // 0-based position among siblings (same parent)
+  siblingCount: number; // Total siblings
   parentId: string | null; // Parent spindle's ID (null for root)
 
   // Content
-  composedInput: string;   // Parent's pinned output (set by handler)
-  extraPrompt: string;     // Per-spindle customization
+  composedInput: string; // Parent's pinned output (set by handler)
+  extraPrompt: string; // Per-spindle customization
 
   // State
   pinnedOptionIndex: number; // -1 = none, 0-3 = pinned option
-  pinnedOutput: string;      // The selected option's content
+  pinnedOutput: string; // The selected option's content
 }
 ```
 
@@ -254,18 +275,18 @@ interface BoardState {
 
 ```typescript
 // Get pinned output for a spindle
-spindle.output = spindle.pinnedOptionIndex >= 0
-  ? spindle.pinnedOutput
-  : null;
+spindle.output = spindle.pinnedOptionIndex >= 0 ? spindle.pinnedOutput : null;
 
 // Check if spindle needs attention
 spindle.needsSelection = spindle.pinnedOptionIndex < 0;
 
 // Get children of a spindle
-spindle.children = spindles.filter(s => s.parentId === spindle.id);
+spindle.children = spindles.filter((s) => s.parentId === spindle.id);
 
 // Check if has pinned children
-spindle.hasPinnedChildren = spindle.children.some(c => c.pinnedOptionIndex >= 0);
+spindle.hasPinnedChildren = spindle.children.some((c) =>
+  c.pinnedOptionIndex >= 0
+);
 ```
 
 ---
@@ -282,7 +303,8 @@ spindle.hasPinnedChildren = spindle.children.some(c => c.pinnedOptionIndex >= 0)
 ### Flow 2: Add Level (Outline)
 
 1. User clicks "Add Level"
-2. Modal: Enter title="Story Outline", prompt="Develop into 5-act outline", branch=1
+2. Modal: Enter title="Story Outline", prompt="Develop into 5-act outline",
+   branch=1
 3. Level created, spindle created as child of root
 4. Spindle generates 4 options
 5. User reviews, pins favorite
@@ -405,32 +427,32 @@ spindle.hasPinnedChildren = spindle.children.some(c => c.pinnedOptionIndex >= 0)
 
 ### In Scope (MVP v2)
 
-| Feature | Priority | Status |
-|---------|----------|--------|
-| Level-based architecture | P0 | NEW |
-| Add Level UI | P0 | NEW |
-| Branching factor config | P0 | NEW |
-| Lazy spindle creation | P0 | NEW |
-| Automatic "Peer X of Y" suffix | P0 | NEW |
-| n-up option generation | P0 | ✅ Done |
-| Pin/select options | P0 | ✅ Done |
-| Parent-child chains | P0 | ✅ Done |
-| Respin functionality | P0 | ✅ Done |
-| Stale detection | P0 | ✅ Done |
-| Export to JSON | P1 | ✅ Done |
-| Per-spindle extra prompt | P1 | NEW |
-| Summary generation | P1 | ✅ Done |
+| Feature                        | Priority | Status  |
+| ------------------------------ | -------- | ------- |
+| Level-based architecture       | P0       | NEW     |
+| Add Level UI                   | P0       | NEW     |
+| Branching factor config        | P0       | NEW     |
+| Lazy spindle creation          | P0       | NEW     |
+| Automatic "Peer X of Y" suffix | P0       | NEW     |
+| n-up option generation         | P0       | ✅ Done |
+| Pin/select options             | P0       | ✅ Done |
+| Parent-child chains            | P0       | ✅ Done |
+| Respin functionality           | P0       | ✅ Done |
+| Stale detection                | P0       | ✅ Done |
+| Export to JSON                 | P1       | ✅ Done |
+| Per-spindle extra prompt       | P1       | NEW     |
+| Summary generation             | P1       | ✅ Done |
 
 ### Out of Scope (Future)
 
-| Feature | Notes |
-|---------|-------|
-| Import from JSON | Requires file upload handling |
-| Manual option editing | Edit option text directly |
-| Peers (left/right) | Adjacent spindle summaries for context |
-| Git-style history | Branch, undo, compare versions |
-| Model selection | Per-level or board-level |
-| Collaborative | Real-time multi-user editing |
+| Feature               | Notes                                  |
+| --------------------- | -------------------------------------- |
+| Import from JSON      | Requires file upload handling          |
+| Manual option editing | Edit option text directly              |
+| Peers (left/right)    | Adjacent spindle summaries for context |
+| Git-style history     | Branch, undo, compare versions         |
+| Model selection       | Per-level or board-level               |
+| Collaborative         | Real-time multi-user editing           |
 
 ---
 
@@ -525,7 +547,7 @@ const isStale = derive(
   ({ config, currentComposedInput }) => {
     if (config.pinnedOptionIndex < 0) return false;
     return hashString(currentComposedInput) !== config.parentHashWhenPinned;
-  }
+  },
 );
 ```
 
@@ -541,8 +563,18 @@ const isStale = derive(
   },
   "levels": [
     { "id": "l0", "title": "Synopsis", "defaultPrompt": "", "branchFactor": 1 },
-    { "id": "l1", "title": "Outline", "defaultPrompt": "Develop into 5-act outline", "branchFactor": 1 },
-    { "id": "l2", "title": "Chapters", "defaultPrompt": "Write this chapter", "branchFactor": 5 }
+    {
+      "id": "l1",
+      "title": "Outline",
+      "defaultPrompt": "Develop into 5-act outline",
+      "branchFactor": 1
+    },
+    {
+      "id": "l2",
+      "title": "Chapters",
+      "defaultPrompt": "Write this chapter",
+      "branchFactor": 5
+    }
   ],
   "spindles": [
     {
@@ -595,21 +627,38 @@ const isStale = derive(
 
 ### UI/UX Improvements
 
-- [x] **Render markdown as rich text** - Option content should render as formatted markdown (bold, lists, etc.) instead of raw text. **Status:** No built-in markdown component available. Would require importing `marked` library or building custom parser. Deferring for now - `whiteSpace: pre-wrap` preserves line breaks which is acceptable for MVP.
+- [x] **Render markdown as rich text** - Option content should render as
+      formatted markdown (bold, lists, etc.) instead of raw text. **Status:** No
+      built-in markdown component available. Would require importing `marked`
+      library or building custom parser. Deferring for now -
+      `whiteSpace: pre-wrap` preserves line breaks which is acceptable for MVP.
 
-- [x] **Make pinned item MUCH more visually distinct** - **DONE:** Added thick blue left border, SELECTED badge, stronger background color, box shadow, scale transform, and reduced opacity (0.4) for non-pinned options.
+- [x] **Make pinned item MUCH more visually distinct** - **DONE:** Added thick
+      blue left border, SELECTED badge, stronger background color, box shadow,
+      scale transform, and reduced opacity (0.4) for non-pinned options.
 
-- [x] **Move Add Level button to bottom** - **DONE:** Button now appears after all spindle cards.
+- [x] **Move Add Level button to bottom** - **DONE:** Button now appears after
+      all spindle cards.
 
-- [x] **Add way to change prompt for a given level** - **DONE:** Added "Edit Prompt" button to spindle header. Opens modal showing level name and current prompt. **LIMITATION:** Due to ifElse input binding issue, user edits in the textarea don't persist to the cell. The UI works but save doesn't actually change the prompt. See superstition: `2025-11-30-ifelse-input-binding.md`
+- [x] **Add way to change prompt for a given level** - **DONE:** Added "Edit
+      Prompt" button to spindle header. Opens modal showing level name and
+      current prompt. **LIMITATION:** Due to ifElse input binding issue, user
+      edits in the textarea don't persist to the cell. The UI works but save
+      doesn't actually change the prompt. See superstition:
+      `2025-11-30-ifelse-input-binding.md`
 
 ### Testing/Verification
 
-- [x] **Verify branching works correctly** - **LIMITATION:** branchFactor changes in modal don't persist due to ifElse input binding issue. Smart defaults (branchFactor=1) work, but user modifications are lost. Same limitation as Edit Prompt.
+- [x] **Verify branching works correctly** - **LIMITATION:** branchFactor
+      changes in modal don't persist due to ifElse input binding issue. Smart
+      defaults (branchFactor=1) work, but user modifications are lost. Same
+      limitation as Edit Prompt.
 
 ### Future Features
 
-- [x] **View full composed prompt** - **DONE:** Added "View Prompt" button (purple) to spindle header. Opens modal showing labeled, color-coded sections:
+- [x] **View full composed prompt** - **DONE:** Added "View Prompt" button
+      (purple) to spindle header. Opens modal showing labeled, color-coded
+      sections:
   - Parent's Pinned Output (yellow)
   - Level's Default Prompt (blue)
   - Extra Prompt if any (pink)
@@ -618,11 +667,15 @@ const isStale = derive(
 
 ### Known Limitations (ifElse Input Binding)
 
-All inputs inside `ifElse()` conditional modals suffer from the two-way binding issue:
-- Add Level: Title, prompt, and branchFactor edits don't persist (only smart defaults work)
+All inputs inside `ifElse()` conditional modals suffer from the two-way binding
+issue:
+
+- Add Level: Title, prompt, and branchFactor edits don't persist (only smart
+  defaults work)
 - Edit Level: Prompt edits don't persist
 
-**Workaround applied:** Smart defaults are set in the handler that opens the modal, so the default values ARE useful. User modifications are lost.
+**Workaround applied:** Smart defaults are set in the handler that opens the
+modal, so the default values ARE useful. User modifications are lost.
 
 **See:** `community-docs/superstitions/2025-11-30-ifelse-input-binding.md`
 
@@ -631,16 +684,19 @@ All inputs inside `ifElse()` conditional modals suffer from the two-way binding 
 ## Changelog
 
 ### v2.0 (2024-11-30)
+
 - **NEW:** Level-based architecture replacing individual spindle config
 - **NEW:** Branching factor per level
 - **NEW:** Automatic "Peer X of Y" suffix
 - **NEW:** Lazy spindle creation
 - **NEW:** Per-spindle extra prompt
-- **NEW:** Placeholder levels for unpinned parents (dashed cards showing pending levels)
+- **NEW:** Placeholder levels for unpinned parents (dashed cards showing pending
+  levels)
 - **CHANGED:** Data model to support levels
 - **CHANGED:** Export format to v2.0
 
 ### v1.0 (2024-11-30)
+
 - Initial implementation with fixed slots
 - Basic n-up generation, pinning, stale detection
 - Export JSON functionality

@@ -23,11 +23,11 @@ import {
   handler,
   ifElse,
   NAME,
+  nonPrivateRandom,
   pattern,
+  safeDateNow,
   UI,
   Writable,
-  safeDateNow,
-  nonPrivateRandom,
 } from "commonfabric";
 import {
   type DayOfWeek as ICalDayOfWeek,
@@ -1305,7 +1305,9 @@ const confirmCalendarExport = handler<
     } else if (target === "apple") {
       // Apple Calendar: Add to outbox + download ICS backup
       const outboxEntry: CalendarOutboxEntry = {
-        id: `export-${safeDateNow()}-${nonPrivateRandom().toString(36).slice(2, 8)}`,
+        id: `export-${safeDateNow()}-${
+          nonPrivateRandom().toString(36).slice(2, 8)
+        }`,
         events: pending.outboxEvents,
         confirmation: {
           timestamp: now,

@@ -1,33 +1,40 @@
 # PRD: ct-autocomplete Built-in Component
 
-**Status:** In Progress
-**Priority:** High
-**Branch (labs):** `feature/ct-autocomplete`
-**Branch (community-patterns):** `feature/ct-autocomplete`
-**Prototype:** `patterns/jkomoros/components/search-select-prototype.tsx`
+**Status:** In Progress **Priority:** High **Branch (labs):**
+`feature/ct-autocomplete` **Branch (community-patterns):**
+`feature/ct-autocomplete` **Prototype:**
+`patterns/jkomoros/components/search-select-prototype.tsx`
 
 ## Problem Statement
 
-When patterns need to select from large predefined lists (40+ options like relationship types), a standard dropdown is unwieldy. Users need:
+When patterns need to select from large predefined lists (40+ options like
+relationship types), a standard dropdown is unwieldy. Users need:
+
 1. Quick search/filter to find options
 2. Keyboard navigation (arrow keys + Enter)
 3. Optional free-form entry for items not in the list
 
 A user-land pattern prototype was built but hit framework limitations:
-- Visual highlight doesn't update reactively inside `.map()` (see `ISSUE-Map-Style-Reactivity.md`)
+
+- Visual highlight doesn't update reactively inside `.map()` (see
+  `ISSUE-Map-Style-Reactivity.md`)
 - Cannot use `getBoundingClientRect()` for dynamic dropdown positioning
 - Cannot programmatically focus elements
 
 ## Design Decision: Decomposed Architecture
 
-**Previous approach (rejected):** A monolithic `ct-search-select` that combined autocomplete + tag display + multi-select wiring.
+**Previous approach (rejected):** A monolithic `ct-search-select` that combined
+autocomplete + tag display + multi-select wiring.
 
 **New approach:** Two separate concerns:
 
-1. **`ct-autocomplete`** (built-in) - Search input + filterable dropdown. Outputs single selection.
-2. **`tag-selector`** (userland pattern) - Displays selected items as chips, wires to `ct-autocomplete` for adding.
+1. **`ct-autocomplete`** (built-in) - Search input + filterable dropdown.
+   Outputs single selection.
+2. **`tag-selector`** (userland pattern) - Displays selected items as chips,
+   wires to `ct-autocomplete` for adding.
 
 This decomposition is better because:
+
 - More composable - use `ct-autocomplete` alone for single-select
 - Simpler built-in component - one job done well
 - Userland can customize tag display without framework changes
@@ -43,31 +50,30 @@ This decomposition is better because:
     { value: "friend", label: "Friend", group: "Personal" },
     // ...
   ]}
-
   // Emits selected item (not bidirectional - just output)
   onselect={(item) => handleSelection(item)}
-
   // Optional configuration
   placeholder="Search..."
-  maxVisible={8}              // Max items to show in dropdown
-  allowCustom={false}         // If true, user can enter free-form text
-/>
+  maxVisible={8} // Max items to show in dropdown
+  allowCustom={false} // If true, user can enter free-form text
+/>;
 ```
 
 ### Item Format
 
 ```typescript
 interface AutocompleteItem {
-  value: string;              // Returned when selected
-  label?: string;             // Display text (defaults to value)
-  group?: string;             // Category for grouping/disambiguation
-  searchAliases?: string[];   // Additional search terms (v1 - include)
+  value: string; // Returned when selected
+  label?: string; // Display text (defaults to value)
+  group?: string; // Category for grouping/disambiguation
+  searchAliases?: string[]; // Additional search terms (v1 - include)
 }
 ```
 
 ### Search Aliases
 
 Enables matching items by related terms not in the display label:
+
 - "sibling" matches when user types "sister" or "brother"
 - "colleague" matches when user types "coworker"
 
@@ -119,26 +125,27 @@ Enables matching items by related terms not in the display label:
 
 ## Keyboard Navigation
 
-| Key | Action |
-|-----|--------|
-| `↓` / `↑` | Move highlight through options |
-| `Enter` | Select highlighted option (or custom value if allowCustom) |
-| `Escape` | Close dropdown, clear input |
-| `Tab` | Close dropdown, move focus |
+| Key       | Action                                                     |
+| --------- | ---------------------------------------------------------- |
+| `↓` / `↑` | Move highlight through options                             |
+| `Enter`   | Select highlighted option (or custom value if allowCustom) |
+| `Escape`  | Close dropdown, clear input                                |
+| `Tab`     | Close dropdown, move focus                                 |
 
 ## Events
 
-| Event | Detail | When |
-|-------|--------|------|
-| `ct-select` | `{ value, label, group?, isCustom }` | Item selected |
-| `ct-open` | `{}` | Dropdown opened |
-| `ct-close` | `{}` | Dropdown closed |
+| Event       | Detail                               | When            |
+| ----------- | ------------------------------------ | --------------- |
+| `ct-select` | `{ value, label, group?, isCustom }` | Item selected   |
+| `ct-open`   | `{}`                                 | Dropdown opened |
+| `ct-close`  | `{}`                                 | Dropdown closed |
 
 ## Implementation Notes
 
 ### Why Built-in Component?
 
 A built-in component has access to:
+
 1. **DOM APIs** - `getBoundingClientRect()` for smart dropdown positioning
 2. **Focus management** - Programmatic focus on input
 3. **Direct style updates** - No reactivity issues with highlight state
@@ -163,6 +170,7 @@ A built-in component has access to:
 ## Scope: v1 vs Future
 
 ### v1 (This PR)
+
 - [x] Static items list
 - [x] Client-side filtering
 - [x] Keyboard navigation
@@ -172,6 +180,7 @@ A built-in component has access to:
 - [x] Accessibility basics
 
 ### Future (Not in v1)
+
 - [ ] Async/streaming items (server-side search)
 - [ ] Virtualized list for 1000+ items
 - [ ] Custom item rendering (slots)
@@ -184,7 +193,8 @@ A built-in component has access to:
 3. **Keyboard navigation**: Arrow keys move highlight, Enter selects
 4. **Escape closes**: Pressing Escape closes dropdown
 5. **Click outside closes**: Clicking anywhere else closes dropdown
-6. **Custom value**: With `allowCustom`, Enter on non-matching text creates custom item
+6. **Custom value**: With `allowCustom`, Enter on non-matching text creates
+   custom item
 7. **Empty state**: "No matching options" when filter has no results
 8. **Positioning**: Dropdown flips above when near bottom of viewport
 
@@ -202,22 +212,22 @@ const TagSelector = ({ items, $selected }) => {
   };
 
   const removeItem = (value) => {
-    selected.set(selected.get().filter(v => v !== value));
+    selected.set(selected.get().filter((v) => v !== value));
   };
 
   return (
     <div>
       {/* Display selected as chips */}
-      {selected.map(value => (
+      {selected.map((value) => (
         <span class="chip">
-          {items.find(i => i.value === value)?.label || value}
+          {items.find((i) => i.value === value)?.label || value}
           <button onclick={() => removeItem(value)}>×</button>
         </span>
       ))}
 
       {/* Autocomplete for adding */}
       <ct-autocomplete
-        items={items.filter(i => !selected.get().includes(i.value))}
+        items={items.filter((i) => !selected.get().includes(i.value))}
         onselect={addItem}
         placeholder="+ Add..."
       />
@@ -229,7 +239,8 @@ const TagSelector = ({ items, $selected }) => {
 ## Implementation Path
 
 1. ✅ Create feature branches (labs + community-patterns)
-2. ⬜ Scaffold `ct-autocomplete` component in `labs/packages/ui/src/v2/components/`
+2. ⬜ Scaffold `ct-autocomplete` component in
+   `labs/packages/ui/src/v2/components/`
 3. ⬜ Implement core rendering (input + dropdown)
 4. ⬜ Implement filtering logic with searchAliases
 5. ⬜ Implement keyboard navigation
@@ -242,12 +253,12 @@ const TagSelector = ({ items, $selected }) => {
 
 ## Related Files
 
-- **Old PRD**: `patterns/jkomoros/design/todo/ct-search-select-prd.md` (superseded)
+- **Old PRD**: `patterns/jkomoros/design/todo/ct-search-select-prd.md`
+  (superseded)
 - **Prototype**: `patterns/jkomoros/components/search-select-prototype.tsx`
 - **Issue**: `patterns/jkomoros/issues/ISSUE-Map-Style-Reactivity.md`
 
 ---
 
-**Created:** 2025-12-05
-**Updated:** 2025-12-05
-**Author:** jkomoros (via Claude)
+**Created:** 2025-12-05 **Updated:** 2025-12-05 **Author:** jkomoros (via
+Claude)

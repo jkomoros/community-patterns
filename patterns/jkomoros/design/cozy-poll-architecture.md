@@ -2,11 +2,15 @@
 
 ## Overview
 
-A collaborative voting system using a **3-charm architecture** where each component serves a distinct purpose:
+A collaborative voting system using a **3-charm architecture** where each
+component serves a distinct purpose:
 
-1. **Admin Pattern** (`cozy-poll.tsx`) - Poll creator's control panel (setup only, no voting)
-2. **Lobby Pattern** (`cozy-poll-lobby.tsx`) - Public lobby for joining (shows results)
-3. **Ballot Pattern** (`cozy-poll-ballot.tsx`) - Individual voter's ballot (name set once)
+1. **Admin Pattern** (`cozy-poll.tsx`) - Poll creator's control panel (setup
+   only, no voting)
+2. **Lobby Pattern** (`cozy-poll-lobby.tsx`) - Public lobby for joining (shows
+   results)
+3. **Ballot Pattern** (`cozy-poll-ballot.tsx`) - Individual voter's ballot (name
+   set once)
 
 ## Architecture Diagram
 
@@ -63,24 +67,25 @@ const votes = cell<Vote[]>([]);
 
 // Admin creates Viewer and passes references
 const viewerInstance = CozyPollLobby({
-  question: question.get(),  // Plain value (read-only)
-  options,                   // Cell reference (shared, reactive)
-  votes,                     // Cell reference (shared, reactive)
-  voterCharms                // Cell reference (shared, reactive)
+  question: question.get(), // Plain value (read-only)
+  options, // Cell reference (shared, reactive)
+  votes, // Cell reference (shared, reactive)
+  voterCharms, // Cell reference (shared, reactive)
 });
 
 // Viewer creates Voter and passes references
 const voterInstance = CozyPollBallot({
-  question: question,        // Plain value (read-only)
-  options,                   // Cell reference (shared, reactive)
-  votes,                     // Cell reference (shared, reactive)
-  myName: Cell.of(name),     // New local cell (not shared)
+  question: question, // Plain value (read-only)
+  options, // Cell reference (shared, reactive)
+  votes, // Cell reference (shared, reactive)
+  myName: Cell.of(name), // New local cell (not shared)
 });
 ```
 
 ### Real-Time Updates
 
 When any voter modifies the `votes` cell:
+
 1. Voter calls `votes.set([...filtered, newVote])`
 2. All patterns with references to `votes` react instantly
 3. Derived values (rankings, vote counts) update automatically
@@ -90,9 +95,11 @@ When any voter modifies the `votes` cell:
 
 ### Navigation and Cell Modifications
 
-**CRITICAL DISCOVERY**: ANY cell modification during handler execution blocks `navigateTo()`.
+**CRITICAL DISCOVERY**: ANY cell modification during handler execution blocks
+`navigateTo()`.
 
 **❌ This FAILS:**
+
 ```typescript
 const voterInstance = CozyPollBallot({ ... });
 voterCharms.set([...voterCharms.get(), { charm: voterInstance }]); // Blocks!
@@ -100,6 +107,7 @@ return navigateTo(voterInstance); // Never reaches here
 ```
 
 **✅ This WORKS:**
+
 ```typescript
 const voterInstance = CozyPollBallot({ ... });
 return navigateTo(voterInstance); // Navigate immediately
@@ -107,14 +115,17 @@ return navigateTo(voterInstance); // Navigate immediately
 
 ### Trade-off: No "Find Existing Voter"
 
-Due to navigation blocking, we cannot store voter charm references during creation.
+Due to navigation blocking, we cannot store voter charm references during
+creation.
 
 **Impact:**
+
 - Each name entry creates a NEW voter charm
 - Users must bookmark their voter charm URL to return
 - No centralized "find my ballot" feature
 
 **User Experience:**
+
 - Viewer tells users: "Bookmark the page to return later!"
 - Each voter charm has descriptive title: `"{Name} - {Question} - Voter"`
 - Users can navigate back via browser history or bookmarks
@@ -125,13 +136,14 @@ Due to navigation blocking, we cannot store voter charm references during creati
 // Sort by: fewest reds (ascending), then most greens (descending)
 return voteCounts.sort((a, b) => {
   if (a.reds !== b.reds) {
-    return a.reds - b.reds;  // Fewer reds is better
+    return a.reds - b.reds; // Fewer reds is better
   }
-  return b.greens - a.greens;  // More greens is better
+  return b.greens - a.greens; // More greens is better
 });
 ```
 
 **Why this ranking?**
+
 1. **Minimize opposition** - Avoid options people can't accept
 2. **Maximize enthusiasm** - Choose what people love
 
@@ -140,16 +152,19 @@ return voteCounts.sort((a, b) => {
 ### Test Space: `test-jkomoros-3`
 
 **Setup:**
+
 - Question: "Where should we go for lunch?"
 - Options: Chipotle, Thai Kitchen, Pizza Place
 - Voters: Grace, Bob, Alice
 
 **Votes Cast:**
+
 - Grace: 🟢 Chipotle
 - Bob: 🟢 Thai Kitchen, 🔴 Pizza Place
 - Alice: 🟢 Chipotle, 🟡 Thai Kitchen
 
 **Results:**
+
 ```
 RANK 1: Chipotle
   - 2 greens (Grace, Alice)
@@ -169,17 +184,16 @@ RANK 3: Pizza Place
 
 ### Verified Features
 
-✅ **Admin → Viewer navigation** - Working
-✅ **Viewer → Voter navigation** - Working (creates new charm)
-✅ **Voting functionality** - Working (all vote types)
-✅ **Real-time updates** - Working (instant across all charms)
-✅ **Vote aggregation** - Working (multiple votes per option)
-✅ **Ranking algorithm** - Working (fewest reds, most greens)
-✅ **TOP CHOICE display** - Working (shows winner with vote count)
-✅ **Vote badges** - Working (shows voter names with colors)
-✅ **Multi-user support** - Working (3 voters tested simultaneously)
+✅ **Admin → Viewer navigation** - Working ✅ **Viewer → Voter navigation** -
+Working (creates new charm) ✅ **Voting functionality** - Working (all vote
+types) ✅ **Real-time updates** - Working (instant across all charms) ✅ **Vote
+aggregation** - Working (multiple votes per option) ✅ **Ranking algorithm** -
+Working (fewest reds, most greens) ✅ **TOP CHOICE display** - Working (shows
+winner with vote count) ✅ **Vote badges** - Working (shows voter names with
+colors) ✅ **Multi-user support** - Working (3 voters tested simultaneously)
 
 ⚠️ **Known Limitations:**
+
 - No "find existing voter" feature (users must bookmark)
 - Console transaction warnings (don't affect functionality)
 
@@ -233,20 +247,29 @@ Voter:  /space/VOTER-CHARM-ID-3  (Alice's ballot - bookmark this)
 
 ## Key Learnings
 
-1. **Cell modifications block navigation** - This is the most important constraint
+1. **Cell modifications block navigation** - This is the most important
+   constraint
 2. **Cell references enable real-time collaboration** - Pass cells, not values
-3. **Handler execution is synchronous** - Can't do async storage during navigation
-4. **Console warnings don't affect functionality** - Storage transactions may warn but work
-5. **Descriptive naming prevents charm list spam** - Good titles help users navigate
-6. **Trade-offs are acceptable** - Bookmarking is a small UX cost for working navigation
+3. **Handler execution is synchronous** - Can't do async storage during
+   navigation
+4. **Console warnings don't affect functionality** - Storage transactions may
+   warn but work
+5. **Descriptive naming prevents charm list spam** - Good titles help users
+   navigate
+6. **Trade-offs are acceptable** - Bookmarking is a small UX cost for working
+   navigation
 
 ## Conclusion
 
-The 3-charm architecture successfully implements real-time collaborative voting with:
+The 3-charm architecture successfully implements real-time collaborative voting
+with:
+
 - Clean separation of concerns (admin vs viewer vs voter)
 - Reactive data sharing via cell references
 - Working navigation between charms
 - Multi-user vote aggregation
 - Fair ranking algorithm
 
-The trade-off of requiring users to bookmark their voter URLs is acceptable given the constraint that cell modifications block navigation during handler execution.
+The trade-off of requiring users to bookmark their voter URLs is acceptable
+given the constraint that cell modifications block navigation during handler
+execution.

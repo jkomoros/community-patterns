@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Writable,
   derive,
   fetchData,
   handler,
@@ -8,6 +7,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commonfabric";
 
 /**
@@ -89,13 +89,17 @@ function parseGitHubUrl(input: string | unknown): RepoReference | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  const markdownMatch = trimmed.match(/\[.*?\]\((https?:\/\/github\.com\/([^/]+)\/([^/)]+))\)/);
+  const markdownMatch = trimmed.match(
+    /\[.*?\]\((https?:\/\/github\.com\/([^/]+)\/([^/)]+))\)/,
+  );
   if (markdownMatch) {
     const [, , owner, repo] = markdownMatch;
     return { owner, repo, fullName: `${owner}/${repo}` };
   }
 
-  const urlMatch = trimmed.match(/(?:https?:\/\/)?github\.com\/([^/]+)\/([^/\s?#]+)/);
+  const urlMatch = trimmed.match(
+    /(?:https?:\/\/)?github\.com\/([^/]+)\/([^/\s?#]+)/,
+  );
   if (urlMatch) {
     const [, owner, repo] = urlMatch;
     const cleanRepo = repo.replace(/\.git$/, "");
@@ -152,7 +156,9 @@ function getSamplePageNumbers(totalStars: number): number[] {
 // MOMENTUM CALCULATION
 // =============================================================================
 
-function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): MomentumAnalysis {
+function calculateMomentum(
+  weeks: CommitActivityWeek[] | null | undefined,
+): MomentumAnalysis {
   if (!weeks || weeks.length < 12) {
     return { trend: "unknown", recentAvg: 0, olderAvg: 0, changePercent: 0 };
   }
@@ -190,9 +196,12 @@ function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): Mome
 // Note: Returns a derive() call since samplePages is reactive
 function makeSlotUrl(
   samplePages: { owner: string; repo: string; pages: number[] },
-  slotIndex: number
+  slotIndex: number,
 ): string {
-  if (!samplePages.owner || !samplePages.repo || slotIndex >= samplePages.pages.length) return "";
+  if (
+    !samplePages.owner || !samplePages.repo ||
+    slotIndex >= samplePages.pages.length
+  ) return "";
   const page = samplePages.pages[slotIndex];
   return `https://api.github.com/repos/${samplePages.owner}/${samplePages.repo}/stargazers?per_page=1&page=${page}`;
 }
@@ -212,19 +221,31 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   const apiUrl = derive(
     { hasAuth, ref },
     (values) => {
-      const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-      const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
-      return (auth && r) ? `https://api.github.com/repos/${r.owner}/${r.repo}` : "";
-    }
+      const auth = (values.hasAuth as any)?.get
+        ? (values.hasAuth as any).get()
+        : values.hasAuth;
+      const r = (values.ref as any)?.get
+        ? (values.ref as any).get()
+        : values.ref;
+      return (auth && r)
+        ? `https://api.github.com/repos/${r.owner}/${r.repo}`
+        : "";
+    },
   );
 
   const commitActivityUrl = derive(
     { hasAuth, ref },
     (values) => {
-      const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-      const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
-      return (auth && r) ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity` : "";
-    }
+      const auth = (values.hasAuth as any)?.get
+        ? (values.hasAuth as any).get()
+        : values.hasAuth;
+      const r = (values.ref as any)?.get
+        ? (values.ref as any).get()
+        : values.ref;
+      return (auth && r)
+        ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity`
+        : "";
+    },
   );
 
   // Fetch repo metadata
@@ -254,9 +275,15 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   const samplePages = derive(
     { hasAuth, parsedRef: ref, metadata },
     (values) => {
-      const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
-      const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
-      const m = (values.metadata as any)?.get ? (values.metadata as any).get() : values.metadata;
+      const auth = (values.hasAuth as any)?.get
+        ? (values.hasAuth as any).get()
+        : values.hasAuth;
+      const r = (values.parsedRef as any)?.get
+        ? (values.parsedRef as any).get()
+        : values.parsedRef;
+      const m = (values.metadata as any)?.get
+        ? (values.metadata as any).get()
+        : values.metadata;
 
       if (!auth || !r || !m?.result?.stargazers_count) {
         return { owner: "", repo: "", pages: [] as number[] };
@@ -268,75 +295,125 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
         repo: r.repo,
         pages: getSamplePageNumbers(totalStars),
       };
-    }
+    },
   );
 
   // 10 explicit fetchData slots for star samples
   const starSample0 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 0)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample1 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 1)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample2 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 2)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample3 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 3)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample4 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 4)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample5 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 5)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample6 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 6)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample7 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 7)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample8 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 8)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
   const starSample9 = fetchData<StargazerWithDate[]>({
     url: derive(samplePages, (sp) => makeSlotUrl(sp, 9)),
     mode: "json",
-    options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => makeStargazerHeaders(t)),
+    },
   });
 
   // Aggregate star history
   const starHistory = derive(
     {
       samplePages,
-      s0: starSample0, s1: starSample1, s2: starSample2, s3: starSample3, s4: starSample4,
-      s5: starSample5, s6: starSample6, s7: starSample7, s8: starSample8, s9: starSample9,
+      s0: starSample0,
+      s1: starSample1,
+      s2: starSample2,
+      s3: starSample3,
+      s4: starSample4,
+      s5: starSample5,
+      s6: starSample6,
+      s7: starSample7,
+      s8: starSample8,
+      s9: starSample9,
     },
     (values) => {
-      const sp = (values.samplePages as any)?.get ? (values.samplePages as any).get() : values.samplePages;
-      if (!sp.pages || sp.pages.length === 0) return { loading: false, data: [] as StarDataPoint[] };
+      const sp = (values.samplePages as any)?.get
+        ? (values.samplePages as any).get()
+        : values.samplePages;
+      if (!sp.pages || sp.pages.length === 0) {
+        return { loading: false, data: [] as StarDataPoint[] };
+      }
 
       const samples = [
-        values.s0, values.s1, values.s2, values.s3, values.s4,
-        values.s5, values.s6, values.s7, values.s8, values.s9,
+        values.s0,
+        values.s1,
+        values.s2,
+        values.s3,
+        values.s4,
+        values.s5,
+        values.s6,
+        values.s7,
+        values.s8,
+        values.s9,
       ];
 
       const pending = samples.some((s, i) => {
@@ -349,7 +426,9 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
 
       const dataPoints: StarDataPoint[] = [];
       for (let i = 0; i < sp.pages.length && i < 10; i++) {
-        const sample = (samples[i] as any)?.get ? (samples[i] as any).get() : samples[i];
+        const sample = (samples[i] as any)?.get
+          ? (samples[i] as any).get()
+          : samples[i];
         const result = sample?.result;
         if (result && result.length > 0 && result[0]?.starred_at) {
           const pageNum = sp.pages[i];
@@ -362,7 +441,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
 
       dataPoints.sort((a, b) => a.date.localeCompare(b.date));
       return { loading: false, data: dataPoints };
-    }
+    },
   );
 
   // ==========================================================================
@@ -385,19 +464,31 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
 
   const repoHref = derive(
     { data, repoName },
-    ({ data, repoName }) => data?.html_url || `https://github.com/${repoName}`
+    ({ data, repoName }) => data?.html_url || `https://github.com/${repoName}`,
   );
 
   const momentumBadge = derive(momentum, (m) => {
-    const styles: Record<string, { bg: string; color: string; label: string; icon: string }> = {
-      accelerating: { bg: "#d4edda", color: "#28a745", label: "Accelerating", icon: "^" },
+    const styles: Record<
+      string,
+      { bg: string; color: string; label: string; icon: string }
+    > = {
+      accelerating: {
+        bg: "#d4edda",
+        color: "#28a745",
+        label: "Accelerating",
+        icon: "^",
+      },
       steady: { bg: "#e2e3e5", color: "#6c757d", label: "Steady", icon: "-" },
-      decelerating: { bg: "#f8d7da", color: "#dc3545", label: "Decelerating", icon: "v" },
+      decelerating: {
+        bg: "#f8d7da",
+        color: "#dc3545",
+        label: "Decelerating",
+        icon: "v",
+      },
       unknown: { bg: "#e9ecef", color: "#6c757d", label: "Unknown", icon: "?" },
     };
     return styles[m.trend] || styles.unknown;
   });
-
 
   // ==========================================================================
   // UI
@@ -406,19 +497,23 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   return {
     [NAME]: derive(repoName, (n) => `Repo: ${n}`),
     [UI]: (
-      <div style={{
-        padding: "16px",
-        border: "1px solid #dee2e6",
-        borderRadius: "8px",
-        backgroundColor: "white",
-      }}>
+      <div
+        style={{
+          padding: "16px",
+          border: "1px solid #dee2e6",
+          borderRadius: "8px",
+          backgroundColor: "white",
+        }}
+      >
         {/* Header Row */}
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "12px",
-        }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "12px",
+          }}
+        >
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <a
@@ -435,28 +530,32 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                 {repoName}
               </a>
               {/* Momentum Badge */}
-              <span style={{
-                padding: "2px 8px",
-                borderRadius: "12px",
-                fontSize: "12px",
-                fontWeight: "500",
-                backgroundColor: derive(momentumBadge, (b) => b.bg),
-                color: derive(momentumBadge, (b) => b.color),
-              }}>
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  backgroundColor: derive(momentumBadge, (b) => b.bg),
+                  color: derive(momentumBadge, (b) => b.color),
+                }}
+              >
                 {derive(momentumBadge, (b) => `${b.icon} ${b.label}`)}
               </span>
             </div>
             {ifElse(
               data,
-              <p style={{
-                margin: "4px 0 0 0",
-                fontSize: "14px",
-                color: "#666",
-                maxWidth: "600px",
-              }}>
+              <p
+                style={{
+                  margin: "4px 0 0 0",
+                  fontSize: "14px",
+                  color: "#666",
+                  maxWidth: "600px",
+                }}
+              >
                 {derive(data, (d) => d?.description || "No description")}
               </p>,
-              null
+              null,
             )}
           </div>
           {ifElse(
@@ -467,7 +566,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
             >
               Remove
             </cf-button>,
-            null
+            null,
           )}
         </div>
 
@@ -482,36 +581,49 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
             </div>,
             <div style={{ display: "flex", gap: "24px", fontSize: "14px" }}>
               <div>
-                <span style={{ color: "#666" }}>Stars: </span>
-                <strong>{derive(data, (d) => d?.stargazers_count?.toLocaleString() || "—")}</strong>
+                <span style={{ color: "#666" }}>Stars:</span>
+                <strong>
+                  {derive(
+                    data,
+                    (d) => d?.stargazers_count?.toLocaleString() || "—",
+                  )}
+                </strong>
               </div>
               <div>
-                <span style={{ color: "#666" }}>Forks: </span>
-                <strong>{derive(data, (d) => d?.forks_count?.toLocaleString() || "—")}</strong>
+                <span style={{ color: "#666" }}>Forks:</span>
+                <strong>
+                  {derive(data, (d) => d?.forks_count?.toLocaleString() || "—")}
+                </strong>
               </div>
               <div>
-                <span style={{ color: "#666" }}>Language: </span>
+                <span style={{ color: "#666" }}>Language:</span>
                 <strong>{derive(data, (d) => d?.language || "—")}</strong>
               </div>
-            </div>
-          )
+            </div>,
+          ),
         )}
 
         {/* Star Growth Sparkline */}
-        <div style={{
-          marginTop: "12px",
-          padding: "12px",
-          backgroundColor: "#fffbeb",
-          borderRadius: "6px",
-          border: "1px solid #fcd34d",
-        }}>
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "8px",
-          }}>
-            <span style={{ fontSize: "13px", color: "#92400e", fontWeight: "500" }}>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "12px",
+            backgroundColor: "#fffbeb",
+            borderRadius: "6px",
+            border: "1px solid #fcd34d",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "8px",
+            }}
+          >
+            <span
+              style={{ fontSize: "13px", color: "#92400e", fontWeight: "500" }}
+            >
               Star Growth Over Time
             </span>
             <span style={{ fontSize: "12px", color: "#b45309" }}>
@@ -526,19 +638,28 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
           </div>
           {ifElse(
             derive(starHistory, (sh) => sh.loading),
-            <div style={{ color: "#b45309", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+            <div
+              style={{
+                color: "#b45309",
+                fontSize: "13px",
+                textAlign: "center",
+                padding: "8px",
+              }}
+            >
               Loading star history...
             </div>,
             ifElse(
               derive(starHistory, (sh) => sh.data.length > 0),
-              <div style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: "2px",
-                height: "60px",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-end",
+                  gap: "2px",
+                  height: "60px",
+                }}
+              >
                 {derive(starHistory, (sh) => {
-                  const maxCount = Math.max(...sh.data.map(d => d.count), 1);
+                  const maxCount = Math.max(...sh.data.map((d) => d.count), 1);
                   return sh.data.map((point, i) => {
                     const heightPercent = (point.count / maxCount) * 100;
                     return (
@@ -557,67 +678,96 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                   });
                 })}
               </div>,
-              <div style={{ color: "#b45309", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+              <div
+                style={{
+                  color: "#b45309",
+                  fontSize: "13px",
+                  textAlign: "center",
+                  padding: "8px",
+                }}
+              >
                 No star history data available
-              </div>
-            )
+              </div>,
+            ),
           )}
           {ifElse(
             derive(starHistory, (sh) => sh.data.length > 1),
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: "4px",
-              fontSize: "10px",
-              color: "#92400e",
-            }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "4px",
+                fontSize: "10px",
+                color: "#92400e",
+              }}
+            >
               {derive(starHistory, (sh) => {
                 if (sh.data.length === 0) return "";
                 return `~${sh.data[0].count.toLocaleString()} stars`;
               })}
-              {derive(data, (d) => d?.stargazers_count ? `${d.stargazers_count.toLocaleString()} stars now` : "")}
+              {derive(data, (d) =>
+                d?.stargazers_count
+                  ? `${d.stargazers_count.toLocaleString()} stars now`
+                  : "")}
             </div>,
-            null
+            null,
           )}
         </div>
 
         {/* Commit Activity Heatmap */}
-        <div style={{
-          marginTop: "12px",
-          padding: "12px",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "6px",
-        }}>
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "8px",
-          }}>
-            <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "12px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "6px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "8px",
+            }}
+          >
+            <span
+              style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}
+            >
               Commit Activity (last 12 weeks)
             </span>
             <span style={{ fontSize: "12px", color: "#999" }}>
               {derive(momentum, (m) =>
                 m.trend !== "unknown"
-                  ? `${m.changePercent > 0 ? "+" : ""}${m.changePercent.toFixed(0)}% vs prior 8 weeks`
-                  : "Insufficient data"
-              )}
+                  ? `${m.changePercent > 0 ? "+" : ""}${
+                    m.changePercent.toFixed(0)
+                  }% vs prior 8 weeks`
+                  : "Insufficient data")}
             </span>
           </div>
           {ifElse(
             isCommitLoading,
-            <div style={{ color: "#999", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+            <div
+              style={{
+                color: "#999",
+                fontSize: "13px",
+                textAlign: "center",
+                padding: "8px",
+              }}
+            >
               Loading commit data...
             </div>,
             ifElse(
-              derive(sparklineData, (d) => d.length > 0),
-              <div style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: "2px",
-                height: "50px",
-              }}>
+              derive(sparklineData, (d) =>
+                d.length > 0),
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-end",
+                  gap: "2px",
+                  height: "50px",
+                }}
+              >
                 {derive(
                   { sparklineData, momentumBadge },
                   ({ sparklineData, momentumBadge }) => {
@@ -642,32 +792,41 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                         />
                       );
                     });
-                  }
+                  },
                 )}
               </div>,
-              <div style={{ color: "#999", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+              <div
+                style={{
+                  color: "#999",
+                  fontSize: "13px",
+                  textAlign: "center",
+                  padding: "8px",
+                }}
+              >
                 No commit activity data
-              </div>
-            )
+              </div>,
+            ),
           )}
           {ifElse(
-            derive(sparklineData, (d) => d.length > 0),
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: "4px",
-              fontSize: "10px",
-              color: "#999",
-            }}>
+            derive(sparklineData, (d) =>
+              d.length > 0),
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "4px",
+                fontSize: "10px",
+                color: "#999",
+              }}
+            >
               <span>12 weeks ago</span>
               <span>
                 {derive(sparklineData, (d) =>
-                  d.length > 0 ? `${d[d.length - 1]} commits this week` : ""
-                )}
+                  d.length > 0 ? `${d[d.length - 1]} commits this week` : "")}
               </span>
               <span>now</span>
             </div>,
-            null
+            null,
           )}
         </div>
       </div>
