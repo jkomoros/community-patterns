@@ -29,6 +29,7 @@ import {
   pattern,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 type Props = {
@@ -47,7 +48,7 @@ const triggerExtraction = handler<
   Record<string, never>,
   { notes: string; extractTrigger: Writable<string> }
 >((_, { notes, extractTrigger }) => {
-  extractTrigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
+  extractTrigger.set(`${notes}\n---EXTRACT-${safeDateNow()}---`);
 });
 
 // Clear extraction

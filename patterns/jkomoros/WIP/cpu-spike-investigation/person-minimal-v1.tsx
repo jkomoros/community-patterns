@@ -18,6 +18,7 @@ import {
   str,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 // Minimal extraction result
@@ -35,7 +36,7 @@ const triggerExtraction = handler<
 >(
   (_, { notes, extractTrigger }) => {
     console.log("[PERSON-MIN-V1] Starting extraction...");
-    extractTrigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
+    extractTrigger.set(`${notes}\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 

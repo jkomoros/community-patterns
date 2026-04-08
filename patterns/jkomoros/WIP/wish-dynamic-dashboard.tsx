@@ -9,6 +9,7 @@ import {
   pattern,
   UI,
   wish,
+  safeDateNow,
 } from "commonfabric";
 
 /**
@@ -39,7 +40,7 @@ const addWidget = handler<
   const query = event.detail?.message?.trim();
   if (query) {
     const newWidget: DashboardWidget = {
-      id: `widget-${Date.now()}`,
+      id: `widget-${safeDateNow()}`,
       query,
       addedAt: new Date().toISOString(),
     };

@@ -22,6 +22,7 @@ import {
   pattern,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 type Item = {
@@ -45,7 +46,7 @@ const loadData = handler<
   // Reset counters
   outerMapCalls = 0;
   innerMapCalls = 0;
-  loadStartTime = Date.now();
+  loadStartTime = safeDateNow();
   lastRenderTime = 0;
 
   console.log(`[PERF] ========================================`);
@@ -63,7 +64,7 @@ const loadData = handler<
   items.set(newItems);
 
   // This only measures the set() call, NOT the reactive cascade!
-  console.log(`[PERF] items.set() returned at ${Date.now()} (${Date.now() - loadStartTime}ms)`);
+  console.log(`[PERF] items.set() returned at ${safeDateNow()} (${safeDateNow() - loadStartTime}ms)`);
   console.log(`[PERF] But reactive execution happens LATER via setTimeout!`);
   console.log(`[PERF] Watch for render calls below...`);
 });
@@ -141,7 +142,7 @@ export default pattern<Props>(() => {
           {items.map((item: Item) => {
             // COUNT OUTER MAP CALLS - this runs during reactive execution!
             outerMapCalls++;
-            lastRenderTime = Date.now();
+            lastRenderTime = safeDateNow();
             if (outerMapCalls <= 3 || outerMapCalls === outerCount) {
               console.log(`[PERF] Outer map #${outerMapCalls} at ${lastRenderTime} (+${lastRenderTime - loadStartTime}ms)`);
             }
@@ -160,7 +161,7 @@ export default pattern<Props>(() => {
                   {item.children.map((child: { id: number; text: string }) => {
                     // COUNT INNER MAP CALLS
                     innerMapCalls++;
-                    lastRenderTime = Date.now();
+                    lastRenderTime = safeDateNow();
 
                     // Log first few and last
                     if (innerMapCalls <= 5 || innerMapCalls === outerCount * innerCount) {

@@ -50,6 +50,8 @@ import {
   str,
   UI,
   wish,
+  safeDateNow,
+  nonPrivateRandom,
 } from "commonfabric";
 import { type MentionablePiece } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
@@ -213,7 +215,7 @@ const removeIngredient = handler<
 const addStepGroup = handler<unknown, { stepGroups: Writable<StepGroup[]> }>(
   (_event, { stepGroups }) => {
     stepGroups.push({
-      id: `group-${Date.now()}`,
+      id: `group-${safeDateNow()}`,
       name: "New Step Group",
       minutesBeforeServing: 0,
       duration: 0,
@@ -489,7 +491,7 @@ const triggerExtraction = handler<
   { notes: string; extractTrigger: Writable<string> }
 >(
   (_, { notes, extractTrigger }) => {
-    extractTrigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
+    extractTrigger.set(`${notes}\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -571,7 +573,7 @@ const applyExtractedData = handler<
     if (data.stepGroups && Array.isArray(data.stepGroups)) {
       data.stepGroups.forEach((group: any) => {
         stepGroups.push({
-          id: group.id || `group-${Date.now()}-${Math.random()}`,
+          id: group.id || `group-${safeDateNow()}-${nonPrivateRandom()}`,
           name: group.name || "Step Group",
           nightsBeforeServing: group.nightsBeforeServing,
           minutesBeforeServing: group.minutesBeforeServing,
@@ -611,7 +613,7 @@ const triggerTimingSuggestion = handler<
   (_, { stepGroups, timingSuggestionTrigger }) => {
     // Unwrap cells before serializing
     const groups = stepGroups.get().map(g => g.get ? g.get() : g);
-    timingSuggestionTrigger.set(`${JSON.stringify(groups)}\n---TIMING-${Date.now()}---`);
+    timingSuggestionTrigger.set(`${JSON.stringify(groups)}\n---TIMING-${safeDateNow()}---`);
   },
 );
 
@@ -665,7 +667,7 @@ const triggerWaitTimeSuggestion = handler<
   (_, { stepGroups, waitTimeSuggestionTrigger }) => {
     // Unwrap cells before serializing
     const groups = stepGroups.get().map(g => g.get ? g.get() : g);
-    waitTimeSuggestionTrigger.set(`${JSON.stringify(groups)}\n---WAIT-${Date.now()}---`);
+    waitTimeSuggestionTrigger.set(`${JSON.stringify(groups)}\n---WAIT-${safeDateNow()}---`);
   },
 );
 

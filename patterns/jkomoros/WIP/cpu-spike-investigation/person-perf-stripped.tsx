@@ -22,6 +22,7 @@ import {
   NAME,
   pattern,
   UI,
+  safeDateNow,
 } from "commonfabric";
 // Inline the diff utilities to avoid import path issues
 type DiffChunk = {
@@ -104,9 +105,9 @@ const triggerExtraction = handler<
 >(
   (_, { trigger, startTimeMs }) => {
     console.log("[PERF-STRIPPED] Starting extraction...");
-    console.log("[PERF-STRIPPED] Start time:", Date.now());
-    startTimeMs.set(Date.now());
-    trigger.set(`Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${Date.now()}---`);
+    console.log("[PERF-STRIPPED] Start time:", safeDateNow());
+    startTimeMs.set(safeDateNow());
+    trigger.set(`Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -215,7 +216,7 @@ export default pattern(() => {
   // changesPreview computed - copied from person.tsx
   // ============================================================
   const changesPreview = computed(() => {
-    const t0 = Date.now();
+    const t0 = safeDateNow();
     const result = extractionResult as ExtractionResult | null;
     const changes = compareFields(result, {
       displayName: { current: displayName.get(), label: "Display Name" },
@@ -233,7 +234,7 @@ export default pattern(() => {
       mastodon: { current: mastodonHandle.get(), label: "Mastodon" },
       remainingNotes: { current: notes.get(), label: "Notes" },
     });
-    console.log(`[PERF-STRIPPED] changesPreview computed: ${Date.now() - t0}ms, ${changes.length} changes`);
+    console.log(`[PERF-STRIPPED] changesPreview computed: ${safeDateNow() - t0}ms, ${changes.length} changes`);
     return changes;
   });
 
@@ -250,7 +251,7 @@ export default pattern(() => {
   // Pre-compute word diff for Notes field
   // NOTE: changesPreview is passed as VALUE by CTS
   const notesDiffChunks = computed(() => {
-    const t0 = Date.now();
+    const t0 = safeDateNow();
     // changesPreview here is already the array value, not a Cell
     const preview = changesPreview as Array<{field: string; from: string; to: string}>;
     const notesChange = preview.find((c) => c.field === "Notes");
@@ -260,7 +261,7 @@ export default pattern(() => {
       return [] as DiffChunk[];
     }
     const result = computeWordDiff(notesChange.from, notesChange.to);
-    console.log(`[PERF-STRIPPED] notesDiffChunks: ${Date.now() - t0}ms, ${result.length} chunks`);
+    console.log(`[PERF-STRIPPED] notesDiffChunks: ${safeDateNow() - t0}ms, ${result.length} chunks`);
     return result;
   });
 
@@ -270,7 +271,7 @@ export default pattern(() => {
     if (!start) return null;
 
     if (!extractionPending && extractionResult) {
-      const elapsed = Date.now() - start;
+      const elapsed = safeDateNow() - start;
       console.log(`[PERF-STRIPPED] Extraction completed in ${elapsed}ms`);
       return elapsed;
     }

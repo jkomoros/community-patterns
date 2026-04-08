@@ -9,6 +9,7 @@ import {
   pattern,
   UI,
   wish,
+  safeDateNow,
 } from "commonfabric";
 
 /**
@@ -81,7 +82,7 @@ const addNote = handler<
   if (noteContent) {
     const ctx = currentContext.get();
     const newNote: Note = {
-      id: `note-${Date.now()}`,
+      id: `note-${safeDateNow()}`,
       contextType: ctx.type,
       contextTitle: ctx.title,
       noteContent,

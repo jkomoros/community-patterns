@@ -26,6 +26,7 @@ import {
   Writable,
   computed,
   handler,
+  safeDateNow,
 } from "commonfabric";
 
 // Handler to trigger extraction
@@ -35,10 +36,10 @@ const triggerExtraction = handler<
 >(
   (_, { trigger, startTimeMs, elapsedMs }) => {
     console.log("[PERF] Starting 14-field extraction...");
-    console.log("[PERF] Start time:", Date.now());
-    startTimeMs.set(Date.now());
+    console.log("[PERF] Start time:", safeDateNow());
+    startTimeMs.set(safeDateNow());
     elapsedMs.set(null);
-    trigger.set(`---EXTRACT-${Date.now()}---`);
+    trigger.set(`---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -90,7 +91,7 @@ export default pattern(() => {
     if (!start) return null;
 
     if (!result.pending && result.result) {
-      const elapsed = Date.now() - start;
+      const elapsed = safeDateNow() - start;
       console.log(`[PERF] 14 fields extraction completed in ${elapsed}ms`);
       // Only update if we haven't recorded yet
       if (elapsedMs.get() === null) {

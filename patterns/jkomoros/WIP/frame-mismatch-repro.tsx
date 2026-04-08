@@ -13,6 +13,7 @@ import {
   NAME,
   pattern,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 // Simple type for the array items
@@ -72,7 +73,7 @@ export default pattern<ReproInput, ReproOutput>(({ items }) => {
       const current = items.get();
       items.set([
         ...current,
-        { id: `new-${Date.now()}`, label: result.items[0].label },
+        { id: `new-${safeDateNow()}`, label: result.items[0].label },
       ]);
     }
   });
@@ -99,7 +100,7 @@ export default pattern<ReproInput, ReproOutput>(({ items }) => {
         )}
         <cf-button
           onClick={() => {
-            items.push({ id: `item-${Date.now()}`, label: "Test Item" });
+            items.push({ id: `item-${safeDateNow()}`, label: "Test Item" });
           }}
         >
           Add Item

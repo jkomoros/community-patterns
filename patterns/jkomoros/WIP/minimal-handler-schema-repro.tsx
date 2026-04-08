@@ -12,7 +12,7 @@
  * Look for the generated schemas - the generic handler's input schema
  * will be missing fields that only exist in the type parameter.
  */
-import { Writable, generateObject, handler, NAME, pattern, UI } from "commonfabric";
+import { generateObject, handler, NAME, pattern, safeDateNow, UI, Writable } from "commonfabric";
 
 // ============================================================================
 // ISSUE: Generic type parameters produce incomplete schemas
@@ -41,7 +41,7 @@ function createGenericHandler<T extends { id: string }>() {
     // This works at RUNTIME - input has the fields
     // But LLM never gets the schema to know what fields to send!
     const items = state.items.get() || [];
-    const id = `item-${Date.now()}`;
+    const id = `item-${safeDateNow()}`;
     const newItem = castToType<T>({ ...input, id });
     state.items.set([...items, newItem]);
 
@@ -82,7 +82,7 @@ const explicitSchemaHandler = handler(
   (input: { name: string; category: string; priority: number; result?: Writable<any> },
    state: { items: Writable<MyRecord[]> }) => {
     const items = state.items.get() || [];
-    const id = `item-${Date.now()}`;
+    const id = `item-${safeDateNow()}`;
     const newItem: MyRecord = {
       id,
       name: input.name,

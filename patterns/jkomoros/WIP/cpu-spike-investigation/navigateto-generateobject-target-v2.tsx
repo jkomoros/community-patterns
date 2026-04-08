@@ -19,6 +19,7 @@ import {
   toSchema,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 // 14-field schema to match person.tsx
@@ -46,8 +47,8 @@ const triggerExtraction = handler<
 >(
   (_, { extractTrigger, startTimeMs }) => {
     console.log("[V2-RECIPE] Starting extraction...");
-    startTimeMs.set(Date.now());
-    extractTrigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford.\n---EXTRACT-${Date.now()}---`);
+    startTimeMs.set(safeDateNow());
+    extractTrigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford.\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -87,7 +88,7 @@ const ExtractTargetV2 = pattern<Input, Output>(
       const start = startTimeMs.get();
       if (!start || pending) return null;
       if (result) {
-        const elapsed = Date.now() - start;
+        const elapsed = safeDateNow() - start;
         console.log(`[V2-RECIPE] Completed in ${elapsed}ms`);
         return elapsed;
       }

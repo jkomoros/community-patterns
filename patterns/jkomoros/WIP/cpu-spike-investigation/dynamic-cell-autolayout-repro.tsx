@@ -21,6 +21,7 @@ import {
   pattern,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 type Item = {
@@ -36,7 +37,7 @@ const loadData = handler<
   { items: Writable<Item[]>; hasResults: Writable<boolean>; outerCount: number; innerCount: number }
 >((_, { items, hasResults, outerCount, innerCount }) => {
   console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items...`);
-  const t0 = Date.now();
+  const t0 = safeDateNow();
 
   const newItems = Array.from({ length: outerCount }, (_, i) => ({
     id: i,
@@ -48,7 +49,7 @@ const loadData = handler<
 
   items.set(newItems);
   hasResults.set(true);
-  console.log(`[PERF] items.set() took ${Date.now() - t0}ms`);
+  console.log(`[PERF] items.set() took ${safeDateNow() - t0}ms`);
 });
 
 // Handler to clear data

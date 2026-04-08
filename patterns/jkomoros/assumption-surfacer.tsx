@@ -11,6 +11,7 @@ import {
   Stream,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 // ============================================================================
@@ -181,7 +182,7 @@ const onAssumptionChange = handler<
 
   // Add user context note
   const contextNote: UserContextNote = {
-    id: `context-${Date.now()}`,
+    id: `context-${safeDateNow()}`,
     content: `Prefers ${newValue} over ${oldValue} for ${assumptionLabel}`,
     source: "correction",
     createdAt: new Date().toISOString(),
@@ -231,7 +232,7 @@ const selectAlternative = handler<
 
   // Add user context note
   const contextNote: UserContextNote = {
-    id: `context-${Date.now()}`,
+    id: `context-${safeDateNow()}`,
     content: `Prefers ${newValue} over ${oldValue} for ${assumptionLabel}`,
     source: "correction",
     createdAt: new Date().toISOString(),

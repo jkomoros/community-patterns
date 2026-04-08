@@ -11,6 +11,7 @@ import {
   pattern,
   str,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 /**
@@ -115,7 +116,7 @@ const TestPattern = pattern<Input, Output>(
     const resultWithComputed = computed(() => {
       if (useDerive) return null;
 
-      const startTime = Date.now();
+      const startTime = safeDateNow();
       console.log("[Version A - computed()] Starting computation with closures...");
 
       // This computed() closes over all 14 field cells
@@ -132,7 +133,7 @@ const TestPattern = pattern<Input, Output>(
         },
       });
 
-      const reactiveOverhead = Date.now() - startTime;
+      const reactiveOverhead = safeDateNow() - startTime;
       console.log(`[Version A - computed()] Reactive overhead: ${reactiveOverhead.toFixed(2)}ms`);
 
       return result.result;
@@ -161,7 +162,7 @@ const TestPattern = pattern<Input, Output>(
       (params) => {
         if (!params.shouldCompute) return null;
 
-        const startTime = Date.now();
+        const startTime = safeDateNow();
         console.log("[Version B - derive()] Starting computation with explicit params...");
 
         // This derive() has explicit dependencies listed
@@ -178,7 +179,7 @@ const TestPattern = pattern<Input, Output>(
           },
         });
 
-        const reactiveOverhead = Date.now() - startTime;
+        const reactiveOverhead = safeDateNow() - startTime;
         console.log(`[Version B - derive()] Reactive overhead: ${reactiveOverhead.toFixed(2)}ms`);
 
         return result.result;

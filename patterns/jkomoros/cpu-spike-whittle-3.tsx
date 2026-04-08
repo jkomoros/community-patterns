@@ -17,6 +17,7 @@ import {
   navigateTo,
   pattern,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 // =============================================================================
@@ -33,7 +34,7 @@ interface SimpleOutput {
 }
 
 const SimplePattern = pattern<SimpleInput, SimpleOutput>(({ message }) => {
-  const timestamp = computed(() => Date.now());
+  const timestamp = computed(() => safeDateNow());
 
   return {
     [NAME]: "Simple Test Pattern",

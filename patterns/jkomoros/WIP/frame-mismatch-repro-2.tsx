@@ -16,6 +16,7 @@ import {
   pattern,
   Stream,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 // Simple assumption type
@@ -116,7 +117,7 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
       const current = assumptions.get();
       assumptions.set([
         ...current,
-        { id: `a-${Date.now()}`, label: result.assumptions[0].label },
+        { id: `a-${safeDateNow()}`, label: result.assumptions[0].label },
       ]);
     }
   });

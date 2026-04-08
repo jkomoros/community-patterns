@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, NAME, pattern, UI, wish } from "commonfabric";
+import { computed, Default, NAME, nonPrivateRandom, pattern, UI, wish } from "commonfabric";
 
 // ============================================================================
 // Types
@@ -293,7 +293,7 @@ function generateNonce(
 
   // Ensure no collision
   while (session.usedNonces.includes(nonce)) {
-    nonce = `${nonce}_${Math.random().toString(36).slice(2, 6)}`;
+    nonce = `${nonce}_${nonPrivateRandom().toString(36).slice(2, 6)}`;
   }
   session.usedNonces.push(nonce);
 

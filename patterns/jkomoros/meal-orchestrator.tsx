@@ -13,6 +13,7 @@ import {
   UI,
   wish,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 import FoodRecipe from "./food-recipe.tsx";
@@ -279,7 +280,7 @@ Already Added to This Meal:
 - Prepared Foods: ${currentPreparedList}
 
 Please analyze the planning notes and extract all food items, matching them to existing items where possible.
----ANALYZE-${Date.now()}---`;
+---ANALYZE-${safeDateNow()}---`;
 
     // Trigger LLM analysis
     linkingAnalysisTrigger.set(prompt);

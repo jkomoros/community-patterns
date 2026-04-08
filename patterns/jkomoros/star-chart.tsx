@@ -9,6 +9,7 @@ import {
   safeDateNow,
   UI,
   Writable,
+  nonPrivateRandom,
 } from "commonfabric";
 
 /**
@@ -194,7 +195,7 @@ const placeStar = handler<
   }
 
   // Add new record for today with random rotation
-  const rotation = Math.random() * 30 - 15;
+  const rotation = nonPrivateRandom() * 30 - 15;
   const newRecord: DayRecord = {
     date: todayStr,
     earned: true,
@@ -282,7 +283,7 @@ const toggleDayStar = handler<
       );
     } else {
       // Add the star (set earned to true)
-      const rotation = Math.random() * 30 - 15;
+      const rotation = nonPrivateRandom() * 30 - 15;
       updatedDays = currentDays.map((d, i) =>
         i === existingIndex
           ? { ...d, earned: true, protected: false, rotation }
@@ -291,7 +292,7 @@ const toggleDayStar = handler<
     }
   } else {
     // No record for this day, add one with earned = true
-    const rotation = Math.random() * 30 - 15;
+    const rotation = nonPrivateRandom() * 30 - 15;
     const newRecord: DayRecord = {
       date,
       earned: true,

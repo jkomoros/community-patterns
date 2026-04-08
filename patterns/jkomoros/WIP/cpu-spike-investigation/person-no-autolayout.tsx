@@ -14,6 +14,7 @@ import {
   UI,
   wish,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 import { type MentionablePiece } from "../../../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "../../utils/diff-utils.ts";
@@ -446,7 +447,7 @@ const triggerExtraction = handler<
 >(
   (_, { notes, extractTrigger }) => {
     // Add timestamp to ensure the trigger value always changes
-    extractTrigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
+    extractTrigger.set(`${notes}\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -757,7 +758,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     // This prevents N² re-evaluation during recipe discovery when map items change.
     // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
     const notesDiffChunks = computed(() => {
-      const t0 = PERF_MEASURE ? Date.now() : 0;
+      const t0 = PERF_MEASURE ? safeDateNow() : 0;
       const notesChange = changesPreview.find((c) => c.field === "Notes");
       if (!notesChange || !notesChange.from || !notesChange.to ||
           notesChange.from === "(empty)" || notesChange.to === "(empty)") {
@@ -765,7 +766,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
         return [];
       }
       const result = computeWordDiff(notesChange.from, notesChange.to);
-      if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: ${Date.now() - t0}ms, ${result.length} chunks`);
+      if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: ${safeDateNow() - t0}ms, ${result.length} chunks`);
       return result;
     });
 

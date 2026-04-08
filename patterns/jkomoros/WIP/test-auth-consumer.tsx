@@ -22,6 +22,7 @@ import {
   Stream,
   UI,
   wish,
+  safeDateNow,
 } from "commonfabric";
 
 // Auth type (inline to avoid import issues)
@@ -196,14 +197,14 @@ export default pattern<Input, Output>(
     const tokenStatus = derive(auth, (a: any) => {
       if (!a?.token) return "no-token";
       if (!a?.expiresAt) return "no-expiry";
-      const remaining = a.expiresAt - Date.now();
+      const remaining = a.expiresAt - safeDateNow();
       if (remaining <= 0) return "expired";
       return "valid";
     });
 
     const timeRemaining = derive(auth, (a: any) => {
       if (!a?.expiresAt) return 0;
-      return Math.max(0, Math.floor((a.expiresAt - Date.now()) / 1000));
+      return Math.max(0, Math.floor((a.expiresAt - safeDateNow()) / 1000));
     });
 
     // Check if refresh stream is accessible

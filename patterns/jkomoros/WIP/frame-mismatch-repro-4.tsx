@@ -17,6 +17,7 @@ import {
   pattern,
   Stream,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 // Same nested type structure
@@ -123,7 +124,7 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
     analyzedCount.set(lastAssistantIdx + 1);
 
     const newAssumptions: Assumption[] = result.assumptions.map((a, idx) => ({
-      id: `assumption-${Date.now()}-${idx}`,
+      id: `assumption-${safeDateNow()}-${idx}`,
       label: a.label,
       description: a.description,
       alternatives: a.alternatives,

@@ -17,6 +17,7 @@ import {
   pattern,
   Stream,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 // Nested type structure matching the original
@@ -126,7 +127,7 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
 
     // Create full Assumption objects with nested alternatives
     const newAssumptions: Assumption[] = result.assumptions.map((a, idx) => ({
-      id: `assumption-${Date.now()}-${idx}`,
+      id: `assumption-${safeDateNow()}-${idx}`,
       label: a.label,
       description: a.description,
       alternatives: a.alternatives,

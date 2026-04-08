@@ -13,6 +13,7 @@ import {
   UI,
   wish,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 // Type for a person charm reference
@@ -58,7 +59,7 @@ const triggerAnalysis = handler<
     }));
 
     // Add timestamp to ensure the trigger value always changes
-    analysisInput.set(`${JSON.stringify(snapshot)}\n---ANALYZE-${Date.now()}---`);
+    analysisInput.set(`${JSON.stringify(snapshot)}\n---ANALYZE-${safeDateNow()}---`);
     hasAnalyzed.set(true);
   },
 );

@@ -22,6 +22,7 @@ import {
   NAME,
   pattern,
   UI,
+  safeDateNow,
 } from "commonfabric";
 
 // Inline the diff utilities to avoid import path issues
@@ -105,9 +106,9 @@ const triggerExtraction = handler<
 >(
   (_, { trigger, startTimeMs }) => {
     console.log("[PERF-TABS] Starting extraction...");
-    console.log("[PERF-TABS] Start time:", Date.now());
-    startTimeMs.set(Date.now());
-    trigger.set(`Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${Date.now()}---`);
+    console.log("[PERF-TABS] Start time:", safeDateNow());
+    startTimeMs.set(safeDateNow());
+    trigger.set(`Test notes for John Smith. Email: john@example.com. Phone: 555-1234. Birthday: 1985-03-15.\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -213,7 +214,7 @@ export default pattern(() => {
 
   // changesPreview computed - copied from person.tsx
   const changesPreview = computed(() => {
-    const t0 = Date.now();
+    const t0 = safeDateNow();
     const result = extractionResult as ExtractionResult | null;
     const changes = compareFields(result, {
       displayName: { current: displayName.get(), label: "Display Name" },
@@ -231,7 +232,7 @@ export default pattern(() => {
       mastodon: { current: mastodonHandle.get(), label: "Mastodon" },
       remainingNotes: { current: notes.get(), label: "Notes" },
     });
-    console.log(`[PERF-TABS] changesPreview computed: ${Date.now() - t0}ms, ${changes.length} changes`);
+    console.log(`[PERF-TABS] changesPreview computed: ${safeDateNow() - t0}ms, ${changes.length} changes`);
     return changes;
   });
 
@@ -245,7 +246,7 @@ export default pattern(() => {
 
   // Pre-compute word diff for Notes field
   const notesDiffChunks = computed(() => {
-    const t0 = Date.now();
+    const t0 = safeDateNow();
     const preview = changesPreview as Array<{field: string; from: string; to: string}>;
     const notesChange = preview.find((c) => c.field === "Notes");
     if (!notesChange || !notesChange.from || !notesChange.to ||
@@ -254,7 +255,7 @@ export default pattern(() => {
       return [] as DiffChunk[];
     }
     const result = computeWordDiff(notesChange.from, notesChange.to);
-    console.log(`[PERF-TABS] notesDiffChunks: ${Date.now() - t0}ms, ${result.length} chunks`);
+    console.log(`[PERF-TABS] notesDiffChunks: ${safeDateNow() - t0}ms, ${result.length} chunks`);
     return result;
   });
 
@@ -264,7 +265,7 @@ export default pattern(() => {
     if (!start) return null;
 
     if (!extractionPending && extractionResult) {
-      const elapsed = Date.now() - start;
+      const elapsed = safeDateNow() - start;
       console.log(`[PERF-TABS] Extraction completed in ${elapsed}ms`);
       return elapsed;
     }

@@ -31,6 +31,7 @@ import {
   pattern,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 type Item = {
@@ -46,7 +47,7 @@ const loadData = handler<
   { items: Writable<Item[]>; outerCount: number; innerCount: number }
 >((_, { items, outerCount, innerCount }) => {
   console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items...`);
-  const t0 = Date.now();
+  const t0 = safeDateNow();
 
   // Suddenly create many items (mimics generateObject completion)
   const newItems = Array.from({ length: outerCount }, (_, i) => ({
@@ -59,7 +60,7 @@ const loadData = handler<
 
   items.set(newItems); // This triggers O(n²) cell creation
 
-  console.log(`[PERF] items.set() took ${Date.now() - t0}ms`);
+  console.log(`[PERF] items.set() took ${safeDateNow() - t0}ms`);
 });
 
 // Handler to clear data

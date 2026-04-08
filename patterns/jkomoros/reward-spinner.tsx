@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, Default, handler, NAME, pattern, str, UI } from "commonfabric";
+import { computed, Default, handler, NAME, nonPrivateRandom, pattern, safeDateNow, str, UI, Writable } from "commonfabric";
 
 /**
  * Reward Spinner Pattern
@@ -88,7 +88,7 @@ const spin = handler<
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
 
     // Pick a random number between 0 and totalWeight to determine final result
-    const random = Math.random() * totalWeight;
+    const random = nonPrivateRandom() * totalWeight;
 
     // Find which prize was selected
     let cumulativeWeight = 0;
@@ -123,7 +123,7 @@ const spin = handler<
         sequence.push(finalEmoji);
       } else {
         // Random prize
-        const randomPrize = prizeOptions[Math.floor(Math.random() * prizeOptions.length)];
+        const randomPrize = prizeOptions[Math.floor(nonPrivateRandom() * prizeOptions.length)];
         sequence.push(randomPrize.emoji);
       }
     }
@@ -136,7 +136,7 @@ const spin = handler<
     // Record this spin in history
     const history = spinHistory.get();
     const newRecord: SpinRecord = {
-      timestamp: Date.now(),
+      timestamp: safeDateNow(),
       generosity: gen,
       result: finalEmoji,
     };
@@ -203,7 +203,7 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
       if (history.length === 0) return false;
 
       const lastSpin = history[history.length - 1];
-      const timeSinceLastSpin = Date.now() - lastSpin.timestamp;
+      const timeSinceLastSpin = safeDateNow() - lastSpin.timestamp;
       return timeSinceLastSpin < 10000; // 10 seconds
     });
 

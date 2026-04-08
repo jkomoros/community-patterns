@@ -12,6 +12,7 @@ import {
   UI,
   type VNode,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 
 // Import patterns directly - optional defaults make {} work for all fields
@@ -175,7 +176,7 @@ const resetExecution = handler<
   createdCharms.set([]);
   executed.set(false);
   // Update cache buster to ensure next execution gets fresh LLM response
-  cacheBuster.set(`retry-${Date.now()}`);
+  cacheBuster.set(`retry-${safeDateNow()}`);
 });
 
 export default pattern<Input, Output>(

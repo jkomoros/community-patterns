@@ -27,6 +27,8 @@ import {
   str,
   toSchema,
   UI,
+  safeDateNow,
+  nonPrivateRandom,
 } from "commonfabric";
 
 // ============================================================================
@@ -166,7 +168,7 @@ interface PinnedSet {
 // ============================================================================
 
 function generateId(): string {
-  return Math.random().toString(36).substring(2, 15);
+  return nonPrivateRandom().toString(36).substring(2, 15);
 }
 
 const DAYS_OF_WEEK: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
@@ -1414,7 +1416,7 @@ Return the complete extracted text.`
         }
 
         return {
-          id: `staged-${index}-${Date.now()}`,
+          id: `staged-${index}-${safeDateNow()}`,
           name: cls.name || "Unknown Class",
           locationId: locId,
           locationName: resolvedLocationName,

@@ -16,6 +16,7 @@ import {
   toSchema,
   UI,
   Writable,
+  safeDateNow,
 } from "commonfabric";
 // Inline the diff utilities to avoid import issues
 type DiffChunk = {
@@ -115,8 +116,8 @@ const triggerExtraction = handler<
 >(
   (_, { extractTrigger, startTimeMs }) => {
     console.log("[V3-CHANGES] Starting extraction...");
-    startTimeMs.set(Date.now());
-    extractTrigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford who works on AI safety.\n---EXTRACT-${Date.now()}---`);
+    startTimeMs.set(safeDateNow());
+    extractTrigger.set(`Extract this: Dr. Maya Rodriguez (she/her), goes by Maya. Email: maya.rodriguez@stanford.edu, phone: 650-555-1234. Birthday: March 15, 1985. Twitter: @drmayaR, LinkedIn: maya-rodriguez-phd, GitHub: mayarodriguez, Instagram: maya_explores, Mastodon: @maya@mastodon.social. Additional notes: Researcher at Stanford who works on AI safety.\n---EXTRACT-${safeDateNow()}---`);
   },
 );
 
@@ -208,7 +209,7 @@ const ExtractTargetV3 = pattern<Input, Output>(
       const start = startTimeMs.get();
       if (!start || pending) return null;
       if (result) {
-        const elapsed = Date.now() - start;
+        const elapsed = safeDateNow() - start;
         console.log(`[V3-CHANGES] Completed in ${elapsed}ms`);
         return elapsed;
       }
