@@ -79,9 +79,11 @@ const inst: IFrameRecipe = /* IFRAME-V0 */ {
 // evaluation). Wrapping the pattern() call in a helper would leave a function
 // value bound to a top-level identifier, which fails plain-data validation.
 export default pattern(
+  // deno-lint-ignore no-explicit-any
   (data: any) => ({
     [NAME]: inst.name,
     [UI]: (
+      // deno-lint-ignore no-explicit-any
       <cf-iframe src={inst.src} $context={data as CellLike<any>}></cf-iframe>
     ),
     score: data.score,

@@ -70,6 +70,7 @@ function computeWordDiff(from: string, to: string): DiffChunk[] {
   return result;
 }
 
+// deno-lint-ignore no-explicit-any
 function compareFields<T extends Record<string, any>>(
   extracted: Partial<T> | null | undefined,
   fieldMappings: { [K in keyof T]?: { current: string; label: string } },

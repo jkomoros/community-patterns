@@ -1,5 +1,6 @@
 /// <cts-enable />
 import {
+  _OpaqueRef,
   computed,
   Default,
   equals,
@@ -7,7 +8,6 @@ import {
   ifElse,
   NAME,
   navigateTo,
-  OpaqueRef,
   pattern,
   str,
   UI,
@@ -37,6 +37,7 @@ interface Vote {
 
 interface VoterPieceRef {
   id: string;
+  // deno-lint-ignore no-explicit-any
   piece: any;
   voterName: string;
 }

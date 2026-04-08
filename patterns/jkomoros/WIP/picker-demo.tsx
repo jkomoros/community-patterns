@@ -55,7 +55,10 @@ export default pattern<Input>(
             <h3 style={{ margin: "0 0 16px 0" }}>
               Picker (should use previewUI)
             </h3>
-            <cf-picker $items={items as any} $selectedIndex={selectedIndex} />
+            <cf-picker
+              $items={items as unknown as never}
+              $selectedIndex={selectedIndex}
+            />
           </div>
 
           <div

@@ -102,7 +102,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
       },
     );
 
-    const logMessage = handler<unknown, { msg: string; log: Cell<string[]> }>(
+    const _logMessage = handler<unknown, { msg: string; log: Cell<string[]> }>(
       (_, { msg, log }) => log.push(msg),
     );
 
@@ -198,6 +198,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           >
             <h3>Map Tests (Static Data)</h3>
             <button
+              type="button"
               onClick={loadItems({ items, log })}
               style={{ padding: "8px 16px" }}
             >
@@ -268,6 +269,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
             >
               <h3>Log</h3>
               <button
+                type="button"
                 onClick={clearLog({ log })}
                 style={{ padding: "4px 8px" }}
               >

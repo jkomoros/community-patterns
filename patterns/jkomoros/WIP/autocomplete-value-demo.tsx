@@ -67,7 +67,7 @@ export default pattern<Input, Result>(
                 items={CATEGORY_ITEMS}
                 $value={singleValue}
                 placeholder="Select a category..."
-                allowCustom={true}
+                allowCustom
               />
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
                 Selected:{" "}
@@ -107,6 +107,7 @@ export default pattern<Input, Result>(
                   >
                     {getLabel(value)}
                     <button
+                      type="button"
                       onClick={() => {
                         const current = multiValues.get() || [];
                         multiValues.set(current.filter((v) => v !== value));
@@ -136,9 +137,9 @@ export default pattern<Input, Result>(
               <cf-autocomplete
                 items={CATEGORY_ITEMS}
                 $value={multiValues}
-                multiple={true}
+                multiple
                 placeholder="Search to add tags..."
-                allowCustom={true}
+                allowCustom
               />
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
                 Count: {computed(() => (multiValues.get() || []).length)}{" "}

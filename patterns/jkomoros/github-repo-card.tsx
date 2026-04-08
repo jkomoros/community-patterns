@@ -1,13 +1,13 @@
 /// <cts-enable />
 import {
+  _handler,
+  _Writable,
   derive,
   fetchData,
-  handler,
   ifElse,
   NAME,
   pattern,
   UI,
-  Writable,
 } from "commonfabric";
 
 /**
@@ -221,10 +221,14 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   const apiUrl = derive(
     { hasAuth, ref },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const auth = (values.hasAuth as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.hasAuth as any).get()
         : values.hasAuth;
+      // deno-lint-ignore no-explicit-any
       const r = (values.ref as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.ref as any).get()
         : values.ref;
       return (auth && r)
@@ -236,10 +240,14 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   const commitActivityUrl = derive(
     { hasAuth, ref },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const auth = (values.hasAuth as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.hasAuth as any).get()
         : values.hasAuth;
+      // deno-lint-ignore no-explicit-any
       const r = (values.ref as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.ref as any).get()
         : values.ref;
       return (auth && r)
@@ -275,13 +283,19 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   const samplePages = derive(
     { hasAuth, parsedRef: ref, metadata },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const auth = (values.hasAuth as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.hasAuth as any).get()
         : values.hasAuth;
+      // deno-lint-ignore no-explicit-any
       const r = (values.parsedRef as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.parsedRef as any).get()
         : values.parsedRef;
+      // deno-lint-ignore no-explicit-any
       const m = (values.metadata as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.metadata as any).get()
         : values.metadata;
 
@@ -396,7 +410,9 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
       s9: starSample9,
     },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const sp = (values.samplePages as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.samplePages as any).get()
         : values.samplePages;
       if (!sp.pages || sp.pages.length === 0) {
@@ -418,6 +434,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
 
       const pending = samples.some((s, i) => {
         if (i >= sp.pages.length) return false;
+        // deno-lint-ignore no-explicit-any
         const sample = (s as any)?.get ? (s as any).get() : s;
         return sample?.pending === true;
       });
@@ -426,7 +443,9 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
 
       const dataPoints: StarDataPoint[] = [];
       for (let i = 0; i < sp.pages.length && i < 10; i++) {
+        // deno-lint-ignore no-explicit-any
         const sample = (samples[i] as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (samples[i] as any).get()
           : samples[i];
         const result = sample?.result;

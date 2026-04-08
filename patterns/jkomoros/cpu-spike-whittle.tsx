@@ -47,6 +47,7 @@ type Auth = {
 interface GoogleAuthCharm {
   auth: Auth;
   refreshToken: {
+    // deno-lint-ignore no-explicit-any
     send: (event: Record<string, never>, callback?: (tx: any) => void) => void;
   };
 }
@@ -117,7 +118,7 @@ const goToAuthCharm = handler<
 
 export default pattern<Input, Output>(
   ({ lastError }: Input) => {
-    const lastErrorCell = lastError;
+    const _lastErrorCell = lastError;
 
     // Auth via wish - KEEPING THIS as it's part of the orchestrator structure
     const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });

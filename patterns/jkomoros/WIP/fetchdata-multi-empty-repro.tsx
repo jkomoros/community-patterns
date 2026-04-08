@@ -66,10 +66,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const userUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const ref = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && ref
@@ -82,10 +86,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const todosUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const ref = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && ref
@@ -98,10 +106,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const postsUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const ref = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && ref
@@ -119,10 +131,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     // These depend on userData result - so they're also empty when no auth
     const makeSlotUrl = (slotIndex: number) =>
       derive({ hasAuth, userResult: userData }, (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const u = (values.userResult as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.userResult as any).get()
           : values.userResult;
         if (!auth || !u?.result?.id) return "";
@@ -180,10 +196,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
         </p>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
+          {" "}
           <button
+            type="button"
             onClick={toggleFetching({ enableFetching })}
             style={{
               background: derive(

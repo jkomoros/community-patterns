@@ -540,13 +540,13 @@ interface TrackerOutput {
 // ==========================================================================
 const DEBUG_LOGGING = false; // Set to false to disable logging
 
-function debugLog(stage: string, data: unknown): void {
+function _debugLog(stage: string, data: unknown): void {
   if (DEBUG_LOGGING) {
     console.log(`[PIPELINE:${stage}]`, JSON.stringify(data, null, 2));
   }
 }
 
-function debugCellStructure(name: string, cell: unknown): void {
+function _debugCellStructure(name: string, cell: unknown): void {
   if (!DEBUG_LOGGING) return;
   const c = cell as
     | { pending?: unknown; result?: unknown; error?: unknown }
@@ -587,7 +587,6 @@ type UrlSlotOutput = {
 };
 const UrlSlotPattern = pattern<UrlSlotInput, UrlSlotOutput>(({ url }) => {
   // L2: Fetch web content
-  // deno-lint-ignore no-explicit-any
   const webContentBody = computed(() => ({
     url: url as string,
     max_tokens: 4000,
@@ -649,7 +648,6 @@ const UrlSlotPattern = pattern<UrlSlotInput, UrlSlotOutput>(({ url }) => {
     return cls?.result?.originalReportUrl;
   });
 
-  // deno-lint-ignore no-explicit-any
   const originalContentBody = computed(() => ({
     url: originalReportUrl as string,
     max_tokens: 4000,
@@ -744,9 +742,12 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     });
 
     // Count for display (emails counted directly from importer)
+    // deno-lint-ignore no-explicit-any
     const emailCount = computed(() => (importer.emails as any[]).length);
+    // deno-lint-ignore no-explicit-any
     const manualCount = computed(() => (articles as any[]).length);
     const articleCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (importer.emails as any[]).length + (articles as any[]).length
     );
 
@@ -778,15 +779,19 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
 
     // Process email articles (maps over GmailImporter output cell - reactive!)
     // Using derive for property extraction to satisfy framework requirements
+    // deno-lint-ignore no-explicit-any
     const emailArticleExtractions = importer.emails.map((email: any) => {
       const id = email.id;
       return {
         articleId: id,
+        // deno-lint-ignore no-explicit-any
         articleTitle: computed(() => (email as any)?.subject || "No Subject"),
+        // deno-lint-ignore no-explicit-any
         articleSource: computed(() => (email as any)?.from || "Unknown"),
         extraction: generateObject<ExtractedLinks>({
           system: LINK_EXTRACTION_SYSTEM,
           prompt: computed(() =>
+            // deno-lint-ignore no-explicit-any
             (email as any)?.markdownContent || (email as any)?.snippet || ""
           ),
           model: "anthropic:claude-sonnet-4-5",
@@ -811,9 +816,12 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // ==========================================================================
     // DEBUG: Log L1 cell structure
     const _debugL1CellStructure = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const list = articleExtractions as any[];
       if (!DEBUG_LOGGING) return null;
+      // deno-lint-ignore no-explicit-any
       const sample = list.slice(0, 3).filter((item: any) => item).map(
+        // deno-lint-ignore no-explicit-any
         (item: any, idx: number) => {
           const ext = item.extraction;
           return {
@@ -846,6 +854,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     });
 
     const pendingCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (articleExtractions as any[]).filter((e: any) =>
         e && e.extraction?.pending
       ).length
@@ -854,6 +863,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Completed = not pending (matches what the UI checkmarks show)
     // NOTE: L1 uses !pending (like L3), not !pending && result (like L2)
     const completedCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (articleExtractions as any[]).filter((e: any) =>
         e && !e.extraction?.pending
       ).length
@@ -862,10 +872,13 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Collect all extracted links for counting (derive is fine for read-only aggregation)
     // Refactored to use filter/flatMap after CT-1102 fix
     const allExtractedLinks = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const list = articleExtractions as any[];
       const seen = new Set<string>();
       return list
+        // deno-lint-ignore no-explicit-any
         .filter((item: any) => item?.extraction?.result?.urls)
+        // deno-lint-ignore no-explicit-any
         .flatMap((item: any) => item.extraction.result.urls as string[])
         .filter((url: string) => {
           const normalized = normalizeURL(url);
@@ -876,14 +889,17 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     });
 
     const linkCount = computed(() => allExtractedLinks.length);
-    const reportCount = computed(() => reports.get().length);
+    const _reportCount = computed(() => reports.get().length);
 
     // Count by classification
     // Refactored to use reduce after CT-1102 fix
-    const classificationCounts = computed(() =>
+    const _classificationCounts = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (articleExtractions as any[])
+        // deno-lint-ignore no-explicit-any
         .filter((item: any) => item?.extraction?.result?.classification)
         .reduce(
+          // deno-lint-ignore no-explicit-any
           (counts: Record<string, number>, item: any) => {
             const classification = item.extraction.result
               .classification as string;
@@ -907,7 +923,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // limit processing, not because of framework limitations.
     // ==========================================================================
 
-    const MAX_URLS_PER_ARTICLE = 3;
+    const _MAX_URLS_PER_ARTICLE = 3;
 
     // Process manual articles through L2-L5 (maps over cell - reactive!)
     // Now processes up to 3 URLs per article using fixed slots
@@ -939,6 +955,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     });
 
     // Process email articles through L2-L5 (maps over cell - reactive!)
+    // deno-lint-ignore no-explicit-any
     const emailUrlProcessing = emailArticleExtractions.map((article: any) => {
       const url0 = computed(() => {
         const e = article.extraction as { result?: { urls?: string[] } } | null;
@@ -975,11 +992,16 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Each article has up to 3 slots, each slot has the full L2-L5 pipeline results
     // Refactored to use filter/flatMap after CT-1102 fix
     const contentClassifications = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (articleUrlProcessing as any[])
+        // deno-lint-ignore no-explicit-any
         .filter((article: any) => article?.slots)
+        // deno-lint-ignore no-explicit-any
         .flatMap((article: any) =>
           article.slots
+            // deno-lint-ignore no-explicit-any
             .filter((slot: any) => slot?.sourceUrl)
+            // deno-lint-ignore no-explicit-any
             .map((slot: any) => ({
               articleId: article.articleId,
               articleTitle: article.articleTitle,
@@ -997,6 +1019,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Count total URL slots being processed (for L2/L3 metrics)
     // Now that we process up to 3 URLs per article, we count total slots with non-null URLs
     const urlSlotsCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.sourceUrl
       ).length
@@ -1005,9 +1028,12 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // L2: Count web fetch progress (from contentClassifications - the flattened list)
     // DEBUG: Log cell structure for first 3 items to understand caching behavior
     const _debugL2CellStructure = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const list = contentClassifications as any[];
       if (!DEBUG_LOGGING) return null;
+      // deno-lint-ignore no-explicit-any
       const sample = list.slice(0, 3).filter((item: any) => item).map(
+        // deno-lint-ignore no-explicit-any
         (item: any, idx: number) => {
           const wc = item.webContent;
           return {
@@ -1046,20 +1072,22 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Now counts across all URL slots from all articles
     // Note: Added null checks for page refresh hydration safety
     const fetchPendingCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.sourceUrl && item.webContent?.pending
       ).length
     );
     // Success = not pending AND has actual result content
     const fetchSuccessCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.sourceUrl && !item.webContent?.pending &&
         item.webContent?.result
       ).length
     );
     // Error = not pending AND no result (either .error is set OR .result is undefined)
-    // deno-lint-ignore no-explicit-any
     const fetchErrorCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.sourceUrl && !item.webContent?.pending &&
         !item.webContent?.result
@@ -1067,6 +1095,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     );
     // Total done = success + error (for backward compatibility, kept as fetchCompletedCount)
     const fetchCompletedCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.sourceUrl && !item.webContent?.pending
       ).length
@@ -1089,9 +1118,12 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Count classification progress
     // DEBUG: Log L3 cell structure to compare with L2
     const _debugL3CellStructure = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const list = contentClassifications as any[];
       if (!DEBUG_LOGGING) return null;
+      // deno-lint-ignore no-explicit-any
       const sample = list.slice(0, 3).filter((item: any) => item).map(
+        // deno-lint-ignore no-explicit-any
         (item: any, idx: number) => {
           const cl = item.classification;
           return {
@@ -1126,12 +1158,15 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     });
 
     const classifyPendingCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((c: any) =>
         c && c.classification?.pending
       ).length
     );
     const classifyCompletedCount = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const list = contentClassifications as any[];
+      // deno-lint-ignore no-explicit-any
       const completed = list.filter((c: any) =>
         c && !c.classification?.pending
       );
@@ -1155,11 +1190,13 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
 
     // Count originals vs news articles
     const originalCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((c: any) =>
         c && c.classification?.result?.isOriginalReport
       ).length
     );
     const newsArticleCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((c: any) =>
         c && c.classification?.result &&
         !c.classification.result.isOriginalReport
@@ -1174,6 +1211,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // ==========================================================================
 
     const originalReportUrls = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const items = contentClassifications as any[];
       const seen = new Set<string>();
       const urls: Array<
@@ -1214,6 +1252,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     });
 
     const uniqueOriginalCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (originalReportUrls as any[]).length
     );
 
@@ -1224,6 +1263,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // L4: Count original fetches in progress (for news articles pointing to originals)
     // Note: Added `item &&` null checks for page refresh hydration safety
     const l4PendingCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) => {
         if (!item) return false; // Skip undefined items during hydration
         const needsFetch = item.classification?.result &&
@@ -1233,6 +1273,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
       }).length
     );
     const l4CompletedCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) => {
         if (!item) return false; // Skip undefined items during hydration
         const result = item.classification?.result;
@@ -1250,6 +1291,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // L5: Count summaries in progress (per article)
     // Note: Added `item &&` null checks for page refresh hydration safety
     const summaryPendingCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.summary?.pending
       ).length
@@ -1257,6 +1299,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
 
     // Count LLM-specific reports
     const llmSpecificCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (contentClassifications as any[]).filter((item: any) =>
         item && item.summary?.result?.isLLMSpecific
       ).length
@@ -1267,9 +1310,11 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Group by original URL, show each unique report once with all sources
     // ==========================================================================
     const finalReportsWithSources = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const items = contentClassifications as any[];
       const byOriginalUrl = new Map<string, {
         url: string;
+        // deno-lint-ignore no-explicit-any
         summary: any;
         sourceRefs: string[];
       }>();
@@ -1323,6 +1368,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
 
     // Add isRead flag to reports (computed once, not in render loop!)
     const finalReportsWithReadState = computed(() => {
+      // deno-lint-ignore no-explicit-any
       return (finalReportsWithSources as any[]).map((r: any) => ({
         ...r,
         isRead: readUrls.get().includes(normalizeURL(r.url)),
@@ -1332,17 +1378,20 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
     // Count unread reports (reports not in readUrls array)
     // Note: Added `r &&` null checks for page refresh hydration safety
     const unreadCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (finalReportsWithReadState as any[]).filter((r: any) => r && !r.isRead)
         .length
     );
 
-    const totalReportCount = computed(() =>
+    const _totalReportCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (finalReportsWithSources as any[]).length
     );
 
     // DEBUG: Log finalReportsWithSources vs uniqueOriginalCount (controlled by flag)
     const _debugFinalReportsVerbose = computed(() => {
       if (DEBUG_LOGGING) {
+        // deno-lint-ignore no-explicit-any
         const reports = finalReportsWithSources as any[];
         console.log(
           "[DEBUG:FINAL-REPORTS]",
@@ -1350,6 +1399,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
             {
               finalReportsCount: reports.length,
               uniqueOriginalCount: uniqueOriginalCount,
+              // deno-lint-ignore no-explicit-any
               originalReportUrlsCount: (originalReportUrls as any[]).length,
               sampleReport: reports[0]
                 ? {
@@ -1370,6 +1420,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
 
     // L5: Count unique reports with completed summaries (deduplicated)
     const reportsWithSummaryCount = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (finalReportsWithSources as any[]).filter((r: any) =>
         r && r.summary?.result && !r.summary.pending
       ).length
@@ -1452,6 +1503,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
             <div style={{ padding: "12px", marginTop: "8px" }}>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <button
+                  type="button"
                   onClick={loadTestArticles({ articles })}
                   style={{
                     padding: "8px 16px",
@@ -1465,6 +1517,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
                   Load Test Articles ({TEST_ARTICLES.length})
                 </button>
                 <button
+                  type="button"
                   onClick={addSingleArticle({ articles })}
                   style={{
                     padding: "8px 16px",
@@ -1857,6 +1910,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(
                     >
                       {/* Read/Unread toggle button */}
                       <button
+                        type="button"
                         onClick={toggleRead({ readUrls, url: item.url })}
                         style={{
                           padding: "2px 6px",

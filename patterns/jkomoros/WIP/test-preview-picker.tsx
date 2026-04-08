@@ -5,11 +5,12 @@
  */
 import { NAME, pattern, UI, wish } from "commonfabric";
 
-interface Input {}
-interface Output {}
+type Input = Record<string, never>;
+type Output = Record<string, never>;
 
 export default pattern<Input, Output>(() => {
   // This will show a picker when multiple #googleAuth charms are favorited
+  // deno-lint-ignore no-explicit-any
   const authWish = wish<any>({ query: "#googleAuth" });
 
   return {

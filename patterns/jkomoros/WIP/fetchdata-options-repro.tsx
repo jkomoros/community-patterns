@@ -73,10 +73,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const apiUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && r
@@ -100,10 +104,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const todosUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && r
@@ -147,10 +155,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
         </p>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
+          {" "}
           <button
+            type="button"
             onClick={toggleFetching({ enableFetching })}
             style={{
               background: derive(

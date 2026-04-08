@@ -185,6 +185,7 @@ const handleNewBacklink = handler<
   {
     detail: {
       text: string;
+      // deno-lint-ignore no-explicit-any
       charmId: any;
       charm: Writable<MentionablePiece>;
       navigate: boolean;
@@ -525,6 +526,7 @@ const triggerExtraction = handler<
 
 const cancelExtraction = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
@@ -535,6 +537,7 @@ const cancelExtraction = handler<
 const applyExtractedData = handler<
   Record<string, never>,
   {
+    // deno-lint-ignore no-explicit-any
     extractedData: Writable<any>;
     name: Writable<string>;
     cuisine: Writable<string>;
@@ -597,6 +600,7 @@ const applyExtractedData = handler<
 
     // Apply ingredients - use .push() which auto-wraps in cells
     if (data.ingredients && Array.isArray(data.ingredients)) {
+      // deno-lint-ignore no-explicit-any
       data.ingredients.forEach((ing: any) => {
         ingredients.push({
           item: ing.item || "",
@@ -608,6 +612,7 @@ const applyExtractedData = handler<
 
     // Apply step groups - use .push() which auto-wraps in cells
     if (data.stepGroups && Array.isArray(data.stepGroups)) {
+      // deno-lint-ignore no-explicit-any
       data.stepGroups.forEach((group: any) => {
         stepGroups.push({
           id: group.id || `group-${safeDateNow()}-${nonPrivateRandom()}`,
@@ -662,6 +667,7 @@ const triggerTimingSuggestion = handler<
 const applyTimingSuggestions = handler<
   Record<string, never>,
   {
+    // deno-lint-ignore no-explicit-any
     timingSuggestions: Writable<any>;
     stepGroups: Writable<Array<Writable<StepGroup>>>;
   }
@@ -673,6 +679,7 @@ const applyTimingSuggestions = handler<
     const currentGroups = stepGroups.get();
 
     // Match suggestions to existing groups by ID
+    // deno-lint-ignore no-explicit-any
     suggestions.stepGroups.forEach((suggestion: any) => {
       const groupIndex = currentGroups.findIndex((g) => {
         const groupData = (g.get ? g.get() : g) as StepGroup;
@@ -684,7 +691,9 @@ const applyTimingSuggestions = handler<
         const groupData = (group.get ? group.get() : group) as StepGroup;
 
         // Apply timing suggestions
+        // deno-lint-ignore no-explicit-any
         if ((group as any).set) {
+          // deno-lint-ignore no-explicit-any
           (group as any).set({
             ...groupData,
             nightsBeforeServing: suggestion.nightsBeforeServing,
@@ -744,6 +753,7 @@ const createCookingView = handler<
 const applyWaitTimeSuggestions = handler<
   Record<string, never>,
   {
+    // deno-lint-ignore no-explicit-any
     waitTimeSuggestions: Writable<any>;
     stepGroups: Writable<Array<Writable<StepGroup>>>;
   }
@@ -755,6 +765,7 @@ const applyWaitTimeSuggestions = handler<
     const currentGroups = stepGroups.get();
 
     // Match suggestions to existing groups by ID
+    // deno-lint-ignore no-explicit-any
     suggestions.stepGroups.forEach((suggestion: any) => {
       const groupIndex = currentGroups.findIndex((g) => {
         const groupData = (g.get ? g.get() : g) as StepGroup;
@@ -766,7 +777,9 @@ const applyWaitTimeSuggestions = handler<
         const groupData = (group.get ? group.get() : group) as StepGroup;
 
         // Apply wait time suggestion
+        // deno-lint-ignore no-explicit-any
         if ((group as any).set && suggestion.maxWaitMinutes !== undefined) {
+          // deno-lint-ignore no-explicit-any
           (group as any).set({
             ...groupData,
             maxWaitMinutes: suggestion.maxWaitMinutes,
@@ -786,6 +799,7 @@ const applyImageText = handler<
   {
     notes: Writable<string>;
     uploadedImage: Writable<ImageData | null>;
+    // deno-lint-ignore no-explicit-any
     imageTextResult: Writable<any>;
   }
 >(
@@ -808,6 +822,7 @@ const applyImageText = handler<
 // Handler to clear timing suggestions
 const clearTimingSuggestions = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { timingSuggestions: Writable<any> }
 >(
   (_, { timingSuggestions }) => timingSuggestions.set(null),
@@ -816,6 +831,7 @@ const clearTimingSuggestions = handler<
 // Handler to clear wait time suggestions
 const clearWaitTimeSuggestions = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { waitTimeSuggestions: Writable<any> }
 >(
   (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null),
@@ -851,16 +867,16 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
 
     const ingredientCount = computed(() => ingredients.length);
     const stepGroupCount = computed(() => stepGroups.length);
-    const hasIngredients = computed(() => ingredientCount > 0);
-    const hasStepGroups = computed(() => stepGroupCount > 0);
-    const hasTags = computed(() => tags.length > 0);
+    const _hasIngredients = computed(() => ingredientCount > 0);
+    const _hasStepGroups = computed(() => stepGroupCount > 0);
+    const _hasTags = computed(() => tags.length > 0);
 
     const displayName = computed(
       () => name.trim() || "Untitled Recipe",
     );
 
     // Computed ingredient list text for copying
-    const ingredientListText = computed(() =>
+    const _ingredientListText = computed(() =>
       ingredients.map((ing) => `${ing.amount} ${ing.unit} ${ing.item}`).join(
         "\n",
       )
@@ -2367,7 +2383,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                           {part.word}
                                         </span>
                                       )
-                                      : <span>{part.word}</span>
+                                      : <span key={i}>{part.word}</span>
                                   )
                                 )
                                 : (
@@ -2456,6 +2472,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               step group(s) will be added:
                             </div>
                             {result.stepGroups.map((
+                              // deno-lint-ignore no-explicit-any
                               group: any,
                               index: number,
                             ) => (
@@ -2487,10 +2504,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                     }}
                                   >
                                     {group.steps.map((
-                                      step: any,
+                                      step: { description: string },
                                       stepIndex: number,
                                     ) => (
-                                      <li style={{ marginBottom: "2px" }}>
+                                      <li
+                                        key={stepIndex}
+                                        style={{ marginBottom: "2px" }}
+                                      >
                                         {step.description}
                                       </li>
                                     ))}
@@ -2605,13 +2625,17 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
                 <cf-vstack gap={2}>
                   {computed(() =>
+                    // deno-lint-ignore no-explicit-any
                     timingSuggestions?.stepGroups?.map((suggestion: any) => {
+                      // deno-lint-ignore no-explicit-any
                       const currentGroupCell = stepGroups.find((g: any) => {
                         const groupData = (g.get ? g.get() : g) as StepGroup;
                         return groupData.id === suggestion.id;
                       });
                       const currentData: StepGroup | null = currentGroupCell
+                        // deno-lint-ignore no-explicit-any
                         ? ((currentGroupCell as any).get
+                          // deno-lint-ignore no-explicit-any
                           ? (currentGroupCell as any).get()
                           : currentGroupCell) as StepGroup
                         : null;
@@ -2766,13 +2790,17 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
                 <cf-vstack gap={2}>
                   {computed(() =>
+                    // deno-lint-ignore no-explicit-any
                     waitTimeSuggestions?.stepGroups?.map((suggestion: any) => {
+                      // deno-lint-ignore no-explicit-any
                       const currentGroupCell = stepGroups.find((g: any) => {
                         const groupData = (g.get ? g.get() : g) as StepGroup;
                         return groupData.id === suggestion.id;
                       });
                       const currentData: StepGroup | null = currentGroupCell
+                        // deno-lint-ignore no-explicit-any
                         ? ((currentGroupCell as any).get
+                          // deno-lint-ignore no-explicit-any
                           ? (currentGroupCell as any).get()
                           : currentGroupCell) as StepGroup
                         : null;

@@ -66,7 +66,9 @@ interface AssumptionSurfacerInput {
   messages?: Writable<Default<BuiltInLLMMessage[], []>>;
   assumptionsByMessage?: Writable<Default<MessageAssumptions[], []>>; // Accumulated assumptions
   // Corrections keyed by "${messageIndex}-${assumptionLabel}" for cleaner updates
-  corrections?: Writable<Default<Record<string, Correction>, {}>>;
+  corrections?: Writable<
+    Default<Record<string, Correction>, Record<string, never>>
+  >;
   userContext?: Writable<Default<UserContextNote[], []>>;
   systemPrompt?: string;
 }
@@ -213,7 +215,7 @@ const onAssumptionChange = handler<
 });
 
 // Handler for selecting a different alternative (correction flow) - legacy click handler
-const selectAlternative = handler<
+const _selectAlternative = handler<
   unknown,
   {
     messageIndex: number;
@@ -448,6 +450,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
         );
       }
 
+      // deno-lint-ignore no-explicit-any
       const elements: any[] = [];
       let elementIndex = 0;
 

@@ -1,12 +1,12 @@
 /// <cts-enable />
 import {
+  _navigateTo,
   computed,
   Default,
   generateObject,
   handler,
   ifElse,
   NAME,
-  navigateTo,
   OpaqueRef,
   pattern,
   safeDateNow,
@@ -242,8 +242,11 @@ const triggerRecipeLinking = handler<
   unknown,
   {
     planningNotes: Writable<string>;
+    // deno-lint-ignore no-explicit-any
     mentionable: any[];
+    // deno-lint-ignore no-explicit-any
     recipeMentioned: Writable<any[]>;
+    // deno-lint-ignore no-explicit-any
     preparedFoodMentioned: Writable<any[]>;
     linkingAnalysisTrigger: Writable<string>;
   }
@@ -264,23 +267,31 @@ const triggerRecipeLinking = handler<
     }
 
     // Filter mentionables by emoji prefix
+    // deno-lint-ignore no-explicit-any
     const recipes = mentionable.filter((m: any) => m[NAME]?.startsWith("🍳"));
+    // deno-lint-ignore no-explicit-any
     const preparedFoods = mentionable.filter((m: any) =>
       m[NAME]?.startsWith("🛒")
     );
 
     // Get currently mentioned items to avoid duplicates
     // Filter out any undefined values that might have been stored improperly
+    // deno-lint-ignore no-explicit-any
     const currentRecipes = recipeMentioned.get().filter((r: any) => r != null)
+      // deno-lint-ignore no-explicit-any
       .map((r: any) => r.name);
+    // deno-lint-ignore no-explicit-any
     const currentPrepared = preparedFoodMentioned.get().filter((p: any) =>
       p != null
+      // deno-lint-ignore no-explicit-any
     ).map((p: any) => p.name);
 
     // Build context for LLM as natural language prompt
     const existingRecipesList =
+      // deno-lint-ignore no-explicit-any
       recipes.map((r: any) => r[NAME]?.replace("🍳 ", "")).join(", ") || "none";
     const existingPreparedList =
+      // deno-lint-ignore no-explicit-any
       preparedFoods.map((p: any) => p[NAME]?.replace("🛒 ", "")).join(", ") ||
       "none";
     const currentRecipesList = currentRecipes.join(", ") || "none";
@@ -318,9 +329,13 @@ const applyLinking = handler<
   unknown,
   {
     linkingResult: AnalysisResult | null;
+    // deno-lint-ignore no-explicit-any
     mentionable: any[];
+    // deno-lint-ignore no-explicit-any
     createdCharms: Writable<any[]>;
+    // deno-lint-ignore no-explicit-any
     recipeMentioned: Writable<any[]>;
+    // deno-lint-ignore no-explicit-any
     preparedFoodMentioned: Writable<any[]>;
     linkingAnalysisTrigger: Writable<string>;
   }
@@ -348,7 +363,9 @@ const applyLinking = handler<
     return;
   }
 
+  // deno-lint-ignore no-explicit-any
   const recipesToAdd: any[] = [];
+  // deno-lint-ignore no-explicit-any
   const preparedToAdd: any[] = [];
 
   selectedItems.forEach((matchResult) => {
@@ -356,6 +373,7 @@ const applyLinking = handler<
 
     if (match) {
       // This item matches an existing charm - find and add it
+      // deno-lint-ignore no-explicit-any
       const charm = mentionable.find((m: any) => {
         const charmName = m[NAME]?.replace(/^[🍳🛒]\s*/, ""); // Remove emoji prefix
         return charmName === match.existingCharmName;
@@ -381,6 +399,7 @@ const applyLinking = handler<
           cookTime: 0,
           restTime: 0,
           holdTime: 0,
+          // deno-lint-ignore no-explicit-any
           category: (item.category as any) || "other",
           ingredients: [],
           stepGroups: [],
@@ -391,6 +410,7 @@ const applyLinking = handler<
         : PreparedFood({
           name: item.normalizedName,
           servings: item.servings || 4,
+          // deno-lint-ignore no-explicit-any
           category: (item.category as any) || "other",
           dietaryTags: [],
           primaryIngredients: [],
@@ -444,23 +464,27 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     notes,
   }) => {
     // Get mentionable charms for @ references
+    // deno-lint-ignore no-explicit-any
     const mentionableWish = wish<any[]>({ query: "#mentionable" });
     const mentionable = computed(() => mentionableWish?.result ?? []);
 
     // Track charms created by this meal orchestrator
     // These will be exported as mentionable so they become discoverable
+    // deno-lint-ignore no-explicit-any
     const createdCharms = Writable.of<any[]>([]);
 
     // Writables for ct-code-editor inputs and outputs
     // $mentioned is automatically populated by ct-code-editor with charm references
     const recipeInputText = Writable.of<string>("");
+    // deno-lint-ignore no-explicit-any
     const recipeMentioned = Writable.of<any[]>([]);
     const preparedFoodInputText = Writable.of<string>("");
+    // deno-lint-ignore no-explicit-any
     const preparedFoodMentioned = Writable.of<any[]>([]);
 
     // LLM Recipe Linking State
     const linkingAnalysisTrigger = Writable.of<string>("");
-    const linkingAnalysisResult = Writable.of<AnalysisResult | null>(null);
+    const _linkingAnalysisResult = Writable.of<AnalysisResult | null>(null);
 
     // LLM Analysis of Planning Notes
     const { result: linkingResult, pending: linkingPending } = generateObject({
@@ -632,14 +656,18 @@ Return all items found in the planning notes, matched or unmatched.`,
         }
 
         const recipesSummary = (recipeList || [])
+          // deno-lint-ignore no-explicit-any
           .filter((r: any) => r != null)
+          // deno-lint-ignore no-explicit-any
           .map((r: any) =>
             `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`
           )
           .join("\n");
 
         const preparedSummary = (preparedList || [])
+          // deno-lint-ignore no-explicit-any
           .filter((p: any) => p != null)
+          // deno-lint-ignore no-explicit-any
           .map((p: any) =>
             `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`
           )
@@ -650,7 +678,9 @@ Return all items found in the planning notes, matched or unmatched.`,
         );
 
         const dietaryRequirements = profiles
+          // deno-lint-ignore no-explicit-any
           .flatMap((p: any) => p.requirements)
+          // deno-lint-ignore no-explicit-any
           .filter((req: any, idx: number, arr: any[]) =>
             arr.indexOf(req) === idx
           ); // unique
@@ -739,8 +769,10 @@ Be concise and practical in your analysis.`,
       const events: OvenTimelineEvent[] = [];
 
       // Extract all oven events from recipes
+      // deno-lint-ignore no-explicit-any
       recipeList.forEach((recipe: any) => {
         if (recipe.stepGroups) {
+          // deno-lint-ignore no-explicit-any
           recipe.stepGroups.forEach((stepGroup: any) => {
             if (stepGroup.requiresOven) {
               const startMinutes = stepGroup.minutesBeforeServing || 0;
@@ -1115,6 +1147,7 @@ Be concise and practical in your analysis.`,
                             >
                               <span>{req}</span>
                               <button
+                                type="button"
                                 onClick={removeDietaryRequirement({
                                   profile,
                                   requirement: req,
@@ -1230,7 +1263,7 @@ Be concise and practical in your analysis.`,
                   recipeMentioned.get().filter(Boolean).length > 0
                 ),
                 <cf-vstack gap={1} style="margin-top: 8px;">
-                  {recipeMentioned.map((itemCell: any, index: number) => (
+                  {recipeMentioned.map((itemCell: unknown, index: number) => (
                     <div
                       key={index}
                       style={{
@@ -1246,7 +1279,8 @@ Be concise and practical in your analysis.`,
                       <div>
                         {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {computed(() => itemCell?.name || itemCell?.[NAME] ||
+                          {computed(() =>
+                            itemCell?.name || itemCell?.[NAME] ||
                             "Untitled Recipe"
                           )}
                         </div>
@@ -1306,7 +1340,10 @@ Be concise and practical in your analysis.`,
                   preparedFoodMentioned.get().filter(Boolean).length > 0
                 ),
                 <cf-vstack gap={1} style="margin-top: 8px;">
-                  {preparedFoodMentioned.map((itemCell: any, index: number) => (
+                  {preparedFoodMentioned.map((
+                    itemCell: unknown,
+                    index: number,
+                  ) => (
                     <div
                       key={index}
                       style={{
@@ -1322,8 +1359,7 @@ Be concise and practical in your analysis.`,
                       <div>
                         {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {computed(() =>
-                            itemCell?.name || itemCell?.[NAME] ||
+                          {computed(() => itemCell?.name || itemCell?.[NAME] ||
                             "Untitled Item"
                           )}
                         </div>
@@ -1464,7 +1500,9 @@ Be concise and practical in your analysis.`,
                           }}
                         >
                           {computed(() => analysisResult.dietaryWarnings).map(
-                            (warning: string) => <li>{warning}</li>,
+                            (warning: string, i: number) => (
+                              <li key={i}>{warning}</li>
+                            ),
                           )}
                         </ul>
                       </div>,
@@ -1498,7 +1536,9 @@ Be concise and practical in your analysis.`,
                           }}
                         >
                           {computed(() => analysisResult.suggestions).map(
-                            (suggestion: string) => <li>{suggestion}</li>,
+                            (suggestion: string, i: number) => (
+                              <li key={i}>{suggestion}</li>
+                            ),
                           )}
                         </ul>
                       </div>,
@@ -1557,6 +1597,7 @@ Be concise and practical in your analysis.`,
                       }}
                     >
                       {computed(() => ovenTimeline.conflicts).map(
+                        // deno-lint-ignore no-explicit-any
                         (conflict: any) => (
                           <li>
                             {conflict.reason}{" "}
@@ -1624,7 +1665,7 @@ Be concise and practical in your analysis.`,
 
                         {/* Events */}
                         {timeline.events.map(
-                          (event: OvenTimelineEvent, index: number) => {
+                          (event: OvenTimelineEvent, _index: number) => {
                             const startPos =
                               ((maxMinutes - event.startMinutesBeforeServing) /
                                 timeRange) * pixelWidth;
@@ -1634,6 +1675,7 @@ Be concise and practical in your analysis.`,
 
                             // Check if this event has conflicts
                             const hasConflict = timeline.conflicts.some(
+                              // deno-lint-ignore no-explicit-any
                               (c: any) =>
                                 c.affectedRecipes.includes(event.recipeName),
                             );
@@ -1862,7 +1904,7 @@ Be concise and practical in your analysis.`,
                     const result = linkingResult;
                     if (!result || !result.matches) return [];
                     return result.matches.map(
-                      (matchResult: MatchResult, index: number) => {
+                      (matchResult: MatchResult, _index: number) => {
                         const item = matchResult.item;
                         const match = matchResult.match;
 
@@ -1941,7 +1983,7 @@ Be concise and practical in your analysis.`,
                                             fontStyle: "italic",
                                           }}
                                         >
-                                          {" "}(fuzzy match,{" "}
+                                          (fuzzy match,
                                           {Math.round(match.confidence * 100)}%
                                           confidence)
                                         </span>

@@ -92,6 +92,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           >
             <h3>Native &lt;input value={"{cell}"}&gt;</h3>
             <button
+              type="button"
               onClick={toggleNative({ show: showNative })}
               style={{ marginBottom: "10px", padding: "8px 16px" }}
             >
@@ -121,6 +122,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   }}
                 />
                 <button
+                  type="button"
                   onClick={submitNative({
                     value: nativeValue,
                     result: nativeResult,
@@ -167,6 +169,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           >
             <h3>&lt;cf-input $value={"{cell}"}&gt;</h3>
             <button
+              type="button"
               onClick={toggleCt({ show: showCtInput })}
               style={{ marginBottom: "10px", padding: "8px 16px" }}
             >
@@ -191,6 +194,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   style={{ width: "200px", marginRight: "10px" }}
                 />
                 <button
+                  type="button"
                   onClick={submitCt({ value: ctValue, result: ctResult })}
                   style={{ padding: "8px 16px" }}
                 >

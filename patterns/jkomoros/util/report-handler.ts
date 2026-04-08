@@ -55,6 +55,7 @@ import { handler, JSONSchema, Writable } from "commonfabric";
  */
 export interface ReportHandlerConfig {
   /** Writable containing the list of items */
+  // deno-lint-ignore no-explicit-any
   items: Writable<any[]>;
   /** Prefix for generated IDs (e.g., "membership", "food") */
   idPrefix: string;
@@ -95,6 +96,7 @@ export function createReportHandler(inputSchema: JSONSchema) {
     // STATE SCHEMA - bound cells and config
     STATE_SCHEMA,
     // CALLBACK
+    // deno-lint-ignore no-explicit-any
     (input: Record<string, any>, state: ReportHandlerConfig) => {
       const currentItems = state.items.get() || [];
 
@@ -105,6 +107,7 @@ export function createReportHandler(inputSchema: JSONSchema) {
         .toLowerCase();
 
       const existingKeys = new Set(
+        // deno-lint-ignore no-explicit-any
         currentItems.map((item: Record<string, any>) => {
           return state.dedupeFields
             .map((field) => String(item[field] ?? ""))

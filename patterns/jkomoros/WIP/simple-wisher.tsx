@@ -2,7 +2,7 @@
 import { NAME, pattern, UI, wish } from "commonfabric";
 
 /** Wishes for simple target and shows link. */
-export default pattern<{}, {}>(
+export default pattern<Record<string, never>, Record<string, never>>(
   () => {
     const wishResult = wish<{ message: string }>({ query: "#simpleTarget" });
 

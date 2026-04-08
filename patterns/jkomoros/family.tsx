@@ -288,6 +288,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                           <option value="other">Other</option>
                         </select>
                         <button
+                          type="button"
                           onClick={removeMember({
                             members,
                             memberId: member.id,
@@ -374,6 +375,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                               Primary
                             </span>,
                             <button
+                              type="button"
                               onClick={setPrimaryAddress({
                                 addresses,
                                 addressId: addr.id,
@@ -391,6 +393,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                             </button>,
                           )}
                           <button
+                            type="button"
                             onClick={removeAddress({
                               addresses,
                               addressId: addr.id,
@@ -440,6 +443,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                     >
                       {tag}
                       <button
+                        type="button"
                         onClick={removeTag({ tags, tag })}
                         style={{
                           border: "none",

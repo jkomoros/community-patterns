@@ -321,6 +321,7 @@ const handleNewBacklink = handler<
   {
     detail: {
       text: string;
+      // deno-lint-ignore no-explicit-any
       charmId: any;
       charm: Writable<MentionablePiece>;
       navigate: boolean;
@@ -341,7 +342,7 @@ const handleNewBacklink = handler<
 });
 
 // Handler to update text fields
-const updateField = handler<
+const _updateField = handler<
   { detail: { value: string } },
   { field: Writable<string> }
 >(
@@ -446,7 +447,7 @@ const removeRelationshipType = handler<
 );
 
 // Handler to set closeness
-const setCloseness = handler<
+const _setCloseness = handler<
   { detail: { value: Closeness | "" } },
   { closeness: Writable<Closeness | ""> }
 >(
@@ -456,7 +457,7 @@ const setCloseness = handler<
 );
 
 // Handler to set gift tier
-const setGiftTier = handler<
+const _setGiftTier = handler<
   { detail: { value: GiftTier | "" } },
   { giftTier: Writable<GiftTier | ""> }
 >(
@@ -489,6 +490,7 @@ const triggerExtraction = handler<
 // Handler to cancel extraction (clear the result)
 const cancelExtraction = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
@@ -500,6 +502,7 @@ const cancelExtraction = handler<
 const applyExtractedData = handler<
   Record<string, never>,
   {
+    // deno-lint-ignore no-explicit-any
     extractedData: Writable<any>;
     displayName: Writable<string>;
     givenName: Writable<string>;
@@ -926,7 +929,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             {part.word}
                                           </span>
                                         )
-                                        : <span>{part.word}</span>
+                                        : <span key={i}>{part.word}</span>
                                     )
                                   )
                                   : (
@@ -1193,6 +1196,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           >
                             {RELATIONSHIP_TYPE_LABELS[type] || type}
                             <button
+                              type="button"
                               onClick={removeRelationshipType({
                                 relationshipTypes,
                                 typeToRemove: String(type),
@@ -1221,7 +1225,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       <cf-autocomplete
                         items={RELATIONSHIP_TYPE_ITEMS}
                         $value={relationshipTypes}
-                        multiple={true}
+                        multiple
                         placeholder="Search to add..."
                       />
                     </cf-vstack>

@@ -95,7 +95,7 @@ const spin = handler<
     _,
     {
       currentEmoji,
-      isSpinning,
+      _isSpinning,
       generosity,
       spinSequence,
       spinCount,
@@ -1324,6 +1324,7 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
                 style={{ display: "flex", alignItems: "center", gap: "6px" }}
               >
                 <button
+                  type="button"
                   onClick={decrementGenerosity({
                     generosity,
                     payoutAnimationCount,
@@ -1342,6 +1343,7 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
                   −
                 </button>
                 <button
+                  type="button"
                   onClick={incrementGenerosity({
                     generosity,
                     payoutAnimationCount,

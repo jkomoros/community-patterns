@@ -128,6 +128,7 @@ const DerivePerfRepro = pattern<
             </label>
             <br />
             <button
+              type="button"
               onClick={generateEventsHandler({ events, count })}
               style={{
                 marginRight: "10px",
@@ -138,6 +139,7 @@ const DerivePerfRepro = pattern<
               Generate 250 Events
             </button>
             <button
+              type="button"
               onClick={clearEventsHandler({ events })}
               style={{ padding: "8px 16px" }}
             >

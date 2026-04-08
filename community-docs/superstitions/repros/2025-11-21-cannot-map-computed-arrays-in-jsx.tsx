@@ -40,6 +40,7 @@ export default pattern(
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
           <h2>Computed Array Map Test</h2>
           <button
+            type="button"
             onClick={increment({ counter })}
             style={{ padding: "10px 20px", fontSize: "16px" }}
           >

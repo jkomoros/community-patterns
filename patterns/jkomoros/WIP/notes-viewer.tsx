@@ -172,6 +172,7 @@ export default pattern<{
           {ifElse(
             derive(selectedNoteId, (id: string | null) => id !== null),
             <button
+              type="button"
               onClick={backToList({ selectedNoteId })}
               style={{
                 border: "none",

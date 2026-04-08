@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  computed,
+  _computed,
   Default,
   derive,
   equals,
@@ -95,7 +95,7 @@ interface QuickAddResponse {
 // Module-Scope Helper Functions
 // ============================================================================
 
-function calculateScore(
+function _calculateScore(
   option: RubricOption,
   dimensionsArray: Dimension[],
 ): number {
@@ -119,7 +119,7 @@ function calculateScore(
   return totalScore;
 }
 
-function getOptionValueForDimension(
+function _getOptionValueForDimension(
   option: RubricOption,
   dimensionName: string,
 ): string | number {
@@ -541,11 +541,12 @@ Be precise with categorical values - use exact label matches.`;
                 result: quickAddExtraction.result,
                 submitted: quickAddSubmitted,
               },
-              // deno-lint-ignore no-explicit-any
               (
                 { pending, error, result, submitted }: {
                   pending: boolean;
+                  // deno-lint-ignore no-explicit-any
                   error: any;
+                  // deno-lint-ignore no-explicit-any
                   result: any;
                   submitted: string | null;
                 },
@@ -614,6 +615,7 @@ Be precise with categorical values - use exact label matches.`;
                             }}
                           >
                             {result.extractedValues
+                              // deno-lint-ignore no-explicit-any
                               .filter((ev: any) =>
                                 ev && ev.dimensionName
                               )

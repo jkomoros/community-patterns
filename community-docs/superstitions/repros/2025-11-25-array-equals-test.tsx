@@ -151,6 +151,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
 
           <div style={{ marginBottom: "20px" }}>
             <button
+              type="button"
               onClick={addItem({ items })}
               style={{ padding: "8px 16px" }}
             >
@@ -171,6 +172,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
               >
                 <span style={{ marginRight: "10px" }}>{item.name}</span>
                 <button
+                  type="button"
                   onClick={testComparison({
                     items,
                     targetItem: item,
@@ -181,6 +183,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   Test Both
                 </button>
                 <button
+                  type="button"
                   onClick={removeViaEquals({
                     items,
                     targetItem: item,
@@ -197,6 +200,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   Remove (.equals)
                 </button>
                 <button
+                  type="button"
                   onClick={removeViaIdentity({
                     items,
                     targetItem: item,

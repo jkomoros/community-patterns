@@ -9,7 +9,7 @@
  * CLAIM: Individual computed values within style object don't update reactively
  * WORKAROUND: Use single computed returning entire style object
  */
-import { cell, computed, handler, NAME, pattern, UI } from "commonfabric";
+import { _cell, computed, handler, NAME, pattern, UI } from "commonfabric";
 
 export default pattern(
   "reactive-style-test",
@@ -41,6 +41,7 @@ export default pattern(
           <p>Click button to toggle. Both boxes should change color.</p>
 
           <button
+            type="button"
             onClick={toggle({ isActive })}
             style={{
               padding: "10px 20px",

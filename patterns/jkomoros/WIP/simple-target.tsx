@@ -2,7 +2,7 @@
 import { NAME, pattern, UI } from "commonfabric";
 
 /** Simplest possible charm. #simpleTarget */
-export default pattern<{}, { message: string }>(
+export default pattern<Record<string, never>, { message: string }>(
   () => ({
     [NAME]: "Simple Target",
     [UI]: (

@@ -320,6 +320,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                 >
                   {COMMON_TAGS.map((tag) => (
                     <button
+                      type="button"
                       onClick={quickAddDietaryTag({ dietaryTags, tag })}
                       style={{
                         padding: "2px 8px",
@@ -359,6 +360,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   >
                     <span>{tag}</span>
                     <button
+                      type="button"
                       onClick={removeDietaryTag({ dietaryTags, tag })}
                       style={{
                         background: "none",
@@ -426,6 +428,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   >
                     <span>{ingredient}</span>
                     <button
+                      type="button"
                       onClick={removeIngredient({
                         primaryIngredients,
                         ingredient,

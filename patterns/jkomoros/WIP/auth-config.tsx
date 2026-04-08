@@ -76,7 +76,10 @@ export default pattern<Input, Output>(({ token }) => {
         <div>Token: {computed(() => token ? "***" : "(none)")}</div>
         <div>Valid: {computed(() => isValid ? "Yes" : "No")}</div>
         <div>User: {computed(() => userData?.login || "—")}</div>
-        <button onClick={setToken({ token, value: "test-token" })}>
+        <button
+          type="button"
+          onClick={setToken({ token, value: "test-token" })}
+        >
           Set Token
         </button>
       </div>

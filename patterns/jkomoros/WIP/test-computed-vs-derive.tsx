@@ -1,11 +1,11 @@
 /// <cts-enable />
 import {
+  _ifElse,
   computed,
   Default,
   derive,
   generateObject,
   handler,
-  ifElse,
   NAME,
   pattern,
   safeDateNow,
@@ -217,7 +217,9 @@ const TestPattern = pattern<Input, Output>(
       }
       if (typeof result === "object" && result !== null) {
         return `Summary: ${
+          // deno-lint-ignore no-explicit-any
           (result as any).summary || "(pending)"
+          // deno-lint-ignore no-explicit-any
         }\nComputation Time: ${(result as any).computationTime || "?"} ms`;
       }
       return JSON.stringify(result);

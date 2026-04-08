@@ -98,6 +98,7 @@ export default pattern<DatePickerInput, DatePickerOutput>(({ date }) => {
           }}
         >
           <button
+            type="button"
             onClick={setToday({ date })}
             style={{
               flex: 1,
@@ -113,6 +114,7 @@ export default pattern<DatePickerInput, DatePickerOutput>(({ date }) => {
             Set Today
           </button>
           <button
+            type="button"
             onClick={clearDate({ date })}
             style={{
               flex: 1,

@@ -409,7 +409,7 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                     $value={exportOutput}
                     style="width: 100%; min-height: 100px; font-family: monospace; font-size: 0.75rem;"
                   />,
-                  <></>,
+                  null,
                 )}
               </div>
 

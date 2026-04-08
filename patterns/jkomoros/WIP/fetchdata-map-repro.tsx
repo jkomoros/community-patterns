@@ -69,10 +69,14 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
       { hasFlag, ref },
       (values) => {
         // This casting pattern is used in github-momentum-tracker
+        // deno-lint-ignore no-explicit-any
         const flag = (values.hasFlag as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasFlag as any).get()
           : values.hasFlag;
+        // deno-lint-ignore no-explicit-any
         const r = (values.ref as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.ref as any).get()
           : values.ref;
         return (flag && r)
@@ -88,13 +92,19 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
     const samplePages = derive(
       { hasFlag, parsedRef: ref, userData },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const flag = (values.hasFlag as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasFlag as any).get()
           : values.hasFlag;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
+        // deno-lint-ignore no-explicit-any
         const u = (values.userData as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.userData as any).get()
           : values.userData;
 
@@ -146,10 +156,17 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
         </p>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>{" "}
-          <button onClick={toggleFlag({ externalFlag })}>Toggle Flag</button>
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
+          {" "}
+          <button type="button" onClick={toggleFlag({ externalFlag })}>
+            Toggle Flag
+          </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>

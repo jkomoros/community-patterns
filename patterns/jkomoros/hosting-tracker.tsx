@@ -29,12 +29,12 @@ import Family from "./family.tsx";
 import CalendarViewer from "../../../labs/packages/patterns/google/core/experimental/calendar-viewer.tsx";
 import GoogleCalendarImporter from "../../../labs/packages/patterns/google/core/google-calendar-importer.tsx";
 import {
+  _FamilyMember,
   Address,
   ClassificationRule,
   computeHostingStatus,
   daysSince,
   FamilyHostingStats,
-  FamilyMember,
   generateId,
   HostingCategory,
   HostingEvent,
@@ -425,7 +425,7 @@ const selectManualCategory = handler<
 });
 
 // Handler to update new rule form name
-const updateRuleName = handler<
+const _updateRuleName = handler<
   { target: { value: string } },
   { newRuleForm: Writable<Partial<ClassificationRule>> }
 >(({ target }, { newRuleForm }) => {
@@ -443,7 +443,7 @@ const updateRuleType = handler<
 });
 
 // Handler to update new rule form pattern
-const updateRulePattern = handler<
+const _updateRulePattern = handler<
   { target: { value: string } },
   { newRuleForm: Writable<Partial<ClassificationRule>> }
 >(({ target }, { newRuleForm }) => {
@@ -461,7 +461,7 @@ const updateRuleCategory = handler<
 });
 
 // Handler to request LLM rule suggestions for a classified event
-const requestRuleSuggestions = handler<
+const _requestRuleSuggestions = handler<
   unknown,
   {
     ruleSuggestionPrompt: Writable<string>;
@@ -597,14 +597,14 @@ Focus on patterns that are specific enough to avoid false positives.`;
 const createFamily = handler<void, void>(() => navigateTo(Family({} as any)));
 
 // Handler to create a new Google Calendar Importer charm
-// deno-lint-ignore no-explicit-any
 const createGoogleCalendar = handler<void, void>(() =>
+  // deno-lint-ignore no-explicit-any
   navigateTo(GoogleCalendarImporter({} as any))
 );
 
 // Handler to create a new Apple Calendar Viewer charm
-// deno-lint-ignore no-explicit-any
 const createAppleCalendar = handler<void, void>(() =>
+  // deno-lint-ignore no-explicit-any
   navigateTo(CalendarViewer({} as any))
 );
 
@@ -882,14 +882,14 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const newRulePattern = Writable.of<string>("");
 
     // Selected family for event assignment
-    const selectedFamilyId = Writable.of("");
+    const _selectedFamilyId = Writable.of("");
 
     // LLM rule suggestion state
     // When this is non-empty, generateObject will run to suggest rules
     const ruleSuggestionPrompt = Writable.of("");
 
     // Track pending suggestions that user can accept/reject
-    const pendingSuggestions = Writable.of<RuleSuggestion[]>([]);
+    const _pendingSuggestions = Writable.of<RuleSuggestion[]>([]);
 
     // Derive list of tracked families from wish result
     // Note: wish({ query }) returns a single match, not an array
@@ -939,7 +939,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const weOweStats = computed(() =>
       familyStats.filter((s) => s.status === "we-owe")
     );
-    const theyOweStats = computed(() =>
+    const _theyOweStats = computed(() =>
       familyStats.filter((s) => s.status === "they-owe")
     );
 
@@ -1351,7 +1351,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       ))}
                     </div>
                   </cf-vstack>,
-                  <></>,
+                  null,
                 )}
 
                 {/* We Owe Families */}
@@ -1393,7 +1393,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       ))}
                     </div>
                   </cf-vstack>,
-                  <></>,
+                  null,
                 )}
 
                 {/* Balanced Families */}
@@ -1435,7 +1435,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       ))}
                     </div>
                   </cf-vstack>,
-                  <></>,
+                  null,
                 )}
 
                 {/* Recent Events */}
@@ -1678,11 +1678,11 @@ Include reasoning for each suggestion and potential false positives to watch for
                                     {suggestion.matchedRule
                                       ? (
                                         <span style={{ color: "#666" }}>
-                                          {" "}(rule:{" "}
+                                          (rule:
                                           {suggestion.matchedRule.name})
                                         </span>
                                       )
-                                      : <></>}
+                                      : null}
                                     <span
                                       style={{
                                         color: "#666",
@@ -1695,13 +1695,14 @@ Include reasoning for each suggestion and potential false positives to watch for
                                     </span>
                                   </div>
                                 )
-                                : <></>}
+                                : null}
 
                               <cf-hstack style="gap: 8px; flex-wrap: wrap;">
                                 {/* Apply Suggestion button if available */}
                                 {hasSuggestion && suggestion.category
                                   ? (
                                     <button
+                                      type="button"
                                       onClick={applySuggestion({
                                         hostingEvents,
                                         event,
@@ -1726,12 +1727,13 @@ Include reasoning for each suggestion and potential false positives to watch for
                                       Apply
                                     </button>
                                   )
-                                  : <></>}
+                                  : null}
 
                                 {/* Manual classification buttons */}
                                 {computed(() =>
                                   trackedFamilies.map((family) => (
                                     <button
+                                      type="button"
                                       onClick={classifyEvent({
                                         hostingEvents,
                                         event,
@@ -1755,6 +1757,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                                 {/* We hosted button */}
                                 <button
+                                  type="button"
                                   onClick={classifyEvent({
                                     hostingEvents,
                                     event,
@@ -1776,6 +1779,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                                 {/* Neutral button */}
                                 <button
+                                  type="button"
                                   onClick={classifyEvent({
                                     hostingEvents,
                                     event,
@@ -1945,6 +1949,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             {event.category}
                           </span>
                           <button
+                            type="button"
                             onClick={removeHostingEvent({
                               hostingEvents,
                               eventId: event.id,
@@ -2007,6 +2012,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             <span />,
                           )}
                           <button
+                            type="button"
                             onClick={removeMyAddress({
                               myAddresses,
                               addressId: addr.id,
@@ -2106,6 +2112,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             {rule.category}
                           </span>
                           <button
+                            type="button"
                             onClick={deleteRule({ rules, ruleId: rule.id })}
                             style={{
                               border: "none",
@@ -2287,7 +2294,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                                             ?.join(", ") || ""
                                         )}
                                       </span>,
-                                      <></>,
+                                      null,
                                     )}
                                   </cf-vstack>
                                   <cf-button
@@ -2307,7 +2314,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         ),
                       )}
                     </div>,
-                    <></>,
+                    null,
                   )}
                 </cf-vstack>
               </cf-vstack>

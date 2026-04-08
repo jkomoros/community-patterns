@@ -89,7 +89,9 @@ const testStreamAccess = handler<
   results.push(`[${timestamp}] === STREAM ACCESS TEST ===`);
 
   // Get the current charm value
+  // deno-lint-ignore no-explicit-any
   const charm = (wishedCharm as any)?.get
+    // deno-lint-ignore no-explicit-any
     ? (wishedCharm as any).get()
     : wishedCharm;
 
@@ -134,7 +136,7 @@ const testStreamAccess = handler<
 const attemptRefresh = handler<
   Record<string, never>,
   { testLog: Writable<string[]>; refreshStream: Stream<Record<string, never>> }
->(async (_event, { testLog: logCell, refreshStream }) => {
+>((_event, { testLog: logCell, refreshStream }) => {
   const logs = logCell.get() || [];
   const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
 
@@ -147,6 +149,7 @@ const attemptRefresh = handler<
     }`,
   );
   results.push(
+    // deno-lint-ignore no-explicit-any
     `  typeof refreshStream.send: ${typeof (refreshStream as any)?.send}`,
   );
 
@@ -195,6 +198,7 @@ export default pattern<Input, Output>(
     const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuthShortTTL" });
 
     // Extract wish state
+    // deno-lint-ignore no-explicit-any
     const wishState = derive(wishResult, (wr: any) => {
       if (wr?.result?.auth?.user?.email) return "authenticated";
       if (wr?.result) return "found-not-authenticated";
@@ -202,24 +206,30 @@ export default pattern<Input, Output>(
       return "loading";
     });
 
+    // deno-lint-ignore no-explicit-any
     const wishedCharm = derive(wishResult, (wr: any) => wr?.result || null);
+    // deno-lint-ignore no-explicit-any
     const wishError = derive(wishResult, (wr: any) => wr?.error || null);
 
     // Extract the refreshToken stream from the wished charm
     // Per Berni: Pass this directly to handlers with Stream<T> type in handler signature
     const refreshTokenStream = derive(
       wishedCharm,
+      // deno-lint-ignore no-explicit-any
       (charm: any) => charm?.refreshToken || null,
     );
 
     // Get auth data (if available)
+    // deno-lint-ignore no-explicit-any
     const auth = derive(wishedCharm, (charm: any) => charm?.auth || null);
     const isAuthenticated = derive(
       auth,
+      // deno-lint-ignore no-explicit-any
       (a: any) => !!(a?.token && a?.user?.email),
     );
 
     // Token status
+    // deno-lint-ignore no-explicit-any
     const tokenStatus = derive(auth, (a: any) => {
       if (!a?.token) return "no-token";
       if (!a?.expiresAt) return "no-expiry";
@@ -228,12 +238,14 @@ export default pattern<Input, Output>(
       return "valid";
     });
 
+    // deno-lint-ignore no-explicit-any
     const timeRemaining = derive(auth, (a: any) => {
       if (!a?.expiresAt) return 0;
       return Math.max(0, Math.floor((a.expiresAt - safeDateNow()) / 1000));
     });
 
     // Check if refresh stream is accessible
+    // deno-lint-ignore no-explicit-any
     const refreshStreamInfo = derive(wishedCharm, (charm: any) => {
       if (!charm) return { available: false, reason: "no charm" };
       const stream = charm.refreshToken;
@@ -307,7 +319,8 @@ export default pattern<Input, Output>(
                 State: <strong>{wishState}</strong>
               </div>
               <div>
-                Has charm: {derive(wishedCharm, (c: any) => c ? "YES" : "NO")}
+                Has charm:{" "}
+                {derive(wishedCharm, (c: unknown) => c ? "YES" : "NO")}
               </div>
               <div>Error: {wishError}</div>
             </div>
@@ -335,14 +348,22 @@ export default pattern<Input, Output>(
                 {derive(isAuthenticated, (a: boolean) => a ? "YES" : "NO")}
               </div>
               <div>
-                Email: {derive(auth, (a: any) => a?.user?.email || "N/A")}
+                Email: {derive(
+                  auth,
+                  (a: { user?: { email?: string } } | undefined) =>
+                    a?.user?.email || "N/A",
+                )}
               </div>
               <div>
                 Token status: <strong>{tokenStatus}</strong>
               </div>
               <div>Time remaining: {timeRemaining}s</div>
               <div>
-                expiresAt: {derive(auth, (a: any) => a?.expiresAt || "N/A")}
+                expiresAt: {derive(
+                  auth,
+                  (a: { expiresAt?: string | number } | undefined) =>
+                    a?.expiresAt || "N/A",
+                )}
               </div>
             </div>
           </div>
@@ -351,8 +372,11 @@ export default pattern<Input, Output>(
           <div
             style={{
               padding: "16px",
-              backgroundColor: derive(refreshStreamInfo, (info: any) =>
-                info?.available ? "#dcfce7" : "#fef3c7"),
+              backgroundColor: derive(
+                refreshStreamInfo,
+                (info: { available?: boolean } | undefined) =>
+                  info?.available ? "#dcfce7" : "#fef3c7",
+              ),
               borderRadius: "8px",
               border: "1px solid #e2e8f0",
             }}
@@ -366,14 +390,15 @@ export default pattern<Input, Output>(
                 <strong>
                   {derive(
                     refreshStreamInfo,
-                    (info: any) =>
-                      info?.available ? "YES" : "NO",
+                    // deno-lint-ignore no-explicit-any
+                    (info: any) => info?.available ? "YES" : "NO",
                   )}
                 </strong>
               </div>
               <div>
                 Reason: {derive(
                   refreshStreamInfo,
+                  // deno-lint-ignore no-explicit-any
                   (info: any) => info?.reason || "unknown",
                 )}
               </div>
@@ -383,6 +408,7 @@ export default pattern<Input, Output>(
           {/* Test Buttons */}
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
+              type="button"
               onClick={testStreamAccess({ testLog, wishedCharm })}
               style={{
                 padding: "10px 16px",
@@ -398,6 +424,7 @@ export default pattern<Input, Output>(
             </button>
 
             <button
+              type="button"
               onClick={attemptRefresh({
                 testLog,
                 refreshStream: refreshTokenStream,
@@ -416,6 +443,7 @@ export default pattern<Input, Output>(
             </button>
 
             <button
+              type="button"
               onClick={logMessage({ message: "Manual log entry", testLog })}
               style={{
                 padding: "10px 16px",
@@ -431,6 +459,7 @@ export default pattern<Input, Output>(
             </button>
 
             <button
+              type="button"
               onClick={clearLog({ testLog })}
               style={{
                 padding: "10px 16px",
@@ -501,7 +530,7 @@ export default pattern<Input, Output>(
                 fontSize: "11px",
               }}
             >
-              {derive(wishedCharm, (charm: any) => {
+              {derive(wishedCharm, (charm: Record<string, unknown>) => {
                 if (!charm) return "No charm";
                 try {
                   return JSON.stringify({

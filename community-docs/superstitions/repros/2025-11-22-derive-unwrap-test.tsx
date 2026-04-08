@@ -65,7 +65,11 @@ export default pattern<Input, Output>(
           <h2>derive() Cell Unwrapping Test</h2>
 
           <div style={{ marginBottom: "20px" }}>
-            <button onClick={toggle({ flag })} style={{ padding: "10px 20px" }}>
+            <button
+              type="button"
+              onClick={toggle({ flag })}
+              style={{ padding: "10px 20px" }}
+            >
               Toggle Flag (current: {flag ? "true" : "false"})
             </button>
           </div>

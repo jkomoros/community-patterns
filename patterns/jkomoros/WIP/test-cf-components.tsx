@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Default, NAME, pattern, UI, Writable } from "commonfabric";
+import { _Writable, Default, NAME, pattern, UI } from "commonfabric";
 
 interface TestInput {
   value: Default<string, "Hello">;

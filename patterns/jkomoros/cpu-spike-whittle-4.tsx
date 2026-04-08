@@ -108,9 +108,8 @@ const ComplexPattern = pattern<ComplexInput, ComplexOutput>(
 // Types
 // =============================================================================
 
-interface Input {
-  // No inputs needed
-}
+// No inputs needed
+type Input = Record<string, never>;
 
 /** CPU Spike Whittle Test Step 4 - computed in map. #cpuSpikeWhittle4 */
 interface Output {

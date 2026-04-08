@@ -25,11 +25,11 @@ import GmailAgenticSearch, {
 // This pattern needs refactoring to use inline handlers instead.
 // For now, provide a stub that compiles but may not work at runtime.
 // See the comment in gmail-agentic-search.tsx for migration instructions.
-// deno-lint-ignore no-explicit-any
 function createReportTool<TInput, TOutput>(config: {
   idPrefix: string;
   dedupeKey: (input: TInput) => string;
   toRecord: (input: TInput, id: string, timestamp: number) => TOutput;
+  // deno-lint-ignore no-explicit-any
 }): any {
   // Stub implementation - returns a handler-like function
   console.warn(
@@ -253,7 +253,7 @@ interface PersonResearchOutput {
 // ============================================================================
 // RELATIONSHIP TYPE REFERENCE
 // ============================================================================
-const VALID_RELATIONSHIP_TYPES = [
+const _VALID_RELATIONSHIP_TYPES = [
   // Professional
   "colleague",
   "former-colleague",
@@ -452,9 +452,9 @@ const PersonResearchGmailAgent = pattern<
   PersonResearchOutput
 >(
   ({
-    personName,
-    knownEmail,
-    contextNotes,
+    _personName,
+    _knownEmail,
+    _contextNotes,
     maxSearches,
     isScanning,
     lastScanAt,
@@ -466,7 +466,7 @@ const PersonResearchGmailAgent = pattern<
     topics,
     organizations,
     communicationStats,
-    agenticNotes,
+    _agenticNotes,
   }) => {
     // ========================================================================
     // LOCAL WRITABLE CELLS FOR USER INPUT

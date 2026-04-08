@@ -59,10 +59,14 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
     const apiUrl = derive(
       { enableFetching, idCell },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const enabled = (values.enableFetching as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.enableFetching as any).get()
           : values.enableFetching;
+        // deno-lint-ignore no-explicit-any
         const id = (values.idCell as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.idCell as any).get()
           : values.idCell;
 
@@ -100,10 +104,16 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
         </p>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
+          {" "}
           <button
+            type="button"
             onClick={toggleFetching({ enableFetching })}
             style={{
               background: derive(

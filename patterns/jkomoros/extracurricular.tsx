@@ -579,7 +579,7 @@ const SCHEDULE_END_HOUR = 18; // 6 PM
 const SCHEDULE_HOUR_HEIGHT = 60; // pixels per hour
 
 // Calculate top position for a time within the schedule
-function timeToTopPosition(timeStr: string): number {
+function _timeToTopPosition(timeStr: string): number {
   const mins = parseTimeToMinutes(timeStr);
   if (mins < 0) return 0;
   const startMins = SCHEDULE_START_HOUR * 60;
@@ -588,7 +588,7 @@ function timeToTopPosition(timeStr: string): number {
 }
 
 // Calculate height for a duration
-function durationToHeight(startStr: string, endStr: string): number {
+function _durationToHeight(startStr: string, endStr: string): number {
   const startMins = parseTimeToMinutes(startStr);
   const endMins = parseTimeToMinutes(endStr);
   if (startMins < 0 || endMins < 0) return SCHEDULE_HOUR_HEIGHT; // default 1 hour
@@ -975,7 +975,7 @@ const handleFileUpload = handler<
       extractedText.set(text);
       processingStatus.set("complete");
       uploadedFile.set(file);
-    } catch (e) {
+    } catch (_e) {
       extractionError.set("Failed to read text file");
       processingStatus.set("error");
     }
@@ -1463,7 +1463,7 @@ const setSemesterEnd = handler<
 });
 
 // Handler for calendar name input
-const setCalendarName = handler<
+const _setCalendarName = handler<
   { detail: { value: string } },
   { name: Writable<string> }
 >((
@@ -1826,6 +1826,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Populate stagedClasses when extraction completes (idempotent side effect)
     // Pre-computes triage at population time (not render time) to avoid Cell.map() closure issues
     computed(() => {
+      // deno-lint-ignore no-explicit-any
       const response = extractionResponse as any;
       const triggerText = extractionTriggerText.get();
       const lastText = lastProcessedExtractionText.get(); // Cell - creates dependency, but computed is idempotent
@@ -1932,6 +1933,7 @@ Return all visible text.`,
     // Computed: should show preview step
     const showPreview = computed(() => {
       const status = uploadProcessingStatus.get();
+      // deno-lint-ignore no-explicit-any
       const ocrText = (ocrResult as any)?.extractedText;
       const isOcrPending = ocrPending;
       return status === "complete" || (!isOcrPending && !!ocrText);
@@ -1940,6 +1942,7 @@ Return all visible text.`,
     // Computed: text to show in preview (either from text file or OCR)
     const previewText = computed(() => {
       const textFromFile = uploadExtractedText.get();
+      // deno-lint-ignore no-explicit-any
       const textFromOcr = (ocrResult as any)?.extractedText || "";
       return textFromFile || textFromOcr;
     });
@@ -1972,7 +1975,7 @@ Return all visible text.`,
 
     // Computed accessors for backwards compatibility with existing UI code
     const hasStaged = computed(() => stageCounts.hasStaged);
-    const selectedCount = computed(() => stageCounts.selected);
+    const _selectedCount = computed(() => stageCounts.selected);
     const triageCounts = computed(() => ({
       kept: stageCounts.kept,
       needsReview: stageCounts.needsReview,
@@ -2250,6 +2253,7 @@ Return all visible text.`,
                 <input
                   type="text"
                   style={{ padding: "0.5rem", width: "200px" }}
+                  // deno-lint-ignore no-explicit-any
                   value={(child as any).name || ""}
                   onChange={setChildName({ childCell: child })}
                 />
@@ -2266,6 +2270,7 @@ Return all visible text.`,
                 </label>
                 <select
                   style={{ padding: "0.5rem" }}
+                  // deno-lint-ignore no-explicit-any
                   value={(child as any).grade || "K"}
                   onChange={setChildGrade({ childCell: child })}
                 >
@@ -2296,6 +2301,7 @@ Return all visible text.`,
                   style={{ padding: "0.5rem", width: "80px" }}
                   min="2005"
                   max="2025"
+                  // deno-lint-ignore no-explicit-any
                   value={(child as any).birthYear || 2015}
                   onChange={setChildBirthYear({ childCell: child })}
                 />
@@ -2312,6 +2318,7 @@ Return all visible text.`,
                 </label>
                 <select
                   style={{ padding: "0.5rem" }}
+                  // deno-lint-ignore no-explicit-any
                   value={(child as any).birthMonth || 1}
                   onChange={setChildBirthMonth({ childCell: child })}
                 >
@@ -2379,6 +2386,7 @@ Return all visible text.`,
                 </label>
                 <select
                   style={{ padding: "0.5rem", minWidth: "150px" }}
+                  // deno-lint-ignore no-explicit-any
                   value={(activeSetName as any) || ""}
                   onChange={setActiveSet({ activeCell: activeSetName })}
                 >
@@ -2684,7 +2692,7 @@ Return all visible text.`,
                                           {slot.startTime}
                                         </div>
                                       )
-                                      : <></>}
+                                      : null}
                                   </div>
                                 );
                               },
@@ -2969,6 +2977,7 @@ Return all visible text.`,
                 null,
               )}
               <button
+                type="button"
                 onClick={dismissExportResult({ result: calendarExportResult })}
                 style={{
                   background: "none",
@@ -3234,7 +3243,9 @@ Return all visible text.`,
                               pendingCalendarExport.get();
                             return (p?.skippedItems || []).slice(0, 5).map((
                               item: { className: string; reason: string },
-                            ) => <li>{item.className}: {item.reason}</li>);
+                            ) => (
+                              <li key={i}>{item.className}: {item.reason}</li>
+                            ));
                           })}
                           {ifElse(
                             computed(() => {
@@ -3279,6 +3290,7 @@ Return all visible text.`,
                     >
                       {/* Google Calendar option */}
                       <button
+                        type="button"
                         onClick={selectExportTarget({
                           pendingExport: pendingCalendarExport,
                           target: "google",
@@ -3342,6 +3354,7 @@ Return all visible text.`,
 
                       {/* Apple Calendar option */}
                       <button
+                        type="button"
                         onClick={selectExportTarget({
                           pendingExport: pendingCalendarExport,
                           target: "apple",
@@ -3383,6 +3396,7 @@ Return all visible text.`,
 
                       {/* ICS Download option */}
                       <button
+                        type="button"
                         onClick={selectExportTarget({
                           pendingExport: pendingCalendarExport,
                           target: "ics",
@@ -3556,6 +3570,7 @@ Return all visible text.`,
                   }}
                 >
                   <button
+                    type="button"
                     onClick={cancelCalendarExport({
                       pendingExport: pendingCalendarExport,
                     })}
@@ -3574,6 +3589,7 @@ Return all visible text.`,
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={confirmCalendarExport({
                       pendingExport: pendingCalendarExport,
                       processing: calendarExportProcessing,
@@ -4060,8 +4076,9 @@ Return all visible text.`,
                   onChange={setLocationIndex({ idx: selectedLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc: Location, idx: number) =>
-                    !loc ? null : <option value={idx}>{loc.name}</option>
+                  {locations.map((loc: Location, idx: number) => !loc
+                    ? null
+                    : <option key={idx} value={idx}>{loc.name}</option>
                   )}
                 </select>
               </div>
@@ -4122,7 +4139,9 @@ Return all visible text.`,
                 >
                   <option value="-1">-- Select a location --</option>
                   {locations.map((loc: Location, idx: number) =>
-                    !loc ? null : <option value={idx}>{loc.name}</option>
+                    !loc
+                      ? null
+                      : <option key={idx} value={idx}>{loc.name}</option>
                   )}
                 </select>
               </div>
@@ -4246,6 +4265,7 @@ Return all visible text.`,
                         importText,
                         uploadedFile,
                         processingStatus: uploadProcessingStatus,
+                        // deno-lint-ignore no-explicit-any
                         ocrText: (ocrResult as any)?.extractedText || null,
                       })}
                     >

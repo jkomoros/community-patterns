@@ -17,9 +17,8 @@ import GoogleAuth from "../../../labs/packages/patterns/google/core/google-auth.
 // Types
 // =============================================================================
 
-interface Input {
-  // No inputs needed
-}
+// No inputs needed
+type Input = Record<string, never>;
 
 /** CPU Spike Whittle Test Step 2 - No wish(). #cpuSpikeWhittle2 */
 interface Output {

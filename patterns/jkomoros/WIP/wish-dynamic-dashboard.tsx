@@ -69,6 +69,7 @@ const DashboardWidgetView = pattern<
 >(
   ({ widget, onRemove }) => {
     // Each widget has its own wish based on its query
+    // deno-lint-ignore no-explicit-any
     const wishResult = wish<{ cell: Writable<any> }>({
       query: widget.query,
       context: {
@@ -120,6 +121,7 @@ const DashboardWidgetView = pattern<
               {widget.query}
             </span>
             <button
+              type="button"
               onClick={onRemove}
               style={{
                 background: "none",
@@ -204,6 +206,7 @@ export default pattern<DynamicDashboardInput>(({ widgets }) => {
           {ifElse(
             widgetCount > 0,
             <button
+              type="button"
               onClick={clearAllWidgets({ widgets })}
               style={{
                 padding: "0.5rem 1rem",

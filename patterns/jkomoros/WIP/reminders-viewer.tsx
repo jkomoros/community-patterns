@@ -215,6 +215,7 @@ export default pattern<{
           {ifElse(
             derive(selectedReminderId, (id: string | null) => id !== null),
             <button
+              type="button"
               onClick={backToList({ selectedReminderId })}
               style={{
                 border: "none",

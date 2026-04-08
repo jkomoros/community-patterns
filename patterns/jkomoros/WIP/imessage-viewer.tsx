@@ -134,7 +134,7 @@ export default pattern<{
     return convos;
   });
 
-  const conversationCount = derive(conversationList, (c) => c?.length ?? 0);
+  const _conversationCount = derive(conversationList, (c) => c?.length ?? 0);
 
   // Get messages for selected conversation
   const selectedMessages = derive(
@@ -184,6 +184,7 @@ export default pattern<{
           {ifElse(
             derive(selectedChatId, (id: string | null) => id !== null),
             <button
+              type="button"
               onClick={backToList({ selectedChatId })}
               style={{
                 border: "none",

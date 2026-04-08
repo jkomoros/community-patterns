@@ -60,6 +60,7 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
     // EXACT CODE from hotel-membership-gmail-agent.tsx line 141-143
     const wishedItems = derive(
       wishedItemsCharm,
+      // deno-lint-ignore no-explicit-any
       (wishState: { result?: SelfWishReproOutput; error?: any }) =>
         wishState?.result?.items || [],
     );
@@ -158,6 +159,7 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
                   <li
                     key={index}
                     style={{
+                      // deno-lint-ignore no-explicit-any
                       background: (item as any)._fromWish
                         ? "#e0f2fe"
                         : "#f8f9fa",
@@ -167,7 +169,7 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
                     }}
                   >
                     {item.name} ({item.source})
-                    {(item as any)._fromWish && (
+                    {(item as { _fromWish?: boolean })._fromWish && (
                       <span style={{ color: "#0ea5e9" }}>[imported]</span>
                     )}
                   </li>

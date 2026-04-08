@@ -59,7 +59,7 @@ interface Output {
 }
 
 // Handler to save token
-const saveToken = handler<
+const _saveToken = handler<
   { detail: { value: string } },
   { token: Writable<string> }
 >(({ detail }, { token }) => {
@@ -275,6 +275,7 @@ export default pattern<Input, Output>(({ token }) => {
             {ifElse(
               hasToken,
               <button
+                type="button"
                 onClick={clearToken({ token })}
                 style={{
                   padding: "8px 16px",

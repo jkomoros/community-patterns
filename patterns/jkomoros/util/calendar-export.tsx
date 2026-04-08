@@ -43,14 +43,14 @@ import {
   sanitizeFilename,
 } from "./ical-generator.ts";
 import type {
+  _ExportProgress,
+  _ExportTarget,
   CalendarOutboxEvent,
   DayOfWeek,
   ExportableEvent,
   ExportConfig,
-  ExportProgress,
   ExportProgressCallback,
   ExportResult,
-  ExportTarget,
   ExportTargetInfo,
   RecurrenceRule,
 } from "../../../../labs/packages/patterns/google/core/util/calendar-export-types.ts";
@@ -96,7 +96,7 @@ const DAY_TO_RRULE: Record<DayOfWeek, string> = {
 export function convertToGoogleEvents(
   events: ExportableEvent[],
   dateRange: { startDate: string; endDate: string },
-  timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  _timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): Array<{
   clientId: string;
   summary: string;
@@ -317,7 +317,7 @@ export function convertToICS(
  * @param onProgress - Progress callback
  * @returns Export result
  */
-export async function exportToGoogle(
+export function exportToGoogle(
   _auth: Writable<Auth>,
   events: ExportableEvent[],
   config: ExportConfig,

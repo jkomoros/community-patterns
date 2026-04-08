@@ -14,11 +14,12 @@
 import { computed, derive, NAME, pattern, UI, Writable } from "commonfabric";
 
 // Utility to check if something is a Cell/proxy
+// deno-lint-ignore no-explicit-any
 function isProxy(value: any): boolean {
   if (value === null || value === undefined) return false;
   // Check for common proxy indicators
   try {
-    const str = Object.prototype.toString.call(value);
+    const _str = Object.prototype.toString.call(value);
     // Proxied cells often have special symbols or behaviors
     return typeof value === "object" && (
       value[Symbol.toStringTag] === "Cell" ||
@@ -61,7 +62,8 @@ interface FetchAcc {
   debug: string;
 }
 
-export default pattern<{}, { experiments: any }>(({}) => {
+// deno-lint-ignore no-explicit-any
+export default pattern<Record<string, never>, { experiments: any }>((_) => {
   // =============================================================================
   // EXPERIMENT 1: Simple array with derive + reduce
   // =============================================================================
@@ -69,12 +71,14 @@ export default pattern<{}, { experiments: any }>(({}) => {
   const simpleNumbers = Writable.of([1, 2, 3, 4, 5]);
 
   // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+  // deno-lint-ignore no-explicit-any
   const simpleSum = derive([simpleNumbers], (nums: any) => {
     console.log("[Exp1] nums type:", typeof nums);
     console.log("[Exp1] nums isArray:", Array.isArray(nums));
     console.log("[Exp1] nums[0] type:", typeof nums[0]);
     console.log("[Exp1] nums[0] isProxy:", isProxy(nums[0]));
 
+    // deno-lint-ignore no-explicit-any
     return nums.reduce((acc: number, n: any) => {
       console.log("[Exp1] n type:", typeof n, "value:", n);
       return acc + n;
@@ -94,6 +98,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
   // Map to transform items - items.map() returns Cell-wrapped items
   // NOTE: The callback receives Cell-wrapped items at runtime, use 'any'
   // Wrap in computed() to handle reactive property access
+  // deno-lint-ignore no-explicit-any
   const doubled = items.map((item: any) =>
     computed(() => ({
       id: item.id,
@@ -104,6 +109,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
   // Try to reduce the mapped results
   // NOTE: derive() receives Cell-wrapped array, items inside are also Cell-wrapped
   // We use 'any' to bypass TypeScript since this is an experiment to test runtime behavior
+  // deno-lint-ignore no-explicit-any
   const mapThenReduce = derive([doubled], (results: any) => {
     console.log("[Exp2] results type:", typeof results);
     console.log("[Exp2] results isArray:", Array.isArray(results));
@@ -120,6 +126,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
     console.log("[Exp2] first.doubled value:", first?.doubled);
 
     try {
+      // deno-lint-ignore no-explicit-any
       const sum = results.reduce((acc: number, item: any) => {
         console.log("[Exp2] item:", item, "doubled:", item?.doubled);
         return acc + (item?.doubled ?? 0);
@@ -143,6 +150,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
   ]);
 
   // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+  // deno-lint-ignore no-explicit-any
   const aggregatedResults = derive([mockLLMResults], (results: any) => {
     console.log("[Exp3] results type:", typeof results);
     console.log("[Exp3] results isArray:", Array.isArray(results));
@@ -164,6 +172,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
     console.log("[Exp3] first.pending === false:", first?.pending === false);
 
     return results.reduce(
+      // deno-lint-ignore no-explicit-any
       (acc: AggAcc, item: any) => {
         console.log(
           "[Exp3] reduce item.pending:",
@@ -197,6 +206,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
   // This creates Cell references in the array
   // NOTE: urls.map() callback receives Cell-wrapped items at runtime
   // Wrap in computed() to handle reactive property access
+  // deno-lint-ignore no-explicit-any
   const fetched = urls.map((url: any) =>
     computed(() => ({
       url,
@@ -206,6 +216,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
   );
 
   // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+  // deno-lint-ignore no-explicit-any
   const fetchAggregated = derive([fetched], (results: any) => {
     console.log("[Exp4] results:", results);
     console.log("[Exp4] results isArray:", Array.isArray(results));
@@ -220,6 +231,7 @@ export default pattern<{}, { experiments: any }>(({}) => {
     console.log("[Exp4] typeof first.status:", typeof first?.status);
 
     return results.reduce(
+      // deno-lint-ignore no-explicit-any
       (acc: FetchAcc, item: any) => {
         if (item?.status === "pending") {
           return { ...acc, pending: acc.pending + 1 };

@@ -38,8 +38,10 @@ interface Output {
 const CodeEditorBacklinkTest = pattern<Input, Output>(
   ({ items, editorText, lastAction }) => {
     // Get mentionable charms for [[ references
+    // deno-lint-ignore no-explicit-any
     const mentionable = wish<any[]>("#mentionable");
     // Track mentioned items
+    // deno-lint-ignore no-explicit-any
     const mentioned = Cell.of<any[]>([]);
 
     // Handler for backlink-create event (cf-code-editor specific)
@@ -47,7 +49,9 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
       {
         detail: {
           text: string;
+          // deno-lint-ignore no-explicit-any
           charmId: any;
+          // deno-lint-ignore no-explicit-any
           charm: Cell<any>; // This should be the actual Cell ref
           navigate: boolean;
         };
@@ -68,12 +72,14 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
         // Check if already in list using .equals()
         const alreadyExists = currentItems.some((existing) => {
           if (typeof existing === "object" && "equals" in existing) {
+            // deno-lint-ignore no-explicit-any
             return (existing as any).equals(charm);
           }
           return false;
         });
 
         if (!alreadyExists) {
+          // deno-lint-ignore no-explicit-any
           items.set([...currentItems, charm as any]);
           lastAction.set(`Added charm: "${text}"`);
         } else {

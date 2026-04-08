@@ -44,7 +44,7 @@ export default pattern(() => {
               <div>Timestamp: {result.result.timestamp}</div>
             </div>
           )
-          : <></>}
+          : null}
       </div>
     ),
   };

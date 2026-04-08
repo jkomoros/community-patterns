@@ -68,13 +68,19 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
       inline: inlineConfig.multiplier,
     },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const discovered = (values.discovered as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.discovered as any).get()
         : values.discovered;
+      // deno-lint-ignore no-explicit-any
       const passed = (values.passed as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.passed as any).get()
         : values.passed;
+      // deno-lint-ignore no-explicit-any
       const inline = (values.inline as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.inline as any).get()
         : values.inline;
 
@@ -95,10 +101,14 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const apiUrl = derive(
       { hasConfig, ref },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const config = (values.hasConfig as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasConfig as any).get()
           : values.hasConfig;
+        // deno-lint-ignore no-explicit-any
         const r = (values.ref as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.ref as any).get()
           : values.ref;
         return (config && r)
@@ -114,13 +124,19 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const samplePages = derive(
       { hasConfig, parsedRef: ref, userData },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const config = (values.hasConfig as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasConfig as any).get()
           : values.hasConfig;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
+        // deno-lint-ignore no-explicit-any
         const u = (values.userData as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.userData as any).get()
           : values.userData;
 
@@ -174,7 +190,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
         s9: slot9,
       },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const sp = (values.samplePages as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.samplePages as any).get()
           : values.samplePages;
         if (!sp.pages || sp.pages.length === 0) {
@@ -196,6 +214,7 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         const pending = samples.some((s, i) => {
           if (i >= sp.pages.length) return false;
+          // deno-lint-ignore no-explicit-any
           const sample = (s as any)?.get ? (s as any).get() : s;
           return sample?.pending === true;
         });
@@ -204,7 +223,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         const data: string[] = [];
         for (let i = 0; i < sp.pages.length && i < 10; i++) {
+          // deno-lint-ignore no-explicit-any
           const sample = (samples[i] as any)?.get
+            // deno-lint-ignore no-explicit-any
             ? (samples[i] as any).get()
             : samples[i];
           if (sample?.result?.title) {
@@ -265,9 +286,13 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
         </div>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>

@@ -52,6 +52,7 @@ const CellHandlerTest = pattern<Input, Output>(
             <h3>Click to Select:</h3>
             {items.map((item) => (
               <button
+                type="button"
                 key={item.id}
                 onClick={selectItem({
                   id: item.id,

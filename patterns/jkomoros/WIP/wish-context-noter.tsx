@@ -131,6 +131,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
   );
 
   // Wish for contextual suggestions
+  // deno-lint-ignore no-explicit-any
   const contextualSuggestion = wish<{ cell: Writable<any> }>({
     query: suggestionQuery,
     context: {
@@ -195,6 +196,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
               {(["recipe", "article", "task", "idea", "custom"] as const).map(
                 (type) => (
                   <button
+                    type="button"
                     onClick={setContextType({ currentContext, type })}
                     style={{
                       padding: "0.5rem 1rem",
@@ -346,6 +348,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={removeNote({ notes, id: note.id })}
                         style={{
                           background: "none",

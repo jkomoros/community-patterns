@@ -64,10 +64,14 @@ export default pattern<Input, Output>(({ ids }) => {
     const apiUrl = derive(
       { hasConfig, ref },
       (values) => {
-        const config = (values.hasConfig as any)?.get
+        // deno-lint-ignore no-explicit-any
+        const _config = (values.hasConfig as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasConfig as any).get()
           : values.hasConfig;
+        // deno-lint-ignore no-explicit-any
         const r = (values.ref as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.ref as any).get()
           : values.ref;
         return r
@@ -83,10 +87,14 @@ export default pattern<Input, Output>(({ ids }) => {
     const samplePages = derive(
       { hasConfig, parsedRef: ref, userData },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
+        // deno-lint-ignore no-explicit-any
         const u = (values.userData as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.userData as any).get()
           : values.userData;
 
@@ -141,9 +149,13 @@ export default pattern<Input, Output>(({ ids }) => {
         </div>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>

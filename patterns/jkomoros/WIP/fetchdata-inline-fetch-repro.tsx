@@ -67,13 +67,19 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
   const effectiveToken = derive(
     { discovered: discoveredAuth, passed: authCharm, inline: inlineAuth.token },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const discovered = (values.discovered as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.discovered as any).get()
         : values.discovered;
+      // deno-lint-ignore no-explicit-any
       const passed = (values.passed as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.passed as any).get()
         : values.passed;
+      // deno-lint-ignore no-explicit-any
       const inline = (values.inline as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.inline as any).get()
         : values.inline;
 
@@ -94,10 +100,14 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
     const apiUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && r
@@ -110,10 +120,14 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
     const todosUrl = derive(
       { hasAuth, parsedRef },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
         return auth && r
@@ -146,13 +160,19 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
     const samplePages = derive(
       { hasAuth, parsedRef, userData },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
+        // deno-lint-ignore no-explicit-any
         const m = (values.userData as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.userData as any).get()
           : values.userData;
 
@@ -298,9 +318,13 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
         </p>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
         </div>
 
         <div

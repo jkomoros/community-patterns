@@ -14,6 +14,7 @@
  * - Friend co-enrollment tracking
  */
 import {
+  _toSchema,
   Cell,
   computed,
   Default,
@@ -26,7 +27,6 @@ import {
   pattern,
   safeDateNow,
   str,
-  toSchema,
   UI,
   Writable,
 } from "commonfabric";
@@ -235,7 +235,7 @@ const DEFAULT_CATEGORY_TAGS: CategoryTag[] = [
   { id: "language", name: "Language", color: "#6366f1" },
 ];
 
-const DEFAULT_STATUS_TYPES = [
+const _DEFAULT_STATUS_TYPES = [
   "registered",
   "confirmed",
   "waitlisted",
@@ -243,7 +243,7 @@ const DEFAULT_STATUS_TYPES = [
   "onCalendar",
 ];
 
-const STATUS_LABELS: Record<string, string> = {
+const _STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
   confirmed: "Confirmed",
   waitlisted: "Waitlisted",
@@ -492,7 +492,7 @@ const createPinnedSet = handler<
 });
 
 // Delete a pinned set
-const deletePinnedSet = handler<
+const _deletePinnedSet = handler<
   unknown,
   {
     pinnedSets: Writable<PinnedSet[]>;
@@ -512,7 +512,7 @@ const deletePinnedSet = handler<
 });
 
 // Rename a pinned set
-const renamePinnedSet = handler<
+const _renamePinnedSet = handler<
   unknown,
   { pinnedSets: Writable<PinnedSet[]>; setId: string; newName: string }
 >((_, { pinnedSets, setId, newName }) => {
@@ -655,14 +655,14 @@ const toggleClassStatus = handler<
 });
 
 // Open/close settings dialog
-const openSettingsDialog = handler<
+const _openSettingsDialog = handler<
   unknown,
   { showSettingsDialog: Writable<boolean> }
 >((_, { showSettingsDialog }) => {
   showSettingsDialog.set(true);
 });
 
-const closeSettingsDialog = handler<
+const _closeSettingsDialog = handler<
   unknown,
   { showSettingsDialog: Writable<boolean> }
 >((_, { showSettingsDialog }) => {
@@ -709,7 +709,7 @@ const handleFileUploadChange = handler<
 });
 
 // Clear uploaded files
-const clearUploadedFiles = handler<
+const _clearUploadedFiles = handler<
   unknown,
   {
     uploadedFiles: Writable<
@@ -744,7 +744,7 @@ type ImageData = {
 };
 
 // Handle image upload for OCR - extracts first image from the array
-const handleImageUploadForOcr = handler<
+const _handleImageUploadForOcr = handler<
   { detail: { images: ImageData[] } },
   { uploadedImageForOcr: Writable<ImageData | null> }
 >(({ detail }, { uploadedImageForOcr }) => {
@@ -755,7 +755,7 @@ const handleImageUploadForOcr = handler<
 });
 
 // Clear uploaded image for OCR
-const clearUploadedImageForOcr = handler<
+const _clearUploadedImageForOcr = handler<
   unknown,
   { uploadedImageForOcr: Writable<ImageData | null> }
 >((_, { uploadedImageForOcr }) => {
@@ -765,6 +765,7 @@ const clearUploadedImageForOcr = handler<
 // Copy OCR extracted text to import text field
 const copyOcrToImportText = handler<
   unknown,
+  // deno-lint-ignore no-explicit-any
   { imageOcrResult: any; importText: Writable<string> }
 >((_, { imageOcrResult, importText }) => {
   // imageOcrResult is the reactive result object from generateObject
@@ -1212,7 +1213,10 @@ interface ExtracurricularSelectorInput {
   // So we track selections separately and combine with processedStagedClasses for display
   // Uses Default<> to ensure cell starts as {} (required for .key().set() to work)
   // Lazy defaults at read time: auto_kept → true, others → false
-  stagedClassSelections: Default<Record<string, boolean>, {}>;
+  stagedClassSelections: Default<
+    Record<string, boolean>,
+    Record<string, never>
+  >;
   importText: Writable<Default<string, "">>;
   importLocationId: Writable<Default<string, "">>;
 }
@@ -1383,7 +1387,7 @@ export default pattern<
 
     // Settings dialog visibility - just follows the showSettingsDialog cell
     // (starts open by default, closes only when user manually closes)
-    const isSettingsDialogVisible = showSettingsDialog;
+    const _isSettingsDialogVisible = showSettingsDialog;
 
     // ========================================================================
     // LLM EXTRACTION
@@ -1397,7 +1401,9 @@ export default pattern<
       const locId = importLocationId.get();
       const grade = childGrade.get();
       // Access arrays - may be wrapped inside computed(), so try .get() first
+      // deno-lint-ignore no-explicit-any
       const tags = (categoryTags as any)?.get?.() ?? categoryTags ?? [];
+      // deno-lint-ignore no-explicit-any
       const locs = (locations as any)?.get?.() ?? locations ?? [];
 
       // Don't extract if no triggered text or no location selected
@@ -1491,11 +1497,13 @@ If cost is not specified, use null.`;
 
     // Computed: Is extraction in progress? (defined after extractionResult)
     const isExtractionPending = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (extractionResult as any)?.pending === true
     );
 
     // Computed: Suggested new tags from extraction result (for display in UI)
     const suggestedNewTags = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const r = (extractionResult as any)?.result;
       return (r?.suggestedNewTags as string[]) || [];
     });
@@ -1560,9 +1568,11 @@ Return the complete extracted text.`,
       uploadedImagesForOcr.get().length > 0
     );
     const isImageOcrPending = computed(() =>
+      // deno-lint-ignore no-explicit-any
       (imageOcrResult as any)?.pending === true
     );
     const hasImageOcrResult = computed(() => {
+      // deno-lint-ignore no-explicit-any
       const r = imageOcrResult as any;
       return r?.result?.extractedText && !r?.pending;
     });
@@ -1571,6 +1581,7 @@ Return the complete extracted text.`,
     const processedStagedClasses = computed(() => {
       // extractionResult is a generateObject result with .result, .pending, .error properties
       // Access via extractionResult directly - framework handles reactivity
+      // deno-lint-ignore no-explicit-any
       const extractionState = extractionResult as any;
       const locId = importLocationId.get(); // Writable<> - use .get()
       const locs = locations; // Default<> - access directly
@@ -1586,6 +1597,7 @@ Return the complete extracted text.`,
         l.id === locId
       )?.name || "";
 
+      // deno-lint-ignore no-explicit-any
       return result.classes.map((cls: any, index: number): StagedClass => {
         // Determine triage status based on eligibility (flattened fields)
         let triageStatus: TriageStatus;
@@ -1809,7 +1821,7 @@ Return the complete extracted text.`,
       );
     });
 
-    const hasAvailableClasses = computed(() => availableClasses.length > 0);
+    const _hasAvailableClasses = computed(() => availableClasses.length > 0);
     const availableClassCount = computed(() => availableClasses.length);
 
     // Total cost of pinned classes
@@ -2006,6 +2018,7 @@ Return the complete extracted text.`,
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             {/* Clickable area for selecting class to see conflicts */}
             <button
+              type="button"
               style={{
                 flex: "1",
                 background: "transparent",
@@ -2113,6 +2126,7 @@ Return the complete extracted text.`,
               )}
             </button>
             <button
+              type="button"
               style={{
                 padding: "4px 10px",
                 border: "none",
@@ -2174,6 +2188,7 @@ Return the complete extracted text.`,
               </div>
             </div>
             <button
+              type="button"
               style={{
                 padding: "4px 10px",
                 border: "none",
@@ -2205,6 +2220,7 @@ Return the complete extracted text.`,
     const selectionSetTabs = computed(() => {
       return pinnedSets.map((set) => (
         <button
+          type="button"
           style={{
             padding: "6px 12px",
             border: set.id === activePinnedSetId
@@ -2262,6 +2278,7 @@ Return the complete extracted text.`,
                       </div>
                     </div>
                     <button
+                      type="button"
                       style={{
                         padding: "2px 8px",
                         border: "1px solid #d1d5db",
@@ -2286,6 +2303,7 @@ Return the complete extracted text.`,
                       const isChecked = !!clsStatuses[statusType.key];
                       return (
                         <button
+                          type="button"
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -2329,7 +2347,7 @@ Return the complete extracted text.`,
       const sets = pinnedSets;
       const activeId = activePinnedSetId;
       const statuses = classStatuses;
-      const allClasses = classes;
+      const _allClasses = classes;
 
       const activeSet = sets.find((s) => s.id === activeId);
       if (!activeSet || activeSet.classIds.length === 0) {
@@ -2457,10 +2475,14 @@ Return the complete extracted text.`,
           <div style="display: flex; gap: 0; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
             {ifElse(
               isDashboardTab,
-              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+              <button
+                type="button"
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;"
+              >
                 Dashboard
               </button>,
               <button
+                type="button"
                 style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
                 onClick={setActiveTab({ activeTab, tab: "dashboard" })}
               >
@@ -2469,10 +2491,14 @@ Return the complete extracted text.`,
             )}
             {ifElse(
               isConfigureTab,
-              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+              <button
+                type="button"
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;"
+              >
                 Configure
               </button>,
               <button
+                type="button"
                 style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
                 onClick={setActiveTab({ activeTab, tab: "configure" })}
               >
@@ -2481,10 +2507,14 @@ Return the complete extracted text.`,
             )}
             {ifElse(
               isImportTab,
-              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+              <button
+                type="button"
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;"
+              >
                 Import
               </button>,
               <button
+                type="button"
                 style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
                 onClick={setActiveTab({ activeTab, tab: "import" })}
               >
@@ -2493,10 +2523,14 @@ Return the complete extracted text.`,
             )}
             {ifElse(
               isSelectionTab,
-              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+              <button
+                type="button"
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;"
+              >
                 Selection
               </button>,
               <button
+                type="button"
                 style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
                 onClick={setActiveTab({ activeTab, tab: "selection" })}
               >
@@ -2975,7 +3009,7 @@ Return the complete extracted text.`,
                         buttonText="📷 Upload Photo"
                         variant="outline"
                         size="sm"
-                        showPreview={true}
+                        showPreview
                         previewSize="sm"
                         $images={uploadedImagesForOcr}
                       />
@@ -3096,6 +3130,7 @@ Return the complete extracted text.`,
                           </h3>
                           <div style="display: flex; gap: 8px;">
                             <button
+                              type="button"
                               style="font-size: 11px; padding: 2px 8px; background: #166534; color: white; border: none; border-radius: 4px; cursor: pointer;"
                               onClick={selectAllInCategoryHandler({
                                 stagedClassSelections,
@@ -3105,6 +3140,7 @@ Return the complete extracted text.`,
                               All
                             </button>
                             <button
+                              type="button"
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #166534; border: 1px solid #166534; border-radius: 4px; cursor: pointer;"
                               onClick={deselectAllInCategoryHandler({
                                 stagedClassSelections,
@@ -3164,6 +3200,7 @@ Return the complete extracted text.`,
                           </h3>
                           <div style="display: flex; gap: 8px;">
                             <button
+                              type="button"
                               style="font-size: 11px; padding: 2px 8px; background: #854d0e; color: white; border: none; border-radius: 4px; cursor: pointer;"
                               onClick={selectAllInCategoryHandler({
                                 stagedClassSelections,
@@ -3173,6 +3210,7 @@ Return the complete extracted text.`,
                               All
                             </button>
                             <button
+                              type="button"
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #854d0e; border: 1px solid #854d0e; border-radius: 4px; cursor: pointer;"
                               onClick={deselectAllInCategoryHandler({
                                 stagedClassSelections,
@@ -3231,6 +3269,7 @@ Return the complete extracted text.`,
                           </h3>
                           <div style="display: flex; gap: 8px;">
                             <button
+                              type="button"
                               style="font-size: 11px; padding: 2px 8px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer;"
                               onClick={selectAllInCategoryHandler({
                                 stagedClassSelections,
@@ -3240,6 +3279,7 @@ Return the complete extracted text.`,
                               All
                             </button>
                             <button
+                              type="button"
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #6b7280; border: 1px solid #6b7280; border-radius: 4px; cursor: pointer;"
                               onClick={deselectAllInCategoryHandler({
                                 stagedClassSelections,
@@ -3499,6 +3539,7 @@ Return the complete extracted text.`,
                       <div style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
                         {selectionSetTabs}
                         <button
+                          type="button"
                           style={{
                             padding: "6px 12px",
                             border: "1px dashed #9ca3af",

@@ -78,6 +78,7 @@ function computeWordDiff(from: string, to: string): DiffChunk[] {
   return result;
 }
 
+// deno-lint-ignore no-explicit-any
 function compareFields<T extends Record<string, any>>(
   extracted: Partial<T> | null | undefined,
   fieldMappings: { [K in keyof T]?: { current: string; label: string } },
@@ -120,6 +121,7 @@ const triggerExtraction = handler<
 // Handler to cancel extraction
 const cancelExtraction = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
@@ -130,6 +132,7 @@ const cancelExtraction = handler<
 // Handler to apply extracted data (just clears for this test)
 const applyExtractedData = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
@@ -414,7 +417,7 @@ export default pattern(() => {
                                       </span>
                                     );
                                   } else {
-                                    return <span>{part.word}</span>;
+                                    return <span key={i}>{part.word}</span>;
                                   }
                                 })}
                               </div>

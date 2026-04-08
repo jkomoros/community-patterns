@@ -27,11 +27,12 @@ interface Input {
 }
 
 export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
-  ({ flag, count, log }) => {
+  ({ flag, count, _log }) => {
     // Test A: Single Cell derive - should auto-unwrap
     const singleResult = derive(flag, (value) => {
       return {
         type: typeof value,
+        // deno-lint-ignore no-explicit-any
         hasGet: typeof (value as any)?.get === "function",
         value: String(value),
       };
@@ -41,7 +42,9 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
     const objectResult = derive({ flag, count }, (values) => {
       const flagType = typeof values.flag;
       const countType = typeof values.count;
+      // deno-lint-ignore no-explicit-any
       const flagHasGet = typeof (values.flag as any)?.get === "function";
+      // deno-lint-ignore no-explicit-any
       const countHasGet = typeof (values.count as any)?.get === "function";
 
       // Try to use values directly (without .get())
@@ -68,11 +71,11 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
       };
     });
 
-    const addLog = handler<unknown, { msg: string; log: Cell<string[]> }>(
+    const _addLog = handler<unknown, { msg: string; log: Cell<string[]> }>(
       (_, { msg, log }) => log.push(msg),
     );
 
-    const clearLog = handler<unknown, { log: Cell<string[]> }>(
+    const _clearLog = handler<unknown, { log: Cell<string[]> }>(
       (_, { log }) => log.set([]),
     );
 
@@ -127,12 +130,14 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
             <p>flag: {flag ? "true" : "false"}</p>
             <p>count: {count}</p>
             <button
+              type="button"
               onClick={toggleFlag({ flag })}
               style={{ marginRight: "10px", padding: "8px 16px" }}
             >
               Toggle Flag
             </button>
             <button
+              type="button"
               onClick={incrementCount({ count })}
               style={{ padding: "8px 16px" }}
             >

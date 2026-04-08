@@ -114,6 +114,7 @@ export function suggestEmailTool(pendingDraft: Writable<EmailDraft | null>) {
     SUGGEST_EMAIL_SCHEMA,
     SUGGEST_EMAIL_STATE_SCHEMA,
     (
+      // deno-lint-ignore no-explicit-any
       input: EmailDraft & { result?: Writable<any> },
       state: { pendingDraft: Writable<EmailDraft | null> },
     ) => {
@@ -238,6 +239,7 @@ export function suggestCalendarEventTool(
         location?: string;
         attendees?: string;
         calendarId?: string;
+        // deno-lint-ignore no-explicit-any
         result?: Writable<any>;
       },
       state: { pendingEvent: Writable<CalendarEventDraft | null> },
@@ -339,6 +341,7 @@ export function suggestLabelChangeTool(
         messageIds: string;
         addLabels?: string;
         removeLabels?: string;
+        // deno-lint-ignore no-explicit-any
         result?: Writable<any>;
       },
       state: { pendingLabelOp: Writable<LabelChangeDraft | null> },

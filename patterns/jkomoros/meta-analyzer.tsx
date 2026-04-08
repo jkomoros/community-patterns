@@ -1,12 +1,12 @@
 /// <cts-enable />
 import {
+  type _Opaque,
   computed,
   Default,
   generateObject,
   handler,
   ifElse,
   NAME,
-  type Opaque,
   OpaqueRef,
   pattern,
   safeDateNow,
@@ -41,6 +41,7 @@ type Input = Record<string, never>;
 type Output = {
   suggestions: FieldSuggestion[];
   isAnalyzing: boolean;
+  // deno-lint-ignore no-explicit-any
   analyzeTrigger: any;
 };
 
@@ -73,11 +74,13 @@ const triggerAnalysis = handler<
 const MetaAnalyzer = pattern<Input, Output>(
   () => {
     // Get all charms from the space via wish
+    // deno-lint-ignore no-explicit-any
     const allCharmsWish = wish<any[]>({ query: "#allCharms" });
     const allCharms = computed(() => allCharmsWish?.result ?? []);
 
     // Filter for Person charms (those with profile property)
     const personCharms = computed(() =>
+      // deno-lint-ignore no-explicit-any
       allCharms.filter((charm: any) =>
         charm && typeof charm === "object" && "profile" in charm
       )

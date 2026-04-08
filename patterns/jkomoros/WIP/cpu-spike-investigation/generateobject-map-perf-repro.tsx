@@ -54,6 +54,7 @@ const triggerExtraction = handler<
 // Clear extraction
 const clearExtraction = handler<
   Record<string, never>,
+  // deno-lint-ignore no-explicit-any
   { extractedData: Writable<any> }
 >((_, { extractedData }) => {
   extractedData.set(null);

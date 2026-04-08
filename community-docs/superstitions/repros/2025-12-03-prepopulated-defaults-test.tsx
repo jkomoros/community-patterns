@@ -11,9 +11,9 @@
  * Test B: Empty default + handler (reported working)
  */
 import {
+  _derive,
   Cell,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
@@ -198,6 +198,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
             <h3>Test B: Empty Default + Handler</h3>
             <p>Items added via handler.push()</p>
             <button
+              type="button"
               onClick={loadItems({ items: handlerItems, log })}
               style={{ padding: "8px 16px", marginBottom: "10px" }}
             >
@@ -279,6 +280,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
             >
               <h3>Log</h3>
               <button
+                type="button"
                 onClick={clearLog({ log })}
                 style={{ padding: "4px 8px" }}
               >

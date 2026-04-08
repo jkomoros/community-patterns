@@ -43,6 +43,7 @@ function castToType<T>(obj: object): T {
 // BUT: The CTS compiler can't resolve T at compile time!
 function createGenericHandler<T extends { id: string }>() {
   return handler<
+    // deno-lint-ignore no-explicit-any
     Omit<T, "id"> & { result?: Writable<any> }, // T is unknown to compiler!
     { items: Writable<T[]> }
   >((input, state) => {
@@ -92,6 +93,7 @@ const explicitSchemaHandler = handler(
       name: string;
       category: string;
       priority: number;
+      // deno-lint-ignore no-explicit-any
       result?: Writable<any>;
     },
     state: { items: Writable<MyRecord[]> },
@@ -128,7 +130,7 @@ export default pattern<Input>(({ itemsGeneric, itemsExplicit, testPrompt }) => {
   const genericHandler = createGenericHandler<MyRecord>();
 
   // Agent using GENERIC handler - WON'T WORK (incomplete schema)
-  const agentGeneric = generateObject({
+  const _agentGeneric = generateObject({
     prompt: testPrompt,
     system: "You are a test agent. Call the addItem tool with test data.",
     schema: { type: "object", properties: { done: { type: "boolean" } } },
@@ -142,7 +144,7 @@ export default pattern<Input>(({ itemsGeneric, itemsExplicit, testPrompt }) => {
   });
 
   // Agent using EXPLICIT schema handler - WORKS
-  const agentExplicit = generateObject({
+  const _agentExplicit = generateObject({
     prompt: testPrompt,
     system: "You are a test agent. Call the addItem tool with test data.",
     schema: { type: "object", properties: { done: { type: "boolean" } } },

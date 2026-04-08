@@ -686,7 +686,7 @@ function schemaToTypeString(schema: ObjectSchema): string {
   return "unknown";
 }
 
-function inferType(value: unknown): string {
+function _inferType(value: unknown): string {
   return schemaToTypeString(inferSchema(value));
 }
 

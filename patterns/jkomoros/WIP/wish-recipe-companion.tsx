@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  computed,
+  _computed,
   Default,
   derive,
   handler,
@@ -109,6 +109,7 @@ export default pattern<RecipeCompanionInput>(
 
     // The magic: wish() with an open-ended query
     // This will launch suggestion.tsx which uses AI to find/run appropriate patterns
+    // deno-lint-ignore no-explicit-any
     const companionRecipe = wish<{ cell: Writable<any> }>({
       query: wishQuery,
       context: {
@@ -226,6 +227,7 @@ export default pattern<RecipeCompanionInput>(
                     >
                       {pref.ingredient}
                       <button
+                        type="button"
                         onClick={removePreference({
                           preferences,
                           ingredient: pref.ingredient,
@@ -277,6 +279,7 @@ export default pattern<RecipeCompanionInput>(
                     >
                       {pref.ingredient}
                       <button
+                        type="button"
                         onClick={removePreference({
                           preferences,
                           ingredient: pref.ingredient,

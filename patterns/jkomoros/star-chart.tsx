@@ -169,7 +169,7 @@ const placeStar = handler<
     return;
   }
 
-  let updatedDays = [...currentDays];
+  const updatedDays = [...currentDays];
 
   // Check if yesterday needs protection
   const yesterdayStr = getPreviousDay(todayStr);
@@ -445,7 +445,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
 
       const result: TimelineDay[] = [];
       // Start from today, go back to earliest recorded date
-      let currentDate = new Date(baseDate);
+      const currentDate = new Date(baseDate);
 
       while (currentDate >= earliestDate) {
         const dateStr = formatDateLocal(currentDate);
@@ -487,6 +487,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
             >
               {/* Back button */}
               <button
+                type="button"
                 onClick={exitSettings({ viewMode })}
                 style={{
                   background: "none",
@@ -593,6 +594,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
 
               {/* Done button */}
               <button
+                type="button"
                 onClick={exitSettings({ viewMode })}
                 style={{
                   marginTop: "auto",
@@ -624,6 +626,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
               >
                 {/* Back button */}
                 <button
+                  type="button"
                   onClick={exitCorrections({ viewMode })}
                   style={{
                     background: "none",
@@ -703,6 +706,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                         {day.displayDate}
                       </div>
                       <button
+                        type="button"
                         onClick={toggleDayStar({
                           days,
                           bestStreak,
@@ -755,6 +759,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
               >
                 {/* Header with goal name - tappable to edit */}
                 <button
+                  type="button"
                   onClick={enterSettings({ viewMode })}
                   style={{
                     textAlign: "center",
@@ -938,6 +943,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                     <div>
                       {/* Single tap to add star */}
                       <button
+                        type="button"
                         onClick={placeStar({
                           days,
                           bestStreak,
@@ -1092,6 +1098,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                 {/* Link to corrections view */}
                 <div style={{ textAlign: "center", paddingTop: "8px" }}>
                   <button
+                    type="button"
                     onClick={enterCorrections({ viewMode })}
                     style={{
                       background: "none",

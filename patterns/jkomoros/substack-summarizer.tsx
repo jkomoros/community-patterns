@@ -42,6 +42,7 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(
         Array<{ subject: string; date: string; from: string }>
       > = {};
 
+      // deno-lint-ignore no-explicit-any
       for (const email of emails as any[]) {
         const subject = email.subject || "No Subject";
         const date = email.date || "";
@@ -146,7 +147,7 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(
                             paddingBottom: "0.5rem",
                           }}
                         >
-                          {emailsForNewsletter.map((email: any) => (
+                          {emailsForNewsletter.map((email: unknown) => (
                             <div
                               style={{
                                 fontSize: "13px",

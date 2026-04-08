@@ -191,6 +191,7 @@ export function computeWordDiff(from: string, to: string): DiffChunk[] {
  * // ]
  * ```
  */
+// deno-lint-ignore no-explicit-any
 export function compareFields<T extends Record<string, any>>(
   extracted: Partial<T> | null | undefined,
   fieldMappings: {

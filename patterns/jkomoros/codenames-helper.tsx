@@ -63,7 +63,7 @@ interface ClueSuggestionsResult {
 // toSchema<T>() fails to generate complete schemas with nested arrays
 // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
 
-const PHOTO_EXTRACTION_SCHEMA = {
+const _PHOTO_EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
     photoType: {
@@ -134,7 +134,7 @@ const PHOTO_EXTRACTION_SCHEMA = {
   },
 } as const;
 
-const CLUE_SUGGESTIONS_SCHEMA = {
+const _CLUE_SUGGESTIONS_SCHEMA = {
   type: "object",
   properties: {
     clues: {
@@ -215,6 +215,7 @@ interface ValidationResult {
 }
 
 // Validate extracted data for coherence
+// deno-lint-ignore no-explicit-any
 function validateExtraction(result: any): ValidationResult {
   const warnings: string[] = [];
   const errors: string[] = [];
@@ -233,6 +234,7 @@ function validateExtraction(result: any): ValidationResult {
     }
 
     // Check for duplicates
+    // deno-lint-ignore no-explicit-any
     const wordTexts = words.map((w: any) => w.word.toUpperCase());
     const duplicates = wordTexts.filter((word: string, idx: number) =>
       wordTexts.indexOf(word) !== idx
@@ -244,6 +246,7 @@ function validateExtraction(result: any): ValidationResult {
     }
 
     // Check for empty words
+    // deno-lint-ignore no-explicit-any
     const emptyCount = words.filter((w: any) =>
       !w.word || w.word.trim() === ""
     ).length;
@@ -268,6 +271,7 @@ function validateExtraction(result: any): ValidationResult {
       neutral: 0,
       assassin: 0,
     };
+    // deno-lint-ignore no-explicit-any
     colors.forEach((c: any) => {
       if (counts[c.color] !== undefined) {
         counts[c.color]++;
@@ -317,7 +321,7 @@ function getWordColor(owner: WordOwner): string {
 
 // Get background color for word based on owner
 // Spymaster ALWAYS sees all colors (they have the key card)
-function getWordBackgroundColor(owner: WordOwner): string {
+function _getWordBackgroundColor(owner: WordOwner): string {
   return getWordColor(owner);
 }
 
@@ -328,6 +332,7 @@ const applyExtractedData = handler<
   unknown,
   {
     board: Writable<BoardWord[]>;
+    // deno-lint-ignore no-explicit-any
     extraction: any;
     approvalState: Writable<
       Array<{ correctionText: string; applied: boolean }>
@@ -342,6 +347,7 @@ const applyExtractedData = handler<
 
   // Apply board words if available
   if (result.boardWords && result.boardWords.length > 0) {
+    // deno-lint-ignore no-explicit-any
     result.boardWords.forEach((wordData: any) => {
       const index = currentBoard.findIndex((w: BoardWord) =>
         w.position.row === wordData.row && w.position.col === wordData.col
@@ -357,6 +363,7 @@ const applyExtractedData = handler<
 
   // Apply key card colors if available
   if (result.keyCardColors && result.keyCardColors.length > 0) {
+    // deno-lint-ignore no-explicit-any
     result.keyCardColors.forEach((colorData: any) => {
       const index = currentBoard.findIndex((w: BoardWord) =>
         w.position.row === colorData.row && w.position.col === colorData.col
@@ -406,6 +413,7 @@ const rejectExtraction = handler<
 
 // Update correction text
 const updateCorrectionText = handler<
+  // deno-lint-ignore no-explicit-any
   any,
   {
     approvalState: Writable<
@@ -457,6 +465,7 @@ const resetAllColors = handler<
 
 // Update word text in a cell
 const updateWord = handler<
+  // deno-lint-ignore no-explicit-any
   any,
   { board: Writable<BoardWord[]>; row: number; col: number }
 >((event, { board, row, col }) => {
@@ -1447,6 +1456,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                                 const row = Math.floor(cellIdx / 5);
                                 const col = cellIdx % 5;
                                 const colorData = result.keyCardColors.find((
+                                  // deno-lint-ignore no-explicit-any
                                   c: any,
                                 ) =>
                                   c.row === row && c.col === col
@@ -1516,6 +1526,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                                 const row = Math.floor(cellIdx / 5);
                                 const col = cellIdx % 5;
                                 const wordData = result.boardWords.find((
+                                  // deno-lint-ignore no-explicit-any
                                   w: any,
                                 ) =>
                                   w.row === row && w.col === col
@@ -1741,7 +1752,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       gap: "0.75rem",
                     }}
                   >
-                    {result.clues.map((clue: any, idx: number) => (
+                    {result.clues.map((clue: ClueIdea, idx: number) => (
                       <div
                         key={idx}
                         style={{

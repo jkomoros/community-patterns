@@ -37,6 +37,7 @@ interface Output {
 const AtReferenceTest = pattern<Input, Output>(
   ({ items, lastAction }) => {
     // Get mentionable charms for @ references
+    // deno-lint-ignore no-explicit-any
     const mentionable = wish<any[]>("#mentionable");
 
     // Handler for adding via @ mentions
@@ -44,6 +45,7 @@ const AtReferenceTest = pattern<Input, Output>(
       {
         detail: {
           text: string;
+          // deno-lint-ignore no-explicit-any
           mentions: Array<any>;
         };
       },
@@ -60,10 +62,12 @@ const AtReferenceTest = pattern<Input, Output>(
 
       if (mentions && mentions.length > 0) {
         const currentItems = items.get();
+        // deno-lint-ignore no-explicit-any
         const newItems = mentions.filter((mention: any) => {
           // Dedup using .equals() as superstition describes
           return !currentItems.some((existing) => {
             if (typeof existing === "object" && "equals" in existing) {
+              // deno-lint-ignore no-explicit-any
               return (existing as any).equals(mention);
             }
             return false;

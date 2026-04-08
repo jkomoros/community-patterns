@@ -36,6 +36,7 @@ interface Vote {
 interface VoterPieceRef {
   id: string;
   voterName: string;
+  // deno-lint-ignore no-explicit-any
   piece: any;
 }
 
@@ -68,7 +69,7 @@ function getInitials(name: string): string {
 
 // Handler to create a new voter ballot piece
 const createBallot = handler<
-  {},
+  Record<string, never>,
   {
     question: string;
     options: Writable<Option[]>;

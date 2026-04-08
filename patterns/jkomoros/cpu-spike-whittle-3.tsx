@@ -54,9 +54,8 @@ const SimplePattern = pattern<SimpleInput, SimpleOutput>(({ message }) => {
 // Types
 // =============================================================================
 
-interface Input {
-  // No inputs needed
-}
+// No inputs needed
+type Input = Record<string, never>;
 
 /** CPU Spike Whittle Test Step 3 - No GoogleAuth. #cpuSpikeWhittle3 */
 interface Output {

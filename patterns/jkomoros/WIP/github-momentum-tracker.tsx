@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  computed,
+  _computed,
   Default,
   derive,
   fetchData,
@@ -177,6 +177,7 @@ const removeRepo = handler<
   // Handle both Writable<string> and plain string
   const nameToRemove = typeof repoName === "string"
     ? repoName
+    // deno-lint-ignore no-explicit-any
     : (repoName as any).get?.() || repoName;
   repos.set(current.filter((r) => r !== nameToRemove));
 });
@@ -301,13 +302,19 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     { discovered: discoveredAuth, passed: authCharm, inline: inlineAuth.token },
     (values) => {
       // Safe unwrapping that handles both Cell and plain values
+      // deno-lint-ignore no-explicit-any
       const discovered = (values.discovered as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.discovered as any).get()
         : values.discovered;
+      // deno-lint-ignore no-explicit-any
       const passed = (values.passed as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.passed as any).get()
         : values.passed;
+      // deno-lint-ignore no-explicit-any
       const inline = (values.inline as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.inline as any).get()
         : values.inline;
 
@@ -336,10 +343,14 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     const apiUrl = derive(
       { hasAuth, ref },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.ref as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.ref as any).get()
           : values.ref;
         return (auth && r)
@@ -351,10 +362,14 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     const commitActivityUrl = derive(
       { hasAuth, ref },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.ref as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.ref as any).get()
           : values.ref;
         return (auth && r)
@@ -392,13 +407,19 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     const samplePages = derive(
       { hasAuth, parsedRef: ref, metadata },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const auth = (values.hasAuth as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasAuth as any).get()
           : values.hasAuth;
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
+        // deno-lint-ignore no-explicit-any
         const m = (values.metadata as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.metadata as any).get()
           : values.metadata;
 
@@ -521,7 +542,9 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         s9: starSample9,
       },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const sp = (values.samplePages as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.samplePages as any).get()
           : values.samplePages;
         if (!sp.pages || sp.pages.length === 0) {
@@ -544,6 +567,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         // Check if any are still loading
         const pending = samples.some((s, i) => {
           if (i >= sp.pages.length) return false;
+          // deno-lint-ignore no-explicit-any
           const sample = (s as any)?.get ? (s as any).get() : s;
           return sample?.pending === true;
         });
@@ -553,7 +577,9 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         // Collect results
         const dataPoints: StarDataPoint[] = [];
         for (let i = 0; i < sp.pages.length && i < 10; i++) {
+          // deno-lint-ignore no-explicit-any
           const sample = (samples[i] as any)?.get
+            // deno-lint-ignore no-explicit-any
             ? (samples[i] as any).get()
             : samples[i];
           const result = sample?.result;
@@ -688,6 +714,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
           />
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
             <button
+              type="button"
               onClick={addRepos({ repos, inputText })}
               style={{
                 padding: "8px 16px",
@@ -704,6 +731,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
             {ifElse(
               derive(repoCount, (c) => c > 0),
               <button
+                type="button"
                 onClick={clearAllRepos({ repos })}
                 style={{
                   padding: "8px 16px",
@@ -755,9 +783,9 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               const commitActivity = item.commitActivity;
               const starHistory = item.starHistory;
               const repoName = item.repoName; // This is a Writable<string>
-              // deno-lint-ignore no-explicit-any
               const isLoading = derive(
                 metadata,
+                // deno-lint-ignore no-explicit-any
                 (m: any) => m?.pending === true,
               );
               // deno-lint-ignore no-explicit-any
@@ -897,6 +925,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                       )}
                     </div>
                     <button
+                      type="button"
                       onClick={removeRepo({ repos, repoName })}
                       style={{
                         padding: "4px 8px",

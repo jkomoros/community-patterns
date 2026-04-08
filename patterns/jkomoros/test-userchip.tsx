@@ -9,8 +9,8 @@ import {
   type ScopeKey,
 } from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
 
-interface Input {}
-interface Output {}
+type Input = Record<string, never>;
+type Output = Record<string, never>;
 
 export default pattern<Input, Output>(() => {
   // Use createGoogleAuth with gmail scope

@@ -58,7 +58,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
   const hasConfig = derive(
     { linkedConfig },
     (values) => {
+      // deno-lint-ignore no-explicit-any
       const c = (values.linkedConfig as any)?.get
+        // deno-lint-ignore no-explicit-any
         ? (values.linkedConfig as any).get()
         : values.linkedConfig;
       return !!c?.multiplier;
@@ -74,10 +76,14 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const apiUrl = derive(
       { hasConfig, ref },
       (values) => {
-        const config = (values.hasConfig as any)?.get
+        // deno-lint-ignore no-explicit-any
+        const _config = (values.hasConfig as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.hasConfig as any).get()
           : values.hasConfig;
+        // deno-lint-ignore no-explicit-any
         const r = (values.ref as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.ref as any).get()
           : values.ref;
         // Always fetch (config doesn't gate this in test)
@@ -94,10 +100,14 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     const samplePages = derive(
       { hasConfig, parsedRef: ref, userData },
       (values) => {
+        // deno-lint-ignore no-explicit-any
         const r = (values.parsedRef as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.parsedRef as any).get()
           : values.parsedRef;
+        // deno-lint-ignore no-explicit-any
         const u = (values.userData as any)?.get
+          // deno-lint-ignore no-explicit-any
           ? (values.userData as any).get()
           : values.userData;
 
@@ -149,9 +159,13 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
         </p>
 
         <div style={{ marginBottom: "20px" }}>
-          <button onClick={addId({ ids, newId: 1 })}>Add ID 1</button>{" "}
-          <button onClick={addId({ ids, newId: 2 })}>Add ID 2</button>{" "}
-          <button onClick={clearAll({ ids })}>Clear All</button>
+          <button type="button" onClick={addId({ ids, newId: 1 })}>
+            Add ID 1
+          </button>{" "}
+          <button type="button" onClick={addId({ ids, newId: 2 })}>
+            Add ID 2
+          </button>{" "}
+          <button type="button" onClick={clearAll({ ids })}>Clear All</button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
@@ -159,7 +173,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
           {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
           {" | "}
           <strong>linkedConfig:</strong> {derive({ linkedConfig }, (v) => {
+            // deno-lint-ignore no-explicit-any
             const c = (v.linkedConfig as any)?.get
+              // deno-lint-ignore no-explicit-any
               ? (v.linkedConfig as any).get()
               : v.linkedConfig;
             return c?.multiplier ? `multiplier=${c.multiplier}` : "not linked";

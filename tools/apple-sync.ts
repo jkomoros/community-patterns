@@ -792,7 +792,7 @@ async function cmdImessage(
     const existing = await readFromPiece<PieceMessage[]>(pieceConfig);
     existingMessages = existing || [];
     console.log(`  Found ${existingMessages.length} existing messages`);
-  } catch (error) {
+  } catch (_error) {
     // If we can't read, assume empty - first sync
     console.log("  No existing messages (first sync)");
   }

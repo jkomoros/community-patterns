@@ -165,7 +165,7 @@ function canonicalize(
     }
 
     // Step 3: Map confusables
-    let mappedChar = CONFUSABLES[char] || char;
+    const mappedChar = CONFUSABLES[char] || char;
 
     // Step 4: Skip whitespace and punctuation
     if (/[\s\p{P}]/u.test(mappedChar)) {
@@ -1298,7 +1298,9 @@ export default pattern<InputSchema, OutputSchema>(
                   <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
                     {(leakScanResult as LeakScanResult).leakedValues.map((
                       val: string,
-                    ) => <li style={{ fontFamily: "monospace" }}>{val}</li>)}
+                    ) => (
+                      <li style={{ fontFamily: "monospace" }}>key={i}{val}</li>
+                    ))}
                   </ul>
                 </div>
               )

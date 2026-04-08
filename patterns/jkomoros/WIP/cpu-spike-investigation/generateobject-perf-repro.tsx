@@ -90,7 +90,7 @@ export default pattern(() => {
   });
 
   // Track when result arrives
-  const timingCheck = computed(() => {
+  const _timingCheck = computed(() => {
     const start = startTimeMs.get();
     if (!start) return null;
 
@@ -159,13 +159,13 @@ export default pattern(() => {
                       {(ms as number / 1000).toFixed(1)}s)
                     </p>
                   )
-                  : <></>)}
+                  : null)}
               <pre style={{ fontSize: "0.8rem", overflow: "auto" }}>
               {JSON.stringify(result.result, null, 2)}
               </pre>
             </div>
           )
-          : <></>}
+          : null}
 
         <h2>Debugging Steps</h2>
         <ol>

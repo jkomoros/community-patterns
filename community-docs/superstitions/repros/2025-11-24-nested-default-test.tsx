@@ -59,10 +59,10 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           </p>
           <p>Nested defaults count: {nestedDefaults.length}</p>
           <p>Plain nested count: {plainNested.length}</p>
-          <button onClick={pushNested({ arr: nestedDefaults })}>
+          <button type="button" onClick={pushNested({ arr: nestedDefaults })}>
             Push to Nested Defaults
           </button>
-          <button onClick={pushPlain({ arr: plainNested })}>
+          <button type="button" onClick={pushPlain({ arr: plainNested })}>
             Push to Plain Nested
           </button>
         </div>

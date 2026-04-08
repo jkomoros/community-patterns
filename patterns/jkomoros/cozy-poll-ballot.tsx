@@ -1,11 +1,11 @@
 /// <cts-enable />
 import {
+  _handler,
+  _navigateTo,
   computed,
   Default,
-  handler,
   ifElse,
   NAME,
-  navigateTo,
   pattern,
   str,
   UI,
@@ -33,6 +33,7 @@ interface Vote {
 
 interface VoterPieceRef {
   id: string;
+  // deno-lint-ignore no-explicit-any
   piece: any;
   voterName: string;
 }
@@ -63,7 +64,7 @@ function getInitials(name: string): string {
 }
 
 export default pattern<VoterInput, VoterOutput>(
-  ({ question, options, votes, voterPieces, myName }) => {
+  ({ question, options, votes, _voterPieces, myName }) => {
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
       const organized: Record<

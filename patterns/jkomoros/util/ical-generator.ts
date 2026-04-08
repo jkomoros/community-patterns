@@ -172,7 +172,7 @@ function formatTime(timeStr: string): string {
 function formatDateTime(
   dateStr: string,
   timeStr: string,
-  timezone?: string,
+  _timezone?: string,
 ): string {
   const date = formatDate(dateStr);
   const time = formatTime(timeStr);

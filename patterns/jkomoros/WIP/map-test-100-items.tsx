@@ -73,6 +73,7 @@ export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
 
   // Count pending extractions
   const pendingCount = computed(() =>
+    // deno-lint-ignore no-explicit-any
     extractions.filter((e: any) => e.extraction?.pending).length
   );
 
@@ -90,6 +91,7 @@ export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
         </p>
 
         <button
+          type="button"
           onClick={addItem({ items })}
           style={{
             padding: "8px 16px",

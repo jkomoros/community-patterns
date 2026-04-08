@@ -100,6 +100,7 @@ export default pattern<Input, Result>(
     const availableItems = computed(() => {
       const selectedValues = (selectedTags || []).map((t) => t.value);
       return RELATIONSHIP_ITEMS.filter((item) =>
+        // deno-lint-ignore no-explicit-any
         !selectedValues.includes(item.value as any)
       );
     });
@@ -142,6 +143,7 @@ export default pattern<Input, Result>(
                   >
                     {getLabel(tag.value)}
                     <button
+                      type="button"
                       onClick={() => {
                         const current = selectedTags.get();
                         const index = current.findIndex((el) =>
@@ -187,7 +189,7 @@ export default pattern<Input, Result>(
                     }
                   }
                 }}
-                allowCustom={true}
+                allowCustom
               />
             </cf-vstack>
           </cf-card>

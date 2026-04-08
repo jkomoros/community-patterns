@@ -728,7 +728,7 @@ const startGeneration = handler<
 
 // Set extra prompt
 // Uses .key().set() for O(1) update instead of O(n) array replacement
-const setExtraPrompt = handler<
+const _setExtraPrompt = handler<
   unknown,
   {
     spindles: Writable<SpindleConfig[]>;
@@ -1597,7 +1597,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
 
       // Summary - only generate when pinned
       // (empty string prompt causes generateObject to return immediately without API call)
-      const hasPinnedOutput = derive(
+      const _hasPinnedOutput = derive(
         pinnedOutput,
         (o: string | null) => !!o && o.trim() !== "",
       );
@@ -1682,13 +1682,13 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // =========================================================================
 
     // Group spindles by level for display
-    const spindlesByLevel = derive(
+    const _spindlesByLevel = derive(
       { spindleResults, levels },
       (
         deps: { spindleResults: typeof spindleResults; levels: LevelConfig[] },
       ) => {
         // This returns grouped data for display
-        const grouped: Record<number, typeof deps.spindleResults> = {};
+        const _grouped: Record<number, typeof deps.spindleResults> = {};
         // Note: We can't actually iterate spindleResults here since it's a cell array
         // We'll handle grouping in the UI via filtering
         return deps.levels.length;
@@ -1890,6 +1890,7 @@ Make them diverse in genre and tone:
               }}
             >
               <button
+                type="button"
                 onClick={setSynopsis({ spindles, synopsisText, levels })}
                 disabled={hasStartedStory}
                 style={derive(hasStartedStory, (started: boolean) => ({
@@ -1907,6 +1908,7 @@ Make them diverse in genre and tone:
                   started ? "Story Started ✓" : "Start Story →")}
               </button>
               <button
+                type="button"
                 onClick={generateSynopsisIdeas({ synopsisIdeasNonce })}
                 style={{
                   padding: "10px 20px",
@@ -1975,6 +1977,7 @@ Make them diverse in genre and tone:
                     {/* This allows onClick handlers to work because cells aren't read-only */}
                     {ideasList.map((idea) => (
                       <button
+                        type="button"
                         onClick={selectSynopsisIdea({
                           synopsisText,
                           synopsisIdeasNonce,
@@ -2098,6 +2101,7 @@ Make them diverse in genre and tone:
                         >
                           {result.levelTitle}
                           <button
+                            type="button"
                             onClick={openEditBranchModal({
                               showEditBranchModal,
                               editingBranchLevelIndex,
@@ -2124,6 +2128,7 @@ Make them diverse in genre and tone:
                           </button>
                         </span>
                         <button
+                          type="button"
                           onClick={openEditLevelModal({
                             showEditLevelModal,
                             editingLevelIndex,
@@ -2265,6 +2270,7 @@ Make them diverse in genre and tone:
                             derive(result.siblingIndex, (idx: number) =>
                               idx === 0),
                             <button
+                              type="button"
                               onClick={openEditBranchModal({
                                 showEditBranchModal,
                                 editingBranchLevelIndex,
@@ -2314,6 +2320,7 @@ Make them diverse in genre and tone:
                       </div>
                       <div style={{ display: "flex", gap: "8px" }}>
                         <button
+                          type="button"
                           onClick={openViewPromptModal({
                             showViewPromptModal,
                             viewPromptSpindleIndex,
@@ -2332,6 +2339,7 @@ Make them diverse in genre and tone:
                           View Composed Prompt
                         </button>
                         <button
+                          type="button"
                           onClick={openEditLevelModal({
                             showEditLevelModal,
                             editingLevelIndex,
@@ -2353,6 +2361,7 @@ Make them diverse in genre and tone:
                           Edit Prompt
                         </button>
                         <button
+                          type="button"
                           onClick={respinSpindle({
                             spindles,
                             spindleIndex: result.spindleIndex,
@@ -2378,6 +2387,7 @@ Make them diverse in genre and tone:
                               d.levelIndex === (d.levels?.length || 0) - 1,
                           ),
                           <button
+                            type="button"
                             onClick={removeLevel({
                               levels,
                               spindles,
@@ -2466,6 +2476,7 @@ Make them diverse in genre and tone:
                         </div>
                         <div style={{ display: "flex", gap: "4px" }}>
                           <button
+                            type="button"
                             onClick={openEditSpindlePromptModal({
                               showEditSpindlePromptModal,
                               editingSpindlePromptIndex,
@@ -2488,6 +2499,7 @@ Make them diverse in genre and tone:
                           {ifElse(
                             result.hasExtraPrompt,
                             <button
+                              type="button"
                               onClick={clearSpindlePrompt({
                                 spindles,
                                 spindleIndex: result.spindleIndex,
@@ -2557,6 +2569,7 @@ Make them diverse in genre and tone:
                           Ready to generate options
                         </div>
                         <button
+                          type="button"
                           onClick={startGeneration({
                             spindles,
                             spindleIndex: result.spindleIndex,
@@ -2614,6 +2627,7 @@ Make them diverse in genre and tone:
                               Generated Options
                             </div>
                             <button
+                              type="button"
                               onClick={openOptionPicker({
                                 showOptionPicker,
                                 pickerSpindleIndex,
@@ -2746,6 +2760,7 @@ Make them diverse in genre and tone:
                                     derive(result.pinnedIdx, (p: number) =>
                                       p < 0),
                                     <button
+                                      type="button"
                                       onClick={pinOption({
                                         spindles,
                                         levels,
@@ -2895,6 +2910,7 @@ Make them diverse in genre and tone:
                                     derive(result.pinnedIdx, (p: number) =>
                                       p < 0),
                                     <button
+                                      type="button"
                                       onClick={pinOption({
                                         spindles,
                                         levels,
@@ -3044,6 +3060,7 @@ Make them diverse in genre and tone:
                                     derive(result.pinnedIdx, (p: number) =>
                                       p < 0),
                                     <button
+                                      type="button"
                                       onClick={pinOption({
                                         spindles,
                                         levels,
@@ -3193,6 +3210,7 @@ Make them diverse in genre and tone:
                                     derive(result.pinnedIdx, (p: number) =>
                                       p < 0),
                                     <button
+                                      type="button"
                                       onClick={pinOption({
                                         spindles,
                                         levels,
@@ -3374,6 +3392,7 @@ Make them diverse in genre and tone:
                           </div>
                           {isLastLevel && (
                             <button
+                              type="button"
                               onClick={removeLevel({
                                 levels,
                                 spindles,
@@ -3430,6 +3449,7 @@ Make them diverse in genre and tone:
             }}
           >
             <button
+              type="button"
               onClick={openAddLevelModal({
                 showAddLevelModal,
                 newLevelTitle,
@@ -3562,6 +3582,7 @@ Make them diverse in genre and tone:
                   }}
                 >
                   <button
+                    type="button"
                     onClick={closeModal({ showAddLevelModal })}
                     style={{
                       padding: "8px 16px",
@@ -3575,6 +3596,7 @@ Make them diverse in genre and tone:
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={addLevel({
                       levels,
                       spindles,
@@ -3675,6 +3697,7 @@ Make them diverse in genre and tone:
                   }}
                 >
                   <button
+                    type="button"
                     onClick={closeEditLevelModal({ showEditLevelModal })}
                     style={{
                       padding: "8px 16px",
@@ -3688,6 +3711,7 @@ Make them diverse in genre and tone:
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={saveEditLevel({
                       levels,
                       editingLevelIndex,
@@ -3753,6 +3777,7 @@ Make them diverse in genre and tone:
                     Full Composed Prompt
                   </h2>
                   <button
+                    type="button"
                     onClick={closeViewPromptModal({ showViewPromptModal })}
                     style={{
                       padding: "4px 8px",
@@ -3986,6 +4011,7 @@ Make them diverse in genre and tone:
                   }}
                 >
                   <button
+                    type="button"
                     onClick={closeViewPromptModal({ showViewPromptModal })}
                     style={{
                       padding: "8px 16px",
@@ -4080,6 +4106,7 @@ Make them diverse in genre and tone:
                   }}
                 >
                   <button
+                    type="button"
                     onClick={closeEditSpindlePromptModal({
                       showEditSpindlePromptModal,
                     })}
@@ -4095,6 +4122,7 @@ Make them diverse in genre and tone:
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={saveSpindlePrompt({
                       spindles,
                       editingSpindlePromptIndex,
@@ -4182,6 +4210,7 @@ Make them diverse in genre and tone:
                     </p>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button
+                        type="button"
                         onClick={closeEditBranchModal({
                           showEditBranchModal,
                           showBranchDeleteWarning,
@@ -4198,6 +4227,7 @@ Make them diverse in genre and tone:
                         Cancel
                       </button>
                       <button
+                        type="button"
                         onClick={confirmBranchDecrease({
                           levels,
                           spindles,
@@ -4229,6 +4259,7 @@ Make them diverse in genre and tone:
                       }}
                     >
                       <button
+                        type="button"
                         onClick={decrementEditBranchFactor({
                           editBranchFactor,
                         })}
@@ -4256,6 +4287,7 @@ Make them diverse in genre and tone:
                           String(v))}
                       </span>
                       <button
+                        type="button"
                         onClick={incrementEditBranchFactor({
                           editBranchFactor,
                         })}
@@ -4286,6 +4318,7 @@ Make them diverse in genre and tone:
                     }}
                   >
                     <button
+                      type="button"
                       onClick={closeEditBranchModal({
                         showEditBranchModal,
                         showBranchDeleteWarning,
@@ -4302,6 +4335,7 @@ Make them diverse in genre and tone:
                       Cancel
                     </button>
                     <button
+                      type="button"
                       onClick={applyBranchFactor({
                         levels,
                         spindles,
@@ -4358,6 +4392,7 @@ Make them diverse in genre and tone:
                 }}
               >
                 <button
+                  type="button"
                   onClick={closeOptionPicker({ showOptionPicker })}
                   style={{
                     padding: "8px 16px",
@@ -4377,6 +4412,7 @@ Make them diverse in genre and tone:
                 </div>
 
                 <button
+                  type="button"
                   onClick={pinFromPicker({
                     spindles,
                     levels,
@@ -4390,7 +4426,7 @@ Make them diverse in genre and tone:
                         spindleResults,
                       },
                       (
-                        deps: {
+                        _deps: {
                           pickerSpindleIndex: number;
                           pickerPreviewIndex: number;
                           spindleResults: typeof spindleResults;
@@ -4462,6 +4498,7 @@ Make them diverse in genre and tone:
                 }}
               >
                 <button
+                  type="button"
                   onClick={decrementPickerPreviewIndex({
                     pickerPreviewIndex,
                     count: 4,
@@ -4501,6 +4538,7 @@ Make them diverse in genre and tone:
                 </div>
 
                 <button
+                  type="button"
                   onClick={incrementPickerPreviewIndex({
                     pickerPreviewIndex,
                     count: 4,

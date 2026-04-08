@@ -112,7 +112,7 @@ export default pattern(() => {
               </div>
             </div>
           )
-          : <></>}
+          : null}
       </div>
     ),
   };

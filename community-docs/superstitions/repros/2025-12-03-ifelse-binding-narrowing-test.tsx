@@ -76,6 +76,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           style={{ width: "200px", marginRight: "10px" }}
         />
         <button
+          type="button"
           onClick={submitB({ value: inputValueB, result: resultB })}
           style={{ padding: "8px 16px" }}
         >
@@ -124,6 +125,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           >
             <h3>Test A: UI Inline in ifElse</h3>
             <button
+              type="button"
               onClick={toggleA({ show: showInputA })}
               style={{ marginBottom: "10px", padding: "8px 16px" }}
             >
@@ -149,6 +151,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   style={{ width: "200px", marginRight: "10px" }}
                 />
                 <button
+                  type="button"
                   onClick={submitA({ value: inputValueA, result: resultA })}
                   style={{ padding: "8px 16px" }}
                 >
@@ -192,6 +195,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           >
             <h3>Test B: UI Pulled Out to Variable</h3>
             <button
+              type="button"
               onClick={toggleB({ show: showInputB })}
               style={{ marginBottom: "10px", padding: "8px 16px" }}
             >

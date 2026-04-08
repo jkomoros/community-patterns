@@ -57,6 +57,7 @@ export default pattern<TodoListInput, TodoListOutput>(
 
                 {/* Remove button */}
                 <button
+                  type="button"
                   onClick={() => {
                     const current = items.get();
                     const index = current.findIndex((el) => equals(item, el));

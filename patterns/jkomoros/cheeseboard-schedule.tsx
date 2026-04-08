@@ -67,7 +67,7 @@ type PizzaHistory = Record<string, HistoricalPizza>;
 
 interface CheeseboardScheduleInput {
   preferences?: Writable<Default<IngredientPreference[], []>>;
-  history?: Writable<Default<PizzaHistory, {}>>;
+  history?: Writable<Default<PizzaHistory, Record<string, never>>>;
 }
 
 /** Cheeseboard pizza schedule tracker. #cheeseboardSchedule */
@@ -334,6 +334,7 @@ const removeFromHistory = handler<
   { history: Writable<PizzaHistory>; date: string }
 >((_event, { history, date }) => {
   // Set to undefined to remove the key
+  // deno-lint-ignore no-explicit-any
   history.key(date).set(undefined as any);
 });
 
@@ -536,6 +537,7 @@ const CheeseboardSchedule = pattern<
                             null,
                             <>
                               <button
+                                type="button"
                                 onClick={togglePreference({
                                   preferences,
                                   ingredient: ing.normalized,
@@ -552,6 +554,7 @@ const CheeseboardSchedule = pattern<
                                 👍
                               </button>
                               <button
+                                type="button"
                                 onClick={togglePreference({
                                   preferences,
                                   ingredient: ing.normalized,
@@ -613,6 +616,7 @@ const CheeseboardSchedule = pattern<
                   >
                     <span>{pref.ingredient}</span>
                     <button
+                      type="button"
                       onClick={removePreference({
                         preferences,
                         ingredient: pref.ingredient,
@@ -662,6 +666,7 @@ const CheeseboardSchedule = pattern<
                   >
                     <span>{pref.ingredient}</span>
                     <button
+                      type="button"
                       onClick={removePreference({
                         preferences,
                         ingredient: pref.ingredient,
@@ -789,6 +794,7 @@ const CheeseboardSchedule = pattern<
                           </span>
                         </h4>
                         <button
+                          type="button"
                           onClick={removeFromHistory({
                             history,
                             date: pizza.date,
@@ -856,7 +862,9 @@ const CheeseboardSchedule = pattern<
                             };
                           });
 
-                          return <span style={badgeStyle}>{ing.raw}</span>;
+                          return (
+                            <span style={badgeStyle}>key={i}{ing.raw}</span>
+                          );
                         })}
                       </div>
 
@@ -872,6 +880,7 @@ const CheeseboardSchedule = pattern<
                           Did you eat this?
                         </span>
                         <button
+                          type="button"
                           onClick={markAte({
                             history,
                             date: pizza.date,
@@ -893,6 +902,7 @@ const CheeseboardSchedule = pattern<
                           Yes
                         </button>
                         <button
+                          type="button"
                           onClick={markAte({
                             history,
                             date: pizza.date,
