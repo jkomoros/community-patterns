@@ -9,8 +9,10 @@ import {
   type ScopeKey,
 } from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
 
-type Input = Record<string, never>;
-type Output = Record<string, never>;
+// deno-lint-ignore no-empty-interface
+interface Input {}
+// deno-lint-ignore no-empty-interface
+interface Output {}
 
 export default pattern<Input, Output>(() => {
   // Use createGoogleAuth with gmail scope

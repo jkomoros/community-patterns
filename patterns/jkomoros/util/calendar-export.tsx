@@ -315,7 +315,8 @@ export function convertToICS(
  * @param onProgress - Progress callback
  * @returns Export result
  */
-export function exportToGoogle(
+// deno-lint-ignore require-await
+export async function exportToGoogle(
   _auth: Writable<Auth>,
   events: ExportableEvent[],
   config: ExportConfig,
