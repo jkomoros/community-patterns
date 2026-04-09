@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  _OpaqueRef,
   computed,
   Default,
   equals,

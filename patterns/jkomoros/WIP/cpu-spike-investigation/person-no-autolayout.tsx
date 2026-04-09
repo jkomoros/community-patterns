@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  type _Opaque,
   computed,
   Default,
   generateObject,

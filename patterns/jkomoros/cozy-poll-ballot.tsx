@@ -1,7 +1,5 @@
 /// <cts-enable />
 import {
-  _handler,
-  _navigateTo,
   computed,
   Default,
   ifElse,
@@ -64,7 +62,7 @@ function getInitials(name: string): string {
 }
 
 export default pattern<VoterInput, VoterOutput>(
-  ({ question, options, votes, _voterPieces, myName }) => {
+  ({ question, options, votes, myName }) => {
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
       const organized: Record<

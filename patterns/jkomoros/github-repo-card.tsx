@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  _handler,
   _Writable,
   derive,
   fetchData,

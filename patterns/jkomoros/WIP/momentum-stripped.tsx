@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  _computed,
   Default,
   derive,
   fetchData,

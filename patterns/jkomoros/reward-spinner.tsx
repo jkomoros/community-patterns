@@ -95,7 +95,6 @@ const spin = handler<
     _,
     {
       currentEmoji,
-      _isSpinning,
       generosity,
       spinSequence,
       spinCount,
