@@ -1263,7 +1263,11 @@ Be concise and practical in your analysis.`,
                   recipeMentioned.get().filter(Boolean).length > 0
                 ),
                 <cf-vstack gap={1} style="margin-top: 8px;">
-                  {recipeMentioned.map((itemCell: unknown, index: number) => (
+                  {recipeMentioned.map((
+                    // deno-lint-ignore no-explicit-any
+                    itemCell: any,
+                    index: number,
+                  ) => (
                     <div
                       key={index}
                       style={{
@@ -1279,8 +1283,7 @@ Be concise and practical in your analysis.`,
                       <div>
                         {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {computed(() =>
-                            itemCell?.name || itemCell?.[NAME] ||
+                          {computed(() => itemCell?.name || itemCell?.[NAME] ||
                             "Untitled Recipe"
                           )}
                         </div>
@@ -1341,7 +1344,8 @@ Be concise and practical in your analysis.`,
                 ),
                 <cf-vstack gap={1} style="margin-top: 8px;">
                   {preparedFoodMentioned.map((
-                    itemCell: unknown,
+                    // deno-lint-ignore no-explicit-any
+                    itemCell: any,
                     index: number,
                   ) => (
                     <div
@@ -1359,7 +1363,8 @@ Be concise and practical in your analysis.`,
                       <div>
                         {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {computed(() => itemCell?.name || itemCell?.[NAME] ||
+                          {computed(() =>
+                            itemCell?.name || itemCell?.[NAME] ||
                             "Untitled Item"
                           )}
                         </div>

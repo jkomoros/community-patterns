@@ -147,7 +147,9 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(
                             paddingBottom: "0.5rem",
                           }}
                         >
-                          {emailsForNewsletter.map((email: unknown) => (
+                          {emailsForNewsletter.map((
+                            email: { subject: string },
+                          ) => (
                             <div
                               style={{
                                 fontSize: "13px",
