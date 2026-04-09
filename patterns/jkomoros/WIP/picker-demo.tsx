@@ -56,7 +56,7 @@ export default pattern<Input>(
               Picker (should use previewUI)
             </h3>
             <cf-picker
-              $items={items as unknown as never}
+              $items={items as unknown}
               $selectedIndex={selectedIndex}
             />
           </div>

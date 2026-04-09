@@ -1298,8 +1298,9 @@ export default pattern<InputSchema, OutputSchema>(
                   <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
                     {(leakScanResult as LeakScanResult).leakedValues.map((
                       val: string,
+                      i: number,
                     ) => (
-                      <li style={{ fontFamily: "monospace" }}>key={i}{val}</li>
+                      <li key={i} style={{ fontFamily: "monospace" }}>{val}</li>
                     ))}
                   </ul>
                 </div>

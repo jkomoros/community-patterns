@@ -905,7 +905,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                     // PERFORMANCE FIX: Use pre-computed notesDiffChunks
                                     // instead of inline computeWordDiff call
                                     // This reduces calls from N (one per charm instance) to 1
-                                    notesDiffChunks.map((part) =>
+                                    notesDiffChunks.map((part, i) =>
                                       part.type === "removed"
                                         ? (
                                           <span

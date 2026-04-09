@@ -831,7 +831,7 @@ const CheeseboardSchedule = pattern<
                           marginBottom: "0.5rem",
                         }}
                       >
-                        {pizza.ingredients.map((ing) => {
+                        {pizza.ingredients.map((ing, i) => {
                           const badgeStyle = computed(() => {
                             const prefs = preferences.get();
                             const pref = prefs.find((p) =>
@@ -863,7 +863,7 @@ const CheeseboardSchedule = pattern<
                           });
 
                           return (
-                            <span style={badgeStyle}>key={i}{ing.raw}</span>
+                            <span key={i} style={badgeStyle}>{ing.raw}</span>
                           );
                         })}
                       </div>

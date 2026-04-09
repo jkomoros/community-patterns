@@ -392,7 +392,7 @@ export default pattern(() => {
                               <div
                                 style={{ fontSize: "11px", lineHeight: "1.4" }}
                               >
-                                {notesDiffChunks.map((part) => {
+                                {notesDiffChunks.map((part, i) => {
                                   if (part.type === "removed") {
                                     return (
                                       <span

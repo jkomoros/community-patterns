@@ -339,8 +339,8 @@ Execute the instructions by calling the appropriate tools immediately, then conf
                     ? <div style="color: #666;">None yet</div>
                     : (
                       <cf-vstack gap="1">
-                        {charms.map((charm: string) => (
-                          <div>key={i}• {charm}</div>
+                        {charms.map((charm: string, i: number) => (
+                          <div key={i}>• {charm}</div>
                         ))}
                       </cf-vstack>
                     );

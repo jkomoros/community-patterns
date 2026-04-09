@@ -2359,7 +2359,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                 ? (
                                   // PERFORMANCE FIX: Use pre-computed notesDiffChunks
                                   // instead of inline computeWordDiff call
-                                  notesDiffChunks.map((part: DiffChunk) =>
+                                  notesDiffChunks.map((
+                                    part: DiffChunk,
+                                    i: number,
+                                  ) =>
                                     part.type === "removed"
                                       ? (
                                         <span

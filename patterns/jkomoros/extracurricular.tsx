@@ -3243,6 +3243,7 @@ Return all visible text.`,
                               pendingCalendarExport.get();
                             return (p?.skippedItems || []).slice(0, 5).map((
                               item: { className: string; reason: string },
+                              i: number,
                             ) => (
                               <li key={i}>{item.className}: {item.reason}</li>
                             ));

@@ -187,7 +187,7 @@ ${ingredients.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
                         fontSize: "13px",
                       }}
                     >
-                      {dc.warnings.map((warning: string) => (
+                      {dc.warnings.map((warning: string, i: number) => (
                         <li key={i}>{warning}</li>
                       ))}
                     </ul>
