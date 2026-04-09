@@ -10,15 +10,7 @@
  * Test A: Pre-populated default (reported broken)
  * Test B: Empty default + handler (reported working)
  */
-import {
-  _derive,
-  Cell,
-  Default,
-  handler,
-  NAME,
-  pattern,
-  UI,
-} from "commonfabric";
+import { Cell, Default, handler, NAME, pattern, UI } from "commonfabric";
 import { generateObject } from "commonfabric";
 
 interface Sentiment {

@@ -43,8 +43,6 @@ import {
   sanitizeFilename,
 } from "./ical-generator.ts";
 import type {
-  _ExportProgress,
-  _ExportTarget,
   CalendarOutboxEvent,
   DayOfWeek,
   ExportableEvent,

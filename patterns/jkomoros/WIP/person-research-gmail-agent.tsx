@@ -452,9 +452,6 @@ const PersonResearchGmailAgent = pattern<
   PersonResearchOutput
 >(
   ({
-    _personName,
-    _knownEmail,
-    _contextNotes,
     maxSearches,
     isScanning,
     lastScanAt,
@@ -466,7 +463,6 @@ const PersonResearchGmailAgent = pattern<
     topics,
     organizations,
     communicationStats,
-    _agenticNotes,
   }) => {
     // ========================================================================
     // LOCAL WRITABLE CELLS FOR USER INPUT

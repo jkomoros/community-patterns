@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  _ifElse,
   computed,
   Default,
   derive,

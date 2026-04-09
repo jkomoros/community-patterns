@@ -1,13 +1,5 @@
 /// <cts-enable />
-import {
-  _Writable,
-  derive,
-  fetchData,
-  ifElse,
-  NAME,
-  pattern,
-  UI,
-} from "commonfabric";
+import { derive, fetchData, ifElse, NAME, pattern, UI } from "commonfabric";
 
 /**
  * GitHub Repo Card

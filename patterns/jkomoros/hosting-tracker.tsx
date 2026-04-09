@@ -29,7 +29,6 @@ import Family from "./family.tsx";
 import CalendarViewer from "../../../labs/packages/patterns/google/core/experimental/calendar-viewer.tsx";
 import GoogleCalendarImporter from "../../../labs/packages/patterns/google/core/google-calendar-importer.tsx";
 import {
-  _FamilyMember,
   Address,
   ClassificationRule,
   computeHostingStatus,
