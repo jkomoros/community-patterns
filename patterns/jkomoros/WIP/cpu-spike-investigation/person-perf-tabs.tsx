@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Perf Tabs
  * @description Test if ct-autolayout tabs cause the ~60s CPU spike

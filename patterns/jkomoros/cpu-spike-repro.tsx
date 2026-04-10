@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * CPU Spike Repro - Testing pattern instantiation in handlers
  *

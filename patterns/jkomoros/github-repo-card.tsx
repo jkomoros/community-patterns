@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { derive, fetchData, ifElse, NAME, pattern, UI } from "commonfabric";
 
 /**

@@ -88,7 +88,6 @@ const policy = {
 
 ```tsx
 // patterns/jkomoros/gmail-sender.tsx
-/// <cts-enable />
 
 import {
   Cell,
@@ -383,7 +382,6 @@ export default pattern<Input>(({ draft }) => {
 
 ```tsx
 // patterns/jkomoros/calendar-event-manager.tsx
-/// <cts-enable />
 
 import {
   Cell,

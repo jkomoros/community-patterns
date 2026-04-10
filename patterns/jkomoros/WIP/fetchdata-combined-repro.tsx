@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Combined repro: ALL patterns from github-momentum-tracker together
  *

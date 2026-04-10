@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { NAME, pattern, UI } from "commonfabric";
 import SpaceSetup from "./space-setup.tsx";
 import { DEMO_PERSON_NOTES, DEMO_RECIPE_NOTES } from "./demo-constants.ts";

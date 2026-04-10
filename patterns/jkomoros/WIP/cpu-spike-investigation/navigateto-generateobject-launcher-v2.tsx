@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Extract Launcher V2
  * @description Launcher for pattern() wrapper test

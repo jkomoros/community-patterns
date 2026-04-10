@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * MINIMAL REPRO: Self-Referential Wish + Merge Loop (CT-1098)
  *

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * FAVORITES VIEWER
  *

@@ -18,7 +18,6 @@ result, this adds up to 15.4 seconds of blocking time.
 **Launcher (`person-test-launcher.tsx`):**
 
 ```typescript
-/// <cts-enable />
 import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 import Person from "./person.tsx";
 

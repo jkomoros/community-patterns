@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Simple pattern for testing charm setsrc behavior
  * Version 2 - UPDATED via setsrc test

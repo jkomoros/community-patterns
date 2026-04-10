@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Minimal repro #2 for Frame mismatch error
  *

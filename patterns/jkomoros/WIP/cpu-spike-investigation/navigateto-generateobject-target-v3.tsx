@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Extract Target V3 (changesPreview)
  * @description Test 2: Uses pattern() + changesPreview computed like person.tsx

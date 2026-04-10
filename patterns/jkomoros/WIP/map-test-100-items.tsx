@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * MAP TEST - 100 ITEMS (Simplified)
  *

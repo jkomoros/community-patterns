@@ -9,7 +9,6 @@ component works correctly in the same context.
 ## Minimal Repro
 
 ```tsx
-/// <cts-enable />
 import {
   Cell,
   Default,

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Dynamic Cell + ct-autolayout Repro
  * @description Tests if ct-autolayout triggers the ~35s freeze

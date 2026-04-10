@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Extract Launcher V3
  * @description Launcher for changesPreview test (Test 2)

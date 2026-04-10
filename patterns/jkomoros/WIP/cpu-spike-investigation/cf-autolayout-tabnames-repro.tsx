@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title CTAutoLayout TabNames Bug Repro
  * @description Minimal test for cf-autolayout tabNames undefined issue

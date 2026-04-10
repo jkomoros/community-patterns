@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * PDF UPLOAD SUPPORT - Investigation Results (2025-11-23)
  *

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * REPRO: Exact github-momentum-tracker structure
  *

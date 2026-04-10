@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Perf Stripped
  * @description Stripped-down person.tsx to isolate CPU spike cause

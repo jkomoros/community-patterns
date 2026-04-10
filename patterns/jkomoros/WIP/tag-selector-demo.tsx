@@ -1,5 +1,3 @@
-/// <cts-enable />
-
 /**
  * Tag Selector Demo - Demonstrates ct-autocomplete with a tag/chip list
  *

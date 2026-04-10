@@ -593,7 +593,6 @@ deno task ct charm new ../community-patterns-2/patterns/jkomoros/WIP/momentum-st
 ### Full Minimal Reproduction Code
 
 ```typescript
-/// <cts-enable />
 import {
   Cell,
   Default,

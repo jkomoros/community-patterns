@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Demo pattern to test ct-render variant="preview" support.
  * Creates multiple instances and displays them in a ct-picker.

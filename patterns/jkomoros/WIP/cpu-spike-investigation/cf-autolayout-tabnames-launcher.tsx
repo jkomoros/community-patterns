@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title CTAutoLayout TabNames Launcher
  * @description Launcher to test cf-autolayout via navigateTo

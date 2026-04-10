@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Extract Target V2 (recipe)
  * @description Test 1: Uses pattern() wrapper instead of pattern()

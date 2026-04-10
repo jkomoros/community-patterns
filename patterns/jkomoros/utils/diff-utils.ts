@@ -75,8 +75,6 @@
  * modals, Option A (pattern-based) becomes worth the abstraction cost.
  */
 
-/// <cts-enable />
-
 export type DiffChunk = {
   type: "removed" | "added" | "unchanged";
   word: string;

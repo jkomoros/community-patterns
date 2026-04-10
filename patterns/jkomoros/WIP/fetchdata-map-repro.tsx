@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Minimal reproduction: fetchData inside .map() causes Frame mismatch
  *

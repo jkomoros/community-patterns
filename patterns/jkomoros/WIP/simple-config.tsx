@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Simple config pattern - used as imported dependency for repro testing
  */

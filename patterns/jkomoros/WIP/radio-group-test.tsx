@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Test pattern for ct-radio-group with items prop
  */

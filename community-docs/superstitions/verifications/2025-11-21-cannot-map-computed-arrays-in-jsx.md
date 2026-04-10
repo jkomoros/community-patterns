@@ -26,7 +26,6 @@ computing data and mapping in JSX.
 <!-- Source: repros/2025-11-21-cannot-map-computed-arrays-in-jsx.tsx -->
 
 ```tsx
-/// <cts-enable />
 import { cell, computed, handler, NAME, recipe, UI } from "commonfabric";
 
 export default pattern(

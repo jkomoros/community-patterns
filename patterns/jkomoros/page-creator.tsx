@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 // Demo data for extraction demos

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Nested Map Performance Repro
  * @description Minimal repro for O(n²) scheduler performance with nested maps

@@ -1,5 +1,3 @@
-/// <cts-enable />
-
 /**
  * Autocomplete Value Demo - Demonstrates ct-autocomplete $value binding
  *

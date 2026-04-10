@@ -1,4 +1,3 @@
-/// <cts-enable />
 // HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Pre-populated Defaults + generateObject in map()

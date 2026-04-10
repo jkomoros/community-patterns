@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { Default, equals, NAME, pattern, UI, Writable } from "commonfabric";
 
 /**

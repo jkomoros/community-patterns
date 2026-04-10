@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title CTAutoLayout TabNames Launcher
  * @description Launcher to test ct-autolayout via navigateTo

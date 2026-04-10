@@ -8,7 +8,7 @@ on:
     branches:
       - main
 env:
-  CF_COMMIT_SHA: 9d8c953e6ff3959e0edd30c45294c8bb1628ba79
+  CF_COMMIT_SHA: da95f7775bf852580f5b3e41944e4183e7e8f4fc
 
 jobs:
   check-patterns:
@@ -37,18 +37,8 @@ jobs:
       - name: 📥 Install cf
         run: |
           mkdir -p bin
-          # Extract the jumble frontend artifacts from the tarball if they exist
-          # or download them from a known location if stored separately
           tar -xzf downloaded-artifacts/labs-${{ env.CF_COMMIT_SHA }}.tar.gz -C bin
           chmod -R 755 bin
-          # The pinned labs build still ships the binary as `ct`; the CLI
-          # itself accepts either name (it normalizes via CF_CLI_NAME), so
-          # symlink so callers can invoke it as `cf`. Drop this once
-          # CF_COMMIT_SHA is bumped to a build that ships `cf` directly.
-          if [ -f bin/ct ] && [ ! -e bin/cf ]; then
-            ln -s ct bin/cf
-          fi
-          # Set tools to path
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
       - name: 📥 Checkout labs (for cross-repo imports)

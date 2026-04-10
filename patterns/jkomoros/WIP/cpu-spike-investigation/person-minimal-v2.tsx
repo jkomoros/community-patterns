@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Minimal V2
  * @description V2: Adding ct-autolayout with tabs

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * PROTOTYPE: Search-Select Component (User-land Pattern)
  *

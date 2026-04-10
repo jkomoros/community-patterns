@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Real Person Launcher
  * @description Launcher that creates REAL person.tsx via navigateTo

@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { computed, Default, NAME, pattern, UI } from "commonfabric";
 import GmailImporter from "../../../labs/packages/patterns/google/core/gmail-importer.tsx";
 

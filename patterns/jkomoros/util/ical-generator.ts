@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * iCal/ICS Generator Utility
  *

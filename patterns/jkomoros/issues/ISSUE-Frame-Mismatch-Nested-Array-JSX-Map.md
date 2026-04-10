@@ -31,7 +31,6 @@ the pattern runs.
 File: `patterns/jkomoros/WIP/frame-mismatch-repro-3.tsx`
 
 ```typescript
-/// <cts-enable />
 /**
  * Minimal repro #3 for Frame mismatch error
  *
@@ -227,7 +226,6 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
 File: `patterns/jkomoros/WIP/frame-mismatch-repro-4.tsx`
 
 ```typescript
-/// <cts-enable />
 /**
  * Minimal repro #4 for Frame mismatch error
  *

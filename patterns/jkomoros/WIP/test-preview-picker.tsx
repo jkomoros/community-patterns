@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Test pattern to verify previewUI in the picker.
  * Uses wish("#googleAuth") to trigger the multi-account picker.

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Repro: Does importing and instantiating another pattern inline
  * interact badly with fetchData inside .map()?

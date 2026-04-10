@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * MINIMAL REPRO: fetchData with EMPTY URL inside .map() causes Frame mismatch
  *

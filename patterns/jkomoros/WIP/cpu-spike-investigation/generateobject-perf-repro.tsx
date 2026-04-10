@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title generateObject Performance Repro
  * @description Minimal repro for CPU spike during LLM extraction

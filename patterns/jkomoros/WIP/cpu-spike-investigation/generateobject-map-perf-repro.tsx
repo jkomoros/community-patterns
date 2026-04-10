@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title generateObject + Map Performance Repro
  * @description Minimal repro for CPU spike when generateObject result triggers nested map render

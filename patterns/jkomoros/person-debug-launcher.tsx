@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Debug Launcher
  * @description Launcher for debugging person.tsx CPU spike - whittle down approach

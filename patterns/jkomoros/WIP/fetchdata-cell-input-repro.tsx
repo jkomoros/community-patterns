@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Repro: Does Writable<object> input parameter interact badly with fetchData inside .map()?
  *

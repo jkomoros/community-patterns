@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * REPRO: Multiple fetchData with EMPTY URLs inside .map()
  *

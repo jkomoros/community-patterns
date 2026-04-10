@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Shared Report Handler for LLM Tools
  *

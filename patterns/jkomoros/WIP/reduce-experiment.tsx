@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * EXPERIMENT: Test if derive() with array.reduce() unwraps Cell array items
  *

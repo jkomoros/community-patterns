@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { generateObject, NAME, pattern, toSchema, UI } from "commonfabric";
 
 interface TestResult {

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * REPRO: fetchData with `options` containing derived headers + empty URL
  *

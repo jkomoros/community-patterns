@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Test Launcher
  * @description Fresh launcher to test person.tsx via navigateTo

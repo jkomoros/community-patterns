@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * STORY WEAVER - Level-Based Architecture
  * (Formerly Spindle Board)

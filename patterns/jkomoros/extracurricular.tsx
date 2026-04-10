@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Extracurricular Selector
  *

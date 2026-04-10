@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Person Research Gmail Agent
  *

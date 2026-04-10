@@ -24,7 +24,6 @@ should reactively update and re-render with the new computed style.
 Here's a simplified version demonstrating the issue:
 
 ```tsx
-/// <cts-enable />
 import {
   Cell,
   cell,

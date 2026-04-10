@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Perf Autolayout
  * @description Test if ct-autolayout causes the ~60s CPU spike

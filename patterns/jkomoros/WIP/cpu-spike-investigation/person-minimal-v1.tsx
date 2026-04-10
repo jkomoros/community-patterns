@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person Minimal V1
  * @description Stripped down person.tsx - minimal skeleton to find bug trigger

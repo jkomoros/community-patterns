@@ -136,7 +136,6 @@ method.
 Here's the complete pattern showing where automatic save is needed:
 
 ```typescript
-/// <cts-enable />
 import {
   Cell,
   computed,

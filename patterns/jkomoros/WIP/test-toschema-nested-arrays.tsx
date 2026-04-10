@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { generateObject, NAME, pattern, toSchema, UI } from "commonfabric";
 
 // Test nested arrays with toSchema<T>()

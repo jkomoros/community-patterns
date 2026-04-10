@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Dynamic Cell Creation Performance Repro
  * @description Minimal repro for O(n²) performance during dynamic cell creation

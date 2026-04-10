@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Extract Target
  * @description Minimal repro target - shows ~90s CPU spike when created via navigateTo

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title generateObject Map Perf Launcher
  * @description Launcher for the generateObject + map performance repro

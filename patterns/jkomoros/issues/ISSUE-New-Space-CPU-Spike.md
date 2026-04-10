@@ -29,7 +29,6 @@ current tracked one).
 <summary>Full pattern source (click to expand)</summary>
 
 ```tsx
-/// <cts-enable />
 import {
   Cell,
   computed,

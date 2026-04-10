@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Family Pattern
  *

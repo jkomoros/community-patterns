@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * PROMPT INJECTION TRACKER V3
  *

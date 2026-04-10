@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * LLM Tool Wrappers for Gmail/Calendar Write APIs
  *

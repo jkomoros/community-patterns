@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Test pattern for ct-render variant="preview" support.
  * Exports both [UI] (full) and previewUI (compact) to test that

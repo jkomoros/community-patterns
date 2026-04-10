@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Person No-AutoLayout Launcher
  * @description Test if ct-autolayout is the cause of the ~40s freeze

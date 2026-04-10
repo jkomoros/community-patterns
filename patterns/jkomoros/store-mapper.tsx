@@ -1,4 +1,3 @@
-/// <cts-enable />
 // Stub: the original store-mapper pattern was deleted in an earlier commit
 // but space-setup.tsx and page-creator.tsx still import it. This stub keeps
 // those files type-checking until they drop the dead references.

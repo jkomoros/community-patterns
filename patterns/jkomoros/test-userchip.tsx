@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Simple test pattern for userChip verification.
  * Links directly to a google-auth charm to bypass wish picker.

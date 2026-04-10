@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Helper pattern for fetchdata-inline-fetch-repro.tsx
  * Simulates GitHubAuth - a pattern that itself has fetchData calls

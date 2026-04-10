@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * iMessage Viewer
  *

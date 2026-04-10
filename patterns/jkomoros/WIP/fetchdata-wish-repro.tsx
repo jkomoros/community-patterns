@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * Repro: Does `wish` primitive interact badly with fetchData inside .map()?
  *

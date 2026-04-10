@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * MINIMAL REPRO: Handler Generic Type Schema Bug
  *

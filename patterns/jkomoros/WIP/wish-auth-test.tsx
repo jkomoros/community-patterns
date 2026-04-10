@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * WISH AUTH TEST
  *

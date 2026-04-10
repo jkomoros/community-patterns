@@ -1,4 +1,3 @@
-/// <cts-enable />
 import { _Writable, Default, NAME, pattern, UI } from "commonfabric";
 
 interface TestInput {

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * CPU Spike Whittle-Down Test - STEP 2
  *

@@ -1,4 +1,3 @@
-/// <cts-enable />
 /**
  * @title Extract Launcher
  * @description Minimal repro launcher - triggers the ~90s CPU spike bug
