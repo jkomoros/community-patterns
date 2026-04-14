@@ -65,14 +65,35 @@ and may not be accessible depending on your permissions."
 
 **Guide user to get their API keys.**
 
+> **Heads-up on naming:** toolshed reads LLM provider keys from env vars
+> prefixed with `CFTS_AI_LLM_` (e.g. `CFTS_AI_LLM_ANTHROPIC_API_KEY`,
+> `CFTS_AI_LLM_OPENAI_API_KEY`). The conventional `ANTHROPIC_API_KEY` /
+> `OPENAI_API_KEY` names are **not** read. Use the prefixed names verbatim
+> in the `.env` file in Step 3, or the model won't be registered and
+> requests that target it will fail. The authoritative list of supported
+> names is `labs/packages/toolshed/.env.example`.
+
 **Anthropic API Key** (REQUIRED):
 
 1. Visit: https://console.anthropic.com/
 2. Navigate to "API Keys" → Create new key
 3. Save it securely - they'll need it in the next step
 4. **This is the only required key to get started**
+5. Env var name: `CFTS_AI_LLM_ANTHROPIC_API_KEY`
 
 **Optional keys** (only needed for specific features):
+
+**OpenAI API Key** (for patterns that target GPT models):
+
+1. Visit: https://platform.openai.com/api-keys
+2. Create a new secret key
+3. Save it securely
+4. Env var name: `CFTS_AI_LLM_OPENAI_API_KEY`
+
+**Other LLM providers** (Groq, Cerebras, Perplexity, XAI, AWS Bedrock,
+Google Vertex): each has its own `CFTS_AI_LLM_<PROVIDER>_API_KEY` variable.
+See `labs/packages/toolshed/.env.example` for the complete list and exact
+names.
 
 **Jina AI** (for web search in patterns):
 
@@ -114,6 +135,11 @@ needed."
 Guide user to create `.env` file in `labs/packages/toolshed` with their API
 keys.
 
+**Reminder:** LLM provider keys must use the `CFTS_AI_LLM_` prefix (e.g.
+`CFTS_AI_LLM_OPENAI_API_KEY`, not `OPENAI_API_KEY`). If a pattern targets a
+model whose provider key isn't set, the server won't know about that model
+and the request will fail.
+
 ```bash
 cd "$LABS_DIR/packages/toolshed"
 
@@ -131,6 +157,14 @@ OTEL_ENABLED=false
 ## REQUIRED: Anthropic API Key
 # Get from: https://console.anthropic.com/
 CFTS_AI_LLM_ANTHROPIC_API_KEY=sk-ant-xxxx-their-actual-key-here
+
+## OPTIONAL: OpenAI API Key (only needed if patterns target GPT models)
+# Get from: https://platform.openai.com/api-keys
+# CFTS_AI_LLM_OPENAI_API_KEY=sk-xxxx-their-actual-key-here
+
+## OPTIONAL: Other LLM providers (Groq, Cerebras, Perplexity, XAI, etc.)
+## See labs/packages/toolshed/.env.example for the full list of supported
+## CFTS_AI_LLM_* variables.
 
 ## OPTIONAL: Jina AI web reader API key (only needed for web search in patterns)
 # Get from: https://jina.ai/
