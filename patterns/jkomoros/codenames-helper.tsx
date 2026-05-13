@@ -58,6 +58,15 @@ interface ClueSuggestionsResult {
   clues: ClueIdea[];
 }
 
+type ImageUploadEvent = {
+  detail?: {
+    images?: ImageData[];
+    files?: ImageData[];
+    allImages?: ImageData[];
+    allFiles?: ImageData[];
+  };
+};
+
 // MANUAL JSON SCHEMAS with $defs - workaround for toSchema<T>() limitation
 // toSchema<T>() fails to generate complete schemas with nested arrays
 // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
@@ -408,6 +417,19 @@ const rejectExtraction = handler<
   const approvals = approvalState.get().slice();
   approvals.splice(idx, 1);
   approvalState.set(approvals);
+});
+
+const appendUploadedPhotos = handler<
+  ImageUploadEvent,
+  { uploadedPhotos: Writable<ImageData[]> }
+>(({ detail }, { uploadedPhotos }) => {
+  const uploaded = detail?.images ?? detail?.files ?? [];
+  if (uploaded.length === 0) return;
+
+  uploadedPhotos.set([
+    ...(uploadedPhotos.get() ?? []),
+    ...uploaded,
+  ]);
 });
 
 // Update correction text
@@ -1232,7 +1254,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                   showPreview={false}
                   buttonText="📷 Upload Board & Key Card Photos"
                   variant="secondary"
-                  $images={uploadedPhotos}
+                  oncf-change={appendUploadedPhotos({ uploadedPhotos })}
                 />
 
                 {/* Display extraction results with confirmation dialog */}

@@ -13,15 +13,28 @@ if [ ! -d "$LABS_DIR" ]; then
   exit 1
 fi
 
+run_cf() {
+  if command -v deno >/dev/null 2>&1; then
+    export INIT_CWD="$REPO_ROOT"
+    cd "$LABS_DIR"
+    exec deno task cf "$@"
+  fi
+
+  if command -v cf >/dev/null 2>&1; then
+    cd "$REPO_ROOT"
+    exec cf "$@"
+  fi
+
+  echo "Error: Cannot find deno or cf in PATH" >&2
+  exit 1
+}
+
 # Auto-inject --root for commands that need cross-repo import resolution
 PARENT_DIR="$REPO_ROOT/.."
-export INIT_CWD="$REPO_ROOT"
-cd "$LABS_DIR"
-
 if [[ "${1:-}" == "piece" && "${2:-}" == "new" ]]; then
-  exec deno task cf piece new --root "$PARENT_DIR" "${@:3}"
+  run_cf piece new --root "$PARENT_DIR" "${@:3}"
 elif [[ "${1:-}" == "dev" || "${1:-}" == "check" ]]; then
-  exec deno task cf "$1" --root "$PARENT_DIR" "${@:2}"
+  run_cf "$1" --root "$PARENT_DIR" "${@:2}"
 else
-  exec deno task cf "$@"
+  run_cf "$@"
 fi
