@@ -1196,7 +1196,10 @@ Be precise with categorical values - use exact label matches.`;
 
                       <cf-hstack gap="1">
                         <span style={{ marginRight: "0.5rem" }}>
-                          Weight: {dim.multiplier.toFixed(1)}×
+                          Weight: {derive(
+                            dim.multiplier,
+                            (multiplier: number) => multiplier.toFixed(1),
+                          )}×
                         </span>
                         <cf-button
                           onClick={changeDimensionMultiplier({

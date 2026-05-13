@@ -2,8 +2,10 @@
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PROJECT_ROOT="$SCRIPT_DIR/.."
+CF="$SCRIPT_DIR/cf"
 
 FAILED_FILES=()
+SKIPPED_WIP=0
 FILTER=""
 
 while [[ $# -gt 0 ]]; do
@@ -27,11 +29,9 @@ is_skipped() {
   head -5 "$1" | grep -q "@cf-typecheck-skip"
 }
 
-CF_ROOT_ARGS=()
-# Auto-inject --root for cross-repo import resolution (e.g., imports from ../labs/)
-if [ -d "$PROJECT_ROOT/../labs" ]; then
-  CF_ROOT_ARGS=(--root "$PROJECT_ROOT/..")
-fi
+is_wip() {
+  [[ "$1" == *"/WIP/"* ]]
+}
 
 check_file() {
   local file="$1"
@@ -49,7 +49,7 @@ check_file() {
   fi
 
   echo "Checking $file..."
-  if ! cf dev "$file" --no-run "${CF_ROOT_ARGS[@]}"; then
+  if ! "$CF" dev "$file" --no-run; then
     echo "❌ Error in $file"
     FAILED_FILES+=("$file")
   fi
@@ -65,8 +65,17 @@ should_check() {
 cd "$PROJECT_ROOT"
 
 for file in $(find patterns -name "*.tsx"); do
+  if [ -z "$FILTER" ] && is_wip "$file"; then
+    SKIPPED_WIP=$((SKIPPED_WIP + 1))
+    continue
+  fi
+
   should_check "$file" && check_file "$file"
 done
+
+if [ "$SKIPPED_WIP" -gt 0 ]; then
+  echo "Skipped $SKIPPED_WIP WIP files (use -f WIP to check scratch patterns)."
+fi
 
 if [ ${#FAILED_FILES[@]} -gt 0 ]; then
   echo ""
@@ -76,6 +85,6 @@ if [ ${#FAILED_FILES[@]} -gt 0 ]; then
   done
   exit 1
 else
-  echo "✅ All files passed typecheck."
+  echo "✅ All checked files passed typecheck."
   exit 0
 fi
