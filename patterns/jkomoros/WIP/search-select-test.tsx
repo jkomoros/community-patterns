@@ -1,7 +1,6 @@
 import {
   computed,
   Default,
-  derive,
   NAME,
   pattern,
   UI,
@@ -47,7 +46,7 @@ export default pattern<TestInput>(({ initialSelected }) => {
   // Default<string[], []> already handles the default value, so we can use it directly
   // We use derive to create a cell that properly tracks the value
   const selected = Writable.of<string[]>(
-    derive(initialSelected, (val) => val ?? []),
+    computed(() => initialSelected ?? []),
   );
 
   // Create the search-select instance
