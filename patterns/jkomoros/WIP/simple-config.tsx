@@ -2,15 +2,17 @@
  * Simple config pattern - used as imported dependency for repro testing
  */
 
-import { computed, Default, NAME, pattern, UI, Writable } from "commonfabric";
+import { computed, Default, NAME, pattern, UI, type VNode } from "commonfabric";
 
 interface Input {
   multiplier?: Default<number, 1>;
 }
 
 interface Output {
-  multiplier: Writable<number>;
-  doubled: Writable<number>;
+  [NAME]: string;
+  [UI]: VNode;
+  multiplier: number;
+  doubled: number;
 }
 
 export default pattern<Input, Output>(({ multiplier }) => {

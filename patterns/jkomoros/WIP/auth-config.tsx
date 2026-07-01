@@ -6,11 +6,12 @@
 import {
   computed,
   Default,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -19,9 +20,11 @@ interface Input {
 }
 
 interface Output {
-  token: Writable<string>;
-  isValid: Writable<boolean>;
-  userData: Writable<{ login: string } | null>;
+  [NAME]: string;
+  [UI]: VNode;
+  token: string;
+  isValid: boolean;
+  userData: { login: string } | null;
 }
 
 const setToken = handler<unknown, { token: Writable<string>; value: string }>(
@@ -38,9 +41,8 @@ export default pattern<Input, Output>(({ token }) => {
   );
 
   // THIS IS KEY: fetchData inside the auth pattern itself
-  const userResponse = fetchData<{ id: number; name: string; email: string }>({
+  const userResponse = fetchJson<{ id: number; name: string; email: string }>({
     url: userUrl,
-    mode: "json",
     options: {
       method: "GET",
       headers: computed(() => ({
