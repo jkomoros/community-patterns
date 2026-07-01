@@ -1,12 +1,13 @@
 import {
   computed,
   Default,
-  fetchData,
+  fetchJson,
   handler,
   ifElse,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -46,6 +47,8 @@ interface Input {
 
 /** GitHub Personal Access Token authentication. #githubAuth */
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   token: string;
   isValid: boolean;
   username: string;
@@ -89,9 +92,8 @@ export default pattern<Input, Output>(({ token }) => {
   );
 
   // Fetch user info to validate token (skipped when URL is empty)
-  const userResponse = fetchData<GitHubUser>({
+  const userResponse = fetchJson<GitHubUser>({
     url: userUrl,
-    mode: "json",
     options: {
       method: "GET",
       headers: computed(() => ({
@@ -103,9 +105,8 @@ export default pattern<Input, Output>(({ token }) => {
   });
 
   // Fetch rate limit info (skipped when URL is empty)
-  const rateLimitResponse = fetchData<GitHubRateLimit>({
+  const rateLimitResponse = fetchJson<GitHubRateLimit>({
     url: rateLimitUrl,
-    mode: "json",
     options: {
       method: "GET",
       headers: computed(() => ({

@@ -14,10 +14,10 @@
  * import { compareFields, computeWordDiff } from "./utils/diff-utils.ts";
  *
  * // 1. Derive changes from extraction result
- * const changesPreview = derive({ extractionResult, ...currentFields }, (data) => {
- *   return compareFields(data.extractionResult, {
- *     name: { current: data.currentName, label: "Name" },
- *     email: { current: data.currentEmail, label: "Email" }
+ * const changesPreview = computed(() => {
+ *   return compareFields(extractionResult, {
+ *     name: { current: currentName, label: "Name" },
+ *     email: { current: currentEmail, label: "Email" }
  *   });
  * });
  *

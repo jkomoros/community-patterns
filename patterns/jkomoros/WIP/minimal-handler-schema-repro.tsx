@@ -1,3 +1,4 @@
+// @cf-typecheck-skip  (reason: repro deliberately calls handler<T>() inside a standalone generic factory, now a hard compiler error)
 /**
  * MINIMAL REPRO: Handler Generic Type Schema Bug
  *
@@ -74,7 +75,7 @@ const explicitSchemaHandler = handler(
       name: { type: "string", description: "Name of the item" },
       category: { type: "string", description: "Category of the item" },
       priority: { type: "number", description: "Priority 1-10" },
-      result: { type: "object", asCell: true },
+      result: { type: "object", asCell: ["cell"] },
     },
     required: ["name", "category", "priority"],
   },
@@ -82,7 +83,7 @@ const explicitSchemaHandler = handler(
   {
     type: "object",
     properties: {
-      items: { type: "array", items: {}, asCell: true },
+      items: { type: "array", items: {}, asCell: ["cell"] },
     },
     required: ["items"],
   },

@@ -1,6 +1,6 @@
 import {
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -116,17 +116,15 @@ function getContextIcon(type: ContextItem["type"]): string {
 }
 
 export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
-  // Use derive for all reactive transformations (avoids .get() issues)
-  const contextType = derive(currentContext, (ctx) => ctx.type);
-  const contextTitle = derive(currentContext, (ctx) => ctx.title);
-  const contextContent = derive(currentContext, (ctx) => ctx.content);
-  const contextIcon = derive(contextType, getContextIcon);
+  // Use computed for all reactive transformations
+  const contextType = computed(() => currentContext.type);
+  const contextTitle = computed(() => currentContext.title);
+  const contextContent = computed(() => currentContext.content);
+  const contextIcon = computed(() => getContextIcon(contextType));
 
-  // Build a wish query for contextual suggestions using derive
-  const suggestionQuery = derive(
-    currentContext,
-    (ctx) =>
-      `Based on this ${ctx.type} about "${ctx.title}": ${ctx.content}. Suggest something related or helpful.`,
+  // Build a wish query for contextual suggestions using computed
+  const suggestionQuery = computed(() =>
+    `Based on this ${currentContext.type} about "${currentContext.title}": ${currentContext.content}. Suggest something related or helpful.`
   );
 
   // Wish for contextual suggestions
@@ -140,24 +138,20 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
     },
   });
 
-  // Filter notes using derive (avoids .get() issues)
-  const notesForCurrentContext = derive(
-    { notes, currentContext },
-    ({ notes: noteList, currentContext: ctx }) =>
-      noteList.filter((n) => n.contextTitle === ctx.title),
+  // Filter notes using computed
+  const notesForCurrentContext = computed(() =>
+    notes.filter((n) => n.contextTitle === currentContext.title)
   );
 
-  const otherNotes = derive(
-    { notes, currentContext },
-    ({ notes: noteList, currentContext: ctx }) =>
-      noteList.filter((n) => n.contextTitle !== ctx.title),
+  const otherNotes = computed(() =>
+    notes.filter((n) => n.contextTitle !== currentContext.title)
   );
 
-  const notesCount = derive(notesForCurrentContext, (n) => n.length);
-  const otherNotesCount = derive(otherNotes, (n) => n.length);
+  const notesCount = computed(() => notesForCurrentContext.length);
+  const otherNotesCount = computed(() => otherNotes.length);
 
   return {
-    [NAME]: derive(contextTitle, (title) => `Notes: ${title}`),
+    [NAME]: computed(() => `Notes: ${contextTitle}`),
     [UI]: (
       <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }}>
         <h2>Context-Aware Note Taker</h2>
@@ -202,13 +196,11 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                       border: "1px solid #ddd",
                       borderRadius: "4px",
                       cursor: "pointer",
-                      backgroundColor: derive(
-                        contextType,
-                        (ct) => ct === type ? "#007bff" : "#fff",
+                      backgroundColor: computed(() =>
+                        contextType === type ? "#007bff" : "#fff"
                       ),
-                      color: derive(
-                        contextType,
-                        (ct) => ct === type ? "#fff" : "#333",
+                      color: computed(() =>
+                        contextType === type ? "#fff" : "#333"
                       ),
                     }}
                   >
@@ -313,7 +305,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                 Notes for "{contextTitle}" ({notesCount})
               </h3>
               {ifElse(
-                derive(notesCount, (c) => c === 0),
+                computed(() => notesCount === 0),
                 <p style={{ color: "#666", fontStyle: "italic" }}>
                   No notes yet for this context.
                 </p>,
@@ -340,9 +332,8 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                           {note.noteContent}
                         </div>
                         <div style={{ fontSize: "0.75rem", color: "#999" }}>
-                          {derive(
-                            note,
-                            (n) => new Date(n.createdAt).toLocaleString(),
+                          {computed(() =>
+                            new Date(note.createdAt).toLocaleString()
                           )}
                         </div>
                       </div>
@@ -367,7 +358,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
 
             {/* Other notes */}
             {ifElse(
-              derive(otherNotesCount, (c) => c > 0),
+              computed(() => otherNotesCount > 0),
               <details
                 style={{
                   padding: "1rem",
@@ -403,12 +394,10 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                           marginBottom: "0.25rem",
                         }}
                       >
-                        {derive(
-                          note,
-                          (n) =>
-                            getContextIcon(
-                              n.contextType as ContextItem["type"],
-                            ),
+                        {computed(() =>
+                          getContextIcon(
+                            note.contextType as ContextItem["type"],
+                          )
                         )} {note.contextTitle}
                       </div>
                       <div>{note.noteContent}</div>
@@ -446,7 +435,8 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                 $cell={contextualSuggestion}
                 label="AI Suggestion"
               >
-                {derive(contextualSuggestion, (r) => {
+                {computed(() => {
+                  const r = contextualSuggestion;
                   if (!r) {
                     return (
                       <div

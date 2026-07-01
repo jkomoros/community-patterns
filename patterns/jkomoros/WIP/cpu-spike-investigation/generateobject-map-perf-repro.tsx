@@ -69,7 +69,7 @@ export default pattern<Props>(({ notes }) => {
     if (trigger && trigger.includes("---EXTRACT-")) {
       return trigger;
     }
-    return undefined;
+    return "";
   });
 
   // Use generateObject to extract data (mimics person.tsx)

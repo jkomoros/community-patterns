@@ -8,8 +8,8 @@
  *   ./tools/apple-sync.ts imessage
  */
 import {
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -105,11 +105,11 @@ export default pattern<{
 }>(({ messages }) => {
   const selectedChatId = Writable.of<string | null>(null);
 
-  const messageCount = derive(messages, (msgs: Message[]) => msgs?.length ?? 0);
+  const messageCount = computed(() => messages?.length ?? 0);
 
   // Group messages into conversations
-  const conversationList = derive(messages, (msgs: Message[]) => {
-    const byChat = groupByChat(msgs || []);
+  const conversationList = computed(() => {
+    const byChat = groupByChat(messages || []);
     const convos: Array<
       { chatId: string; lastMessage: Message; count: number }
     > = [];
@@ -133,34 +133,24 @@ export default pattern<{
     return convos;
   });
 
-  const _conversationCount = derive(conversationList, (c) => c?.length ?? 0);
+  const _conversationCount = computed(() => conversationList?.length ?? 0);
 
   // Get messages for selected conversation
-  const selectedMessages = derive(
-    { messages, selectedChatId },
-    (
-      { messages, selectedChatId }: {
-        messages: Message[];
-        selectedChatId: string | null;
-      },
-    ) => {
-      if (!selectedChatId || !messages) return [];
-      // Filter out null messages and match chatId
-      const filtered = messages.filter((m: Message) =>
-        m && m.chatId === selectedChatId
-      );
-      filtered.sort((a: Message, b: Message) =>
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-      return filtered;
-    },
-  );
+  const selectedMessages = computed(() => {
+    const selected = selectedChatId.get();
+    if (!selected || !messages) return [];
+    // Filter out null messages and match chatId
+    const filtered = messages.filter((m: Message) =>
+      m && m.chatId === selected
+    );
+    filtered.sort((a: Message, b: Message) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    return filtered;
+  });
 
   return {
-    [NAME]: derive(
-      messageCount,
-      (count: number) => `iMessage (${count} messages)`,
-    ),
+    [NAME]: computed(() => `iMessage (${messageCount} messages)`),
     [UI]: (
       <cf-screen
         style={{
@@ -181,7 +171,7 @@ export default pattern<{
           }}
         >
           {ifElse(
-            derive(selectedChatId, (id: string | null) => id !== null),
+            computed(() => selectedChatId.get() !== null),
             <button
               type="button"
               onClick={backToList({ selectedChatId })}
@@ -202,7 +192,7 @@ export default pattern<{
         {/* Content */}
         <div style={{ flex: 1, overflow: "auto" }}>
           {ifElse(
-            derive(messageCount, (c: number) => c === 0),
+            computed(() => messageCount === 0),
             // Empty state
             <div
               style={{
@@ -245,11 +235,11 @@ export default pattern<{
             </div>,
             // Has messages
             ifElse(
-              derive(selectedChatId, (id: string | null) => id === null),
+              computed(() => selectedChatId.get() === null),
               // Conversation list view
               <div>
-                {derive(conversationList, (convos) =>
-                  convos.map((convo, idx: number) => (
+                {computed(() =>
+                  conversationList.map((convo, idx: number) => (
                     <div
                       key={idx}
                       onClick={selectConversation({
@@ -280,8 +270,8 @@ export default pattern<{
               </div>,
               // Conversation detail view
               <div style={{ padding: "16px", backgroundColor: "#e5ddd5" }}>
-                {derive(selectedMessages, (msgs: Message[]) =>
-                  msgs.map((msg: Message, idx: number) => (
+                {computed(() =>
+                  selectedMessages.map((msg: Message, idx: number) => (
                     <div
                       key={idx}
                       style={{

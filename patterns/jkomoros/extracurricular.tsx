@@ -3597,7 +3597,12 @@ Return all visible text.`,
                       result: calendarExportResult,
                       classList: classes,
                       outbox: calendarOutbox,
-                      auth: googleAuthManager.auth,
+                      // googleAuthManager.auth is `AuthCell<Auth> | null` (null only in
+                      // the transient loading state). The stricter FactoryInput rejects the
+                      // null branch here; the live auth cell is always present by the time
+                      // this dialog button is clicked, and confirmCalendarExport still guards
+                      // on a missing token at runtime.
+                      auth: googleAuthManager.auth!,
                     })}
                     disabled={exportButtonDisabled}
                     style={{

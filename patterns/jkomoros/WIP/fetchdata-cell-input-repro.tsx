@@ -12,13 +12,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -27,12 +28,14 @@ type User = { id: number; name: string; email: string };
 type Todo = { userId: number; id: number; title: string; completed: boolean };
 
 interface Input {
-  ids?: Default<number[], []>;
+  ids?: Writable<Default<number[], []>>;
   // The key difference: optional Writable<object> input (like authCharm)
   linkedConfig?: Writable<{ multiplier: number }>;
 }
 
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   ids: Writable<number[]>;
 }
 
@@ -53,89 +56,79 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 
 export default pattern<Input, Output>(({ ids, linkedConfig }) => {
   // Derive from the optional Writable<object> input - EXACTLY like momentum-tracker
-  // Note: linkedConfig is Writable<object>, must use derive with object params and .get() pattern
-  const hasConfig = derive(
-    { linkedConfig },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const c = (values.linkedConfig as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.linkedConfig as any).get()
-        : values.linkedConfig;
-      return !!c?.multiplier;
-    },
-  );
+  // Note: linkedConfig is Writable<object>, read it with .get() inside computed()
+  const hasConfig = computed(() => {
+    const c = linkedConfig?.get();
+    return !!c?.multiplier;
+  });
 
   // Map over ids using the EXACT PATTERN from github-momentum-tracker
   const results = ids.map((idCell) => {
     // Parse ref
-    const ref = derive(idCell, (id) => ({ userId: id }));
+    const ref = computed(() => ({ userId: idCell }));
 
-    // THE PATTERN: derive with object params including optional Writable<object> input
-    const apiUrl = derive(
-      { hasConfig, ref },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const _config = (values.hasConfig as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasConfig as any).get()
-          : values.hasConfig;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.ref as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.ref as any).get()
-          : values.ref;
-        // Always fetch (config doesn't gate this in test)
-        return r
-          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
-          : "";
-      },
-    );
+    // THE PATTERN: computed reading the optional Writable<object>-derived hasConfig
+    const apiUrl = computed(() => {
+      const _config = hasConfig;
+      const r = ref;
+      // Always fetch (config doesn't gate this in test)
+      return r
+        ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+        : "";
+    });
 
     // First fetch
-    const userData = fetchData<User>({ url: apiUrl, mode: "json" });
+    const userData = fetchJson<User>({ url: apiUrl });
 
     // Derive dependent data
-    const samplePages = derive(
-      { hasConfig, parsedRef: ref, userData },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        // deno-lint-ignore no-explicit-any
-        const u = (values.userData as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.userData as any).get()
-          : values.userData;
+    const samplePages = computed(() => {
+      const r = ref;
+      const u = userData;
 
-        if (!r || !u?.result?.id) {
-          return { userId: 0, pages: [] as number[] };
-        }
+      if (!r || !u?.result?.id) {
+        return { userId: 0, pages: [] as number[] };
+      }
 
-        return {
-          userId: u.result.id,
-          pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
-        };
-      },
+      return {
+        userId: u.result.id,
+        pages: [1, 2, 3, 4, 5].map((i) => (u.result!.id - 1) * 5 + i),
+      };
+    });
+
+    // Create slot URLs (computed() must be authored directly in pattern context;
+    // callbacks must be self-contained, so the URL logic is inlined per slot)
+    const slotUrl0 = computed(() =>
+      !samplePages.userId || 0 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[0]}`
+    );
+    const slotUrl1 = computed(() =>
+      !samplePages.userId || 1 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[1]}`
+    );
+    const slotUrl2 = computed(() =>
+      !samplePages.userId || 2 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[2]}`
+    );
+    const slotUrl3 = computed(() =>
+      !samplePages.userId || 3 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[3]}`
+    );
+    const slotUrl4 = computed(() =>
+      !samplePages.userId || 4 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[4]}`
     );
 
-    // Create slot URL factory
-    const makeSlotUrl = (slotIndex: number) =>
-      derive(samplePages, (sp) => {
-        if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${
-          sp.pages[slotIndex]
-        }`;
-      });
-
-    // Create 5 fetchData slots
-    const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json" });
-    const slot1 = fetchData<Todo>({ url: makeSlotUrl(1), mode: "json" });
-    const slot2 = fetchData<Todo>({ url: makeSlotUrl(2), mode: "json" });
-    const slot3 = fetchData<Todo>({ url: makeSlotUrl(3), mode: "json" });
-    const slot4 = fetchData<Todo>({ url: makeSlotUrl(4), mode: "json" });
+    // Create 5 fetchJson slots
+    const slot0 = fetchJson<Todo>({ url: slotUrl0 });
+    const slot1 = fetchJson<Todo>({ url: slotUrl1 });
+    const slot2 = fetchJson<Todo>({ url: slotUrl2 });
+    const slot3 = fetchJson<Todo>({ url: slotUrl3 });
+    const slot4 = fetchJson<Todo>({ url: slotUrl4 });
 
     return {
       id: idCell,
@@ -169,19 +162,17 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() =>
+            ids.get().length === 0 ? "(empty)" : ids.get().join(", ")
+          )}
           {" | "}
-          <strong>linkedConfig:</strong> {derive({ linkedConfig }, (v) => {
-            // deno-lint-ignore no-explicit-any
-            const c = (v.linkedConfig as any)?.get
-              // deno-lint-ignore no-explicit-any
-              ? (v.linkedConfig as any).get()
-              : v.linkedConfig;
+          <strong>linkedConfig:</strong> {computed(() => {
+            const c = linkedConfig?.get();
             return c?.multiplier ? `multiplier=${c.multiplier}` : "not linked";
           })}
           {" | "}
           <strong>hasConfig:</strong>{" "}
-          {derive(hasConfig, (c) => c ? "Yes" : "No")}
+          {computed(() => hasConfig ? "Yes" : "No")}
         </div>
 
         <h2>Results (check console for errors):</h2>
@@ -201,8 +192,12 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
               </div>
 
               <div style={{ marginBottom: "8px" }}>
-                <strong>User:</strong> {derive(item.userData, (u) =>
-                  u?.result ? u.result.name : u?.pending ? "..." : "✗")}
+                <strong>User:</strong> {computed(() =>
+                  item.userData?.result
+                    ? item.userData.result.name
+                    : item.userData?.pending
+                    ? "..."
+                    : "✗")}
               </div>
 
               <div>
@@ -224,9 +219,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
                         borderRadius: "3px",
                       }}
                     >
-                      #{i}: {derive(s, (r) =>
-                        r?.result?.title?.substring(0, 8) ||
-                        (r?.pending ? "..." : "✗"))}
+                      #{i}: {computed(() =>
+                        s?.result?.title?.substring(0, 8) ||
+                        (s?.pending ? "..." : "✗"))}
                     </span>
                   ))}
                 </div>

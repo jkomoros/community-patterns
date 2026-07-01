@@ -12,14 +12,15 @@
  * 4. Does the token actually refresh?
  */
 import {
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
   safeDateNow,
   Stream,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -54,6 +55,8 @@ interface Input {
 }
 
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   testLog: string[];
 }
 
@@ -198,7 +201,9 @@ export default pattern<Input, Output>(
 
     // Extract wish state
     // deno-lint-ignore no-explicit-any
-    const wishState = derive(wishResult, (wr: any) => {
+    const wishState = computed(() => {
+      // deno-lint-ignore no-explicit-any
+      const wr = wishResult as any;
       if (wr?.result?.auth?.user?.email) return "authenticated";
       if (wr?.result) return "found-not-authenticated";
       if (wr?.error) return "error";
@@ -206,30 +211,29 @@ export default pattern<Input, Output>(
     });
 
     // deno-lint-ignore no-explicit-any
-    const wishedCharm = derive(wishResult, (wr: any) => wr?.result || null);
+    const wishedCharm = computed(() => (wishResult as any)?.result || null);
     // deno-lint-ignore no-explicit-any
-    const wishError = derive(wishResult, (wr: any) => wr?.error || null);
+    const wishError = computed(() => (wishResult as any)?.error || null);
 
     // Extract the refreshToken stream from the wished charm
     // Per Berni: Pass this directly to handlers with Stream<T> type in handler signature
-    const refreshTokenStream = derive(
-      wishedCharm,
+    const refreshTokenStream = computed(
       // deno-lint-ignore no-explicit-any
-      (charm: any) => charm?.refreshToken || null,
+      () => (wishedCharm as any)?.refreshToken || null,
     );
 
     // Get auth data (if available)
     // deno-lint-ignore no-explicit-any
-    const auth = derive(wishedCharm, (charm: any) => charm?.auth || null);
-    const isAuthenticated = derive(
-      auth,
+    const auth = computed(() => (wishedCharm as any)?.auth || null);
+    const isAuthenticated = computed(
       // deno-lint-ignore no-explicit-any
-      (a: any) => !!(a?.token && a?.user?.email),
+      () => !!((auth as any)?.token && (auth as any)?.user?.email),
     );
 
     // Token status
-    // deno-lint-ignore no-explicit-any
-    const tokenStatus = derive(auth, (a: any) => {
+    const tokenStatus = computed(() => {
+      // deno-lint-ignore no-explicit-any
+      const a = auth as any;
       if (!a?.token) return "no-token";
       if (!a?.expiresAt) return "no-expiry";
       const remaining = a.expiresAt - safeDateNow();
@@ -237,15 +241,17 @@ export default pattern<Input, Output>(
       return "valid";
     });
 
-    // deno-lint-ignore no-explicit-any
-    const timeRemaining = derive(auth, (a: any) => {
+    const timeRemaining = computed(() => {
+      // deno-lint-ignore no-explicit-any
+      const a = auth as any;
       if (!a?.expiresAt) return 0;
       return Math.max(0, Math.floor((a.expiresAt - safeDateNow()) / 1000));
     });
 
     // Check if refresh stream is accessible
-    // deno-lint-ignore no-explicit-any
-    const refreshStreamInfo = derive(wishedCharm, (charm: any) => {
+    const refreshStreamInfo = computed(() => {
+      // deno-lint-ignore no-explicit-any
+      const charm = wishedCharm as any;
       if (!charm) return { available: false, reason: "no charm" };
       const stream = charm.refreshToken;
       if (!stream) {
@@ -319,7 +325,7 @@ export default pattern<Input, Output>(
               </div>
               <div>
                 Has charm:{" "}
-                {derive(wishedCharm, (c: unknown) => c ? "YES" : "NO")}
+                {computed(() => (wishedCharm ? "YES" : "NO"))}
               </div>
               <div>Error: {wishError}</div>
             </div>
@@ -329,7 +335,8 @@ export default pattern<Input, Output>(
           <div
             style={{
               padding: "16px",
-              backgroundColor: derive(tokenStatus, (s: string) => {
+              backgroundColor: computed(() => {
+                const s = tokenStatus;
                 if (s === "expired") return "#fee2e2";
                 if (s === "valid") return "#dcfce7";
                 return "#f3f4f6";
@@ -344,13 +351,12 @@ export default pattern<Input, Output>(
             <div style={{ fontFamily: "monospace", fontSize: "13px" }}>
               <div>
                 Authenticated:{" "}
-                {derive(isAuthenticated, (a: boolean) => a ? "YES" : "NO")}
+                {computed(() => (isAuthenticated ? "YES" : "NO"))}
               </div>
               <div>
-                Email: {derive(
-                  auth,
-                  (a: { user?: { email?: string } } | undefined) =>
-                    a?.user?.email || "N/A",
+                Email: {computed(
+                  // deno-lint-ignore no-explicit-any
+                  () => (auth as any)?.user?.email || "N/A",
                 )}
               </div>
               <div>
@@ -358,10 +364,9 @@ export default pattern<Input, Output>(
               </div>
               <div>Time remaining: {timeRemaining}s</div>
               <div>
-                expiresAt: {derive(
-                  auth,
-                  (a: { expiresAt?: string | number } | undefined) =>
-                    a?.expiresAt || "N/A",
+                expiresAt: {computed(
+                  // deno-lint-ignore no-explicit-any
+                  () => (auth as any)?.expiresAt || "N/A",
                 )}
               </div>
             </div>
@@ -371,10 +376,8 @@ export default pattern<Input, Output>(
           <div
             style={{
               padding: "16px",
-              backgroundColor: derive(
-                refreshStreamInfo,
-                (info: { available?: boolean } | undefined) =>
-                  info?.available ? "#dcfce7" : "#fef3c7",
+              backgroundColor: computed(() =>
+                refreshStreamInfo?.available ? "#dcfce7" : "#fef3c7"
               ),
               borderRadius: "8px",
               border: "1px solid #e2e8f0",
@@ -387,18 +390,14 @@ export default pattern<Input, Output>(
               <div>
                 Available:{" "}
                 <strong>
-                  {derive(
-                    refreshStreamInfo,
-                    // deno-lint-ignore no-explicit-any
-                    (info: any) => info?.available ? "YES" : "NO",
+                  {computed(() =>
+                    refreshStreamInfo?.available ? "YES" : "NO"
                   )}
                 </strong>
               </div>
               <div>
-                Reason: {derive(
-                  refreshStreamInfo,
-                  // deno-lint-ignore no-explicit-any
-                  (info: any) => info?.reason || "unknown",
+                Reason: {computed(() =>
+                  refreshStreamInfo?.reason || "unknown"
                 )}
               </div>
             </div>
@@ -496,7 +495,8 @@ export default pattern<Input, Output>(
             >
               Test Log
             </h3>
-            {derive(testLog, (logs: string[]) => {
+            {computed(() => {
+              const logs = testLog;
               if (!logs || logs.length === 0) {
                 return (
                   <div style={{ color: "#64748b" }}>
@@ -529,7 +529,9 @@ export default pattern<Input, Output>(
                 fontSize: "11px",
               }}
             >
-              {derive(wishedCharm, (charm: Record<string, unknown>) => {
+              {computed(() => {
+                // deno-lint-ignore no-explicit-any
+                const charm = wishedCharm as any;
                 if (!charm) return "No charm";
                 try {
                   return JSON.stringify({

@@ -8,13 +8,14 @@
  *   ./tools/apple-sync.ts reminders
  */
 import {
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -143,16 +144,14 @@ export default pattern<{
 }>(({ reminders }) => {
   const selectedReminderId = Writable.of<string | null>(null);
 
-  const reminderCount = derive(
-    reminders,
-    (r: ReminderItem[]) =>
-      r?.filter((item) => item && !item.isCompleted)?.length ?? 0,
+  const reminderCount = computed(() =>
+    reminders?.filter((item) => item && !item.isCompleted)?.length ?? 0
   );
 
   // Get reminders grouped by list
-  const remindersByList = derive(reminders, (r: ReminderItem[]) => {
+  const remindersByList = computed(() => {
     const byList = groupByList(
-      (r || []).filter((item) => item && !item.isCompleted),
+      (reminders || []).filter((item) => item && !item.isCompleted),
     );
     const groups: Array<{ listName: string; reminders: ReminderItem[] }> = [];
 
@@ -170,28 +169,17 @@ export default pattern<{
   });
 
   // Get selected reminder details
-  const selectedReminder = derive(
-    { reminders, selectedReminderId },
-    ({
-      reminders,
-      selectedReminderId,
-    }: {
-      reminders: ReminderItem[];
-      selectedReminderId: string | null;
-    }) => {
-      if (!selectedReminderId || !reminders) return null;
-      return (
-        reminders.find((r: ReminderItem) => r && r.id === selectedReminderId) ||
-        null
-      );
-    },
-  );
+  const selectedReminder = computed(() => {
+    const id = selectedReminderId.get();
+    if (!id || !reminders) return null;
+    return (
+      reminders.find((r: ReminderItem) => r && r.id === id) ||
+      null
+    );
+  });
 
   return {
-    [NAME]: derive(
-      reminderCount,
-      (count: number) => `Reminders (${count} items)`,
-    ),
+    [NAME]: computed(() => `Reminders (${reminderCount} items)`),
     [UI]: (
       <cf-screen
         style={{
@@ -212,7 +200,7 @@ export default pattern<{
           }}
         >
           {ifElse(
-            derive(selectedReminderId, (id: string | null) => id !== null),
+            computed(() => selectedReminderId.get() !== null),
             <button
               type="button"
               onClick={backToList({ selectedReminderId })}
@@ -233,7 +221,7 @@ export default pattern<{
         {/* Content */}
         <div style={{ flex: 1, overflow: "auto" }}>
           {ifElse(
-            derive(reminderCount, (c: number) => c === 0),
+            computed(() => reminderCount === 0),
             // Empty state
             <div
               style={{
@@ -276,12 +264,11 @@ export default pattern<{
             </div>,
             // Has reminders
             ifElse(
-              derive(selectedReminderId, (id: string | null) => id === null),
+              computed(() => selectedReminderId.get() === null),
               // Reminder list view (grouped by list)
               <div>
-                {derive(remindersByList, (groups) =>
-                  groups.map((group, groupIdx: number) => (
-                    <div key={groupIdx}>
+                {remindersByList.map((group, groupIdx: number) => (
+                  <div key={groupIdx}>
                       {/* List header */}
                       <div
                         style={{
@@ -363,9 +350,11 @@ export default pattern<{
                                 marginTop: "2px",
                               }}
                             >
-                              {r.notes && r.notes.length > 50
-                                ? r.notes.substring(0, 50) + "..."
-                                : (r.notes || "")}
+                              {computed(() =>
+                                r.notes && r.notes.length > 50
+                                  ? r.notes.substring(0, 50) + "..."
+                                  : (r.notes || "")
+                              )}
                             </div>
                             <div
                               style={{
@@ -382,12 +371,13 @@ export default pattern<{
                         </div>
                       ))}
                     </div>
-                  )))}
+                  ))}
               </div>,
               // Reminder detail view
               <div style={{ padding: "20px", backgroundColor: "#fff" }}>
-                {derive(selectedReminder, (r: ReminderItem | null) =>
-                  r
+                {computed(() => {
+                  const r: ReminderItem | null = selectedReminder;
+                  return r
                     ? (
                       <div>
                         {/* List indicator */}
@@ -483,7 +473,8 @@ export default pattern<{
                         </div>
                       </div>
                     )
-                    : <div>Reminder not found</div>)}
+                    : <div>Reminder not found</div>;
+                })}
               </div>,
             ),
           )}

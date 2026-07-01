@@ -1,12 +1,13 @@
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   ifElse,
   NAME,
   pattern,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -75,7 +76,9 @@ interface Input {
 }
 
 interface Output {
-  repos: Writable<string[]>;
+  [NAME]: string;
+  [UI]: VNode;
+  repos: string[];
 }
 
 // =============================================================================
@@ -288,42 +291,24 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
   // ==========================================================================
 
   // Try to find existing GitHub auth via wish
-  const discoveredAuth = wish<{ token: string }>("#githubAuth");
+  const discoveredAuth = wish<{ token: string }>({ query: "#githubAuth" });
 
   // Inline auth for when no token is available
   const inlineAuth = GitHubAuth({});
 
   // Use discovered auth, passed-in auth, or inline auth
-  // IMPORTANT: derive() with object params does NOT auto-unwrap cells!
-  // Must call .get() on each value (see community-docs/folk_wisdom/derive-object-parameter-cell-unwrapping.md)
-  const effectiveToken = derive(
-    { discovered: discoveredAuth, passed: authCharm, inline: inlineAuth.token },
-    (values) => {
-      // Safe unwrapping that handles both Cell and plain values
-      // deno-lint-ignore no-explicit-any
-      const discovered = (values.discovered as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.discovered as any).get()
-        : values.discovered;
-      // deno-lint-ignore no-explicit-any
-      const passed = (values.passed as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.passed as any).get()
-        : values.passed;
-      // deno-lint-ignore no-explicit-any
-      const inline = (values.inline as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.inline as any).get()
-        : values.inline;
+  const effectiveToken = computed(() => {
+    const discovered = discoveredAuth.result;
+    const passed = authCharm?.get();
+    const inline = inlineAuth.token;
 
-      if (discovered?.token) return discovered.token;
-      if (passed?.token) return passed.token;
-      if (inline) return inline;
-      return "";
-    },
-  );
+    if (discovered?.token) return discovered.token;
+    if (passed?.token) return passed.token;
+    if (inline) return inline;
+    return "";
+  });
 
-  const hasAuth = derive(effectiveToken, (t) => !!t);
+  const hasAuth = computed(() => !!effectiveToken);
 
   // ==========================================================================
   // Repo Data Fetching
@@ -333,66 +318,41 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
   // Each repo string gets its own processing pipeline
   const repoDataList = repos.map((repoNameCell) => {
     // Parse the repo name to get owner/repo
-    const ref = derive(repoNameCell, (name) => parseGitHubUrl(name));
+    const ref = computed(() => parseGitHubUrl(repoNameCell));
 
     // Derive URLs that return empty string when no auth OR no valid ref
-    // (fetchData skips fetch when URL is empty - see community-docs superstition)
-    // NOTE: derive() with object params doesn't auto-unwrap cells - must use .get()
-    const apiUrl = derive(
-      { hasAuth, ref },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.ref as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.ref as any).get()
-          : values.ref;
-        return (auth && r)
-          ? `https://api.github.com/repos/${r.owner}/${r.repo}`
-          : "";
-      },
-    );
+    // (fetchJson skips fetch when URL is empty - see community-docs superstition)
+    const apiUrl = computed(() => {
+      const auth = hasAuth;
+      const r = ref;
+      return (auth && r)
+        ? `https://api.github.com/repos/${r.owner}/${r.repo}`
+        : "";
+    });
 
-    const commitActivityUrl = derive(
-      { hasAuth, ref },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.ref as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.ref as any).get()
-          : values.ref;
-        return (auth && r)
-          ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity`
-          : "";
-      },
-    );
+    const commitActivityUrl = computed(() => {
+      const auth = hasAuth;
+      const r = ref;
+      return (auth && r)
+        ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity`
+        : "";
+    });
 
     // Fetch repo metadata (skipped when URL is empty)
-    const metadata = fetchData<GitHubRepoMetadata>({
+    const metadata = fetchJson<GitHubRepoMetadata>({
       url: apiUrl,
-      mode: "json",
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
+        headers: computed(() => makeGitHubHeaders(effectiveToken)),
       },
     });
 
     // Fetch commit activity (skipped when URL is empty)
-    const commitActivity = fetchData<CommitActivityWeek[]>({
+    const commitActivity = fetchJson<CommitActivityWeek[]>({
       url: commitActivityUrl,
-      mode: "json",
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
+        headers: computed(() => makeGitHubHeaders(effectiveToken)),
       },
     });
 
@@ -401,201 +361,195 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
     // ==========================================================================
 
     // Derive sample page numbers directly from metadata (single derive, no chain)
-    const samplePages = derive(
-      { hasAuth, parsedRef: ref, metadata },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        // deno-lint-ignore no-explicit-any
-        const m = (values.metadata as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.metadata as any).get()
-          : values.metadata;
+    const samplePages = computed(() => {
+      const auth = hasAuth;
+      const r = ref;
+      const m = metadata;
 
-        if (!auth || !r || !m?.result?.stargazers_count) {
-          return { owner: "", repo: "", pages: [] as number[] };
-        }
+      if (!auth || !r || !m?.result?.stargazers_count) {
+        return { owner: "", repo: "", pages: [] as number[] };
+      }
 
-        const totalStars = m.result.stargazers_count;
-        return {
-          owner: r.owner,
-          repo: r.repo,
-          pages: getSamplePageNumbers(totalStars),
-        };
-      },
-    );
+      const totalStars = m.result.stargazers_count;
+      return {
+        owner: r.owner,
+        repo: r.repo,
+        pages: getSamplePageNumbers(totalStars),
+      };
+    });
 
-    // Create a function that returns URL for a given slot index
-    const makeSlotUrl = (slotIndex: number) =>
-      derive(samplePages, (sp) => {
-        if (!sp.owner || !sp.repo || slotIndex >= sp.pages.length) return "";
-        const page = sp.pages[slotIndex];
-        return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${page}`;
-      });
+    // Build one URL per slot index (empty string skips the fetch)
+    const slotUrl0 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 0 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[0]}`;
+    });
+    const slotUrl1 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 1 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[1]}`;
+    });
+    const slotUrl2 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 2 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[2]}`;
+    });
+    const slotUrl3 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 3 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[3]}`;
+    });
+    const slotUrl4 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 4 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[4]}`;
+    });
+    const slotUrl5 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 5 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[5]}`;
+    });
+    const slotUrl6 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 6 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[6]}`;
+    });
+    const slotUrl7 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 7 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[7]}`;
+    });
+    const slotUrl8 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 8 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[8]}`;
+    });
+    const slotUrl9 = computed(() => {
+      const sp = samplePages;
+      if (!sp.owner || !sp.repo || 9 >= sp.pages.length) return "";
+      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${sp.pages[9]}`;
+    });
 
-    // Create 10 explicit fetchData slots for star samples
-    const starSample0 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(0),
-      mode: "json",
+    // Create 10 explicit fetch slots for star samples
+    const starSample0 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl0,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample1 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(1),
-      mode: "json",
+    const starSample1 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl1,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample2 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(2),
-      mode: "json",
+    const starSample2 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl2,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample3 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(3),
-      mode: "json",
+    const starSample3 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl3,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample4 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(4),
-      mode: "json",
+    const starSample4 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl4,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample5 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(5),
-      mode: "json",
+    const starSample5 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl5,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample6 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(6),
-      mode: "json",
+    const starSample6 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl6,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample7 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(7),
-      mode: "json",
+    const starSample7 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl7,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample8 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(8),
-      mode: "json",
+    const starSample8 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl8,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
-    const starSample9 = fetchData<StargazerWithDate[]>({
-      url: makeSlotUrl(9),
-      mode: "json",
+    const starSample9 = fetchJson<StargazerWithDate[]>({
+      url: slotUrl9,
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)),
+        headers: computed(() => makeStargazerHeaders(effectiveToken)),
       },
     });
 
     // Aggregate star history from all samples
-    const starHistory = derive(
-      {
-        samplePages,
-        s0: starSample0,
-        s1: starSample1,
-        s2: starSample2,
-        s3: starSample3,
-        s4: starSample4,
-        s5: starSample5,
-        s6: starSample6,
-        s7: starSample7,
-        s8: starSample8,
-        s9: starSample9,
-      },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const sp = (values.samplePages as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.samplePages as any).get()
-          : values.samplePages;
-        if (!sp.pages || sp.pages.length === 0) {
-          return { loading: false, data: [] as StarDataPoint[] };
+    const starHistory = computed(() => {
+      const sp = samplePages;
+      if (!sp.pages || sp.pages.length === 0) {
+        return { loading: false, data: [] as StarDataPoint[] };
+      }
+
+      const samples = [
+        starSample0,
+        starSample1,
+        starSample2,
+        starSample3,
+        starSample4,
+        starSample5,
+        starSample6,
+        starSample7,
+        starSample8,
+        starSample9,
+      ];
+
+      // Check if any are still loading
+      const pending = samples.some((sample, i) => {
+        if (i >= sp.pages.length) return false;
+        return sample?.pending === true;
+      });
+
+      if (pending) return { loading: true, data: [] as StarDataPoint[] };
+
+      // Collect results
+      const dataPoints: StarDataPoint[] = [];
+      for (let i = 0; i < sp.pages.length && i < 10; i++) {
+        const sample = samples[i];
+        const result = sample?.result;
+        if (result && result.length > 0 && result[0]?.starred_at) {
+          // Star count at this page = (page - 1) * 100 (approximation)
+          const pageNum = sp.pages[i];
+          dataPoints.push({
+            date: result[0].starred_at.split("T")[0], // Just the date part
+            count: (pageNum - 1) * 100,
+          });
         }
+      }
 
-        const samples = [
-          values.s0,
-          values.s1,
-          values.s2,
-          values.s3,
-          values.s4,
-          values.s5,
-          values.s6,
-          values.s7,
-          values.s8,
-          values.s9,
-        ];
+      // Sort by date
+      dataPoints.sort((a, b) => a.date.localeCompare(b.date));
 
-        // Check if any are still loading
-        const pending = samples.some((s, i) => {
-          if (i >= sp.pages.length) return false;
-          // deno-lint-ignore no-explicit-any
-          const sample = (s as any)?.get ? (s as any).get() : s;
-          return sample?.pending === true;
-        });
-
-        if (pending) return { loading: true, data: [] as StarDataPoint[] };
-
-        // Collect results
-        const dataPoints: StarDataPoint[] = [];
-        for (let i = 0; i < sp.pages.length && i < 10; i++) {
-          // deno-lint-ignore no-explicit-any
-          const sample = (samples[i] as any)?.get
-            // deno-lint-ignore no-explicit-any
-            ? (samples[i] as any).get()
-            : samples[i];
-          const result = sample?.result;
-          if (result && result.length > 0 && result[0]?.starred_at) {
-            // Star count at this page = (page - 1) * 100 (approximation)
-            const pageNum = sp.pages[i];
-            dataPoints.push({
-              date: result[0].starred_at.split("T")[0], // Just the date part
-              count: (pageNum - 1) * 100,
-            });
-          }
-        }
-
-        // Sort by date
-        dataPoints.sort((a, b) => a.date.localeCompare(b.date));
-
-        return { loading: false, data: dataPoints };
-      },
-    );
+      return { loading: false, data: dataPoints };
+    });
 
     return {
       repoName: repoNameCell,
@@ -608,7 +562,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
   });
 
   // Count repos
-  const repoCount = derive(repos, (list) => list.length);
+  const repoCount = computed(() => repos.length);
 
   // ==========================================================================
   // UI
@@ -649,9 +603,8 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               Authenticated
             </span>
             <span style={{ color: "#666", fontSize: "14px" }}>
-              (via {derive(
-                discoveredAuth,
-                (d) => d?.token ? "wish" : "linked charm",
+              (via {computed(() =>
+                discoveredAuth.result?.token ? "wish" : "linked charm"
               )})
             </span>
           </div>,
@@ -726,7 +679,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               Add Repositories
             </button>
             {ifElse(
-              derive(repoCount, (c) => c > 0),
+              computed(() => repoCount > 0),
               <button
                 type="button"
                 onClick={clearAllRepos({ repos })}
@@ -750,12 +703,12 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         {/* Repo Count */}
         <div style={{ marginBottom: "16px", fontSize: "14px", color: "#666" }}>
           Tracking {repoCount}{" "}
-          {derive(repoCount, (c) => c === 1 ? "repository" : "repositories")}
+          {computed(() => repoCount === 1 ? "repository" : "repositories")}
         </div>
 
         {/* Repo List */}
         {ifElse(
-          derive(repoCount, (c) => c === 0),
+          computed(() => repoCount === 0),
           <div
             style={{
               padding: "40px",
@@ -779,14 +732,13 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               const metadata = item.metadata;
               const repoName = item.repoName;
               const starHistory = item.starHistory; // ADD THIS - access starHistory
-              const isLoading = derive(
-                metadata,
-                // deno-lint-ignore no-explicit-any
-                (m: any) => m?.pending === true,
+              // deno-lint-ignore no-explicit-any
+              const isLoading = computed(() =>
+                (metadata as any)?.pending === true
               );
               // deno-lint-ignore no-explicit-any
-              const hasError = derive(metadata, (m: any) => !!m?.error);
-              const data = derive(metadata, (m) => m?.result);
+              const hasError = computed(() => !!(metadata as any)?.error);
+              const data = computed(() => metadata?.result);
 
               return (
                 <div
@@ -806,10 +758,8 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                   >
                     <div>
                       <a
-                        href={derive(
-                          { data, repoName },
-                          ({ data, repoName }) =>
-                            data?.html_url || `https://github.com/${repoName}`,
+                        href={computed(() =>
+                          data?.html_url || `https://github.com/${repoName}`
                         )}
                         target="_blank"
                         style={{
@@ -827,9 +777,8 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                           marginTop: "4px",
                         }}
                       >
-                        {derive(
-                          data,
-                          (d) => d?.description || "No description",
+                        {computed(() =>
+                          data?.description || "No description"
                         )}
                       </div>
                     </div>
@@ -860,26 +809,23 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                           <span>
                             Stars:{" "}
                             <strong>
-                              {derive(
-                                data,
-                                (d) =>
-                                  d?.stargazers_count?.toLocaleString() || "—",
+                              {computed(() =>
+                                data?.stargazers_count?.toLocaleString() || "—"
                               )}
                             </strong>
                           </span>
                           <span>
                             Forks:{" "}
                             <strong>
-                              {derive(
-                                data,
-                                (d) => d?.forks_count?.toLocaleString() || "—",
+                              {computed(() =>
+                                data?.forks_count?.toLocaleString() || "—"
                               )}
                             </strong>
                           </span>
                           <span>
                             Language:{" "}
                             <strong>
-                              {derive(data, (d) => d?.language || "—")}
+                              {computed(() => data?.language || "—")}
                             </strong>
                           </span>
                         </div>
@@ -891,7 +837,8 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                             color: "#666",
                           }}
                         >
-                          Star History: {derive(starHistory, (sh) => {
+                          Star History: {computed(() => {
+                            const sh = starHistory;
                             if (!sh) return "Loading...";
                             return sh.loading
                               ? "Loading..."

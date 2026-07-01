@@ -17,7 +17,6 @@
  */
 import {
   computed,
-  derive,
   generateObject,
   handler,
   NAME,
@@ -76,7 +75,7 @@ export default pattern(() => {
     if (t && t.includes("---EXTRACT-")) {
       return t;
     }
-    return undefined;
+    return "";
   });
 
   // The extraction call
@@ -150,15 +149,17 @@ export default pattern(() => {
               <p>
                 <strong>✅ Completed!</strong>
               </p>
-              {derive(elapsedMs, (ms: number | null) =>
-                ms !== null
+              {computed(() => {
+                const ms = elapsedMs.get();
+                return ms !== null
                   ? (
                     <p>
                       <strong>Time:</strong> {ms}ms (
-                      {(ms as number / 1000).toFixed(1)}s)
+                      {(ms / 1000).toFixed(1)}s)
                     </p>
                   )
-                  : null)}
+                  : null;
+              })}
               <pre style={{ fontSize: "0.8rem", overflow: "auto" }}>
               {JSON.stringify(result.result, null, 2)}
               </pre>

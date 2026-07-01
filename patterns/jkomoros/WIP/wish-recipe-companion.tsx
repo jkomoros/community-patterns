@@ -1,6 +1,6 @@
 import {
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -70,40 +70,35 @@ const removePreference = handler<
 export default pattern<RecipeCompanionInput>(
   ({ foodDescription, preferences }) => {
     // Filter preferences into liked and disliked for display
-    // Use preferences directly (framework unwraps) and derive for reactive filtering
-    const likedPrefs = derive(
-      preferences,
-      (prefs) => prefs.filter((p) => p.preference === "liked"),
+    // Use preferences directly (framework unwraps) and computed for reactive filtering
+    const likedPrefs = computed(() =>
+      preferences.filter((p) => p.preference === "liked")
     );
 
-    const dislikedPrefs = derive(
-      preferences,
-      (prefs) => prefs.filter((p) => p.preference === "disliked"),
+    const dislikedPrefs = computed(() =>
+      preferences.filter((p) => p.preference === "disliked")
     );
 
-    // Build the wish query dynamically using derive
-    // Note: Inside derive callback, we get plain JS values, so avoid .map() to prevent framework transformation
-    const wishQuery = derive(
-      { foodDescription, preferences },
-      ({ foodDescription: food, preferences: prefs }) => {
-        // Use reduce instead of filter().map() to avoid framework .mapWithPattern transformation
-        const liked: string[] = [];
-        const disliked: string[] = [];
-        for (const p of prefs) {
-          if (p.preference === "liked") liked.push(p.ingredient);
-          else if (p.preference === "disliked") disliked.push(p.ingredient);
-        }
+    // Build the wish query dynamically using computed
+    // Note: Inside computed callback, we get plain JS values, so avoid .map() to prevent framework transformation
+    const wishQuery = computed(() => {
+      // Use reduce instead of filter().map() to avoid framework .mapWithPattern transformation
+      const liked: string[] = [];
+      const disliked: string[] = [];
+      for (const p of preferences) {
+        if (p.preference === "liked") liked.push(p.ingredient);
+        else if (p.preference === "disliked") disliked.push(p.ingredient);
+      }
 
-        let query = `Suggest a recipe that complements: "${food}"`;
-        if (liked.length > 0) {
-          query += `. I especially like: ${liked.join(", ")}`;
-        }
-        if (disliked.length > 0) {
-          query += `. Please avoid: ${disliked.join(", ")}`;
-        }
-        return query;
-      },
-    );
+      let query = `Suggest a recipe that complements: "${foodDescription}"`;
+      if (liked.length > 0) {
+        query += `. I especially like: ${liked.join(", ")}`;
+      }
+      if (disliked.length > 0) {
+        query += `. Please avoid: ${disliked.join(", ")}`;
+      }
+      return query;
+    });
 
     // The magic: wish() with an open-ended query
     // This will launch suggestion.tsx which uses AI to find/run appropriate patterns
@@ -117,9 +112,8 @@ export default pattern<RecipeCompanionInput>(
     });
 
     return {
-      [NAME]: derive(
-        foodDescription,
-        (food) => `Recipe Companion: ${food.slice(0, 30)}...`,
+      [NAME]: computed(() =>
+        `Recipe Companion: ${foodDescription.slice(0, 30)}...`
       ),
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "800px" }}>
@@ -243,7 +237,7 @@ export default pattern<RecipeCompanionInput>(
                     </span>
                   ))}
                   {ifElse(
-                    derive(likedPrefs, (prefs) => prefs.length === 0),
+                    computed(() => likedPrefs.length === 0),
                     <span style={{ color: "#999", fontStyle: "italic" }}>
                       None
                     </span>,
@@ -295,7 +289,7 @@ export default pattern<RecipeCompanionInput>(
                     </span>
                   ))}
                   {ifElse(
-                    derive(dislikedPrefs, (prefs) => prefs.length === 0),
+                    computed(() => dislikedPrefs.length === 0),
                     <span style={{ color: "#999", fontStyle: "italic" }}>
                       None
                     </span>,
@@ -335,7 +329,8 @@ export default pattern<RecipeCompanionInput>(
               Suggested Companion Recipe
             </h3>
             <cf-cell-context $cell={companionRecipe} label="Companion Recipe">
-              {derive(companionRecipe, (r) => {
+              {computed(() => {
+                const r = companionRecipe;
                 if (!r) {
                   return (
                     <span style={{ color: "#666" }}>

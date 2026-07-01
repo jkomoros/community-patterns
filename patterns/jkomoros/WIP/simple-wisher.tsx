@@ -1,7 +1,12 @@
-import { NAME, pattern, UI, wish } from "commonfabric";
+import { NAME, pattern, UI, type VNode, wish } from "commonfabric";
+
+interface SimpleWisherOutput {
+  [NAME]: string;
+  [UI]: VNode;
+}
 
 /** Wishes for simple target and shows link. */
-export default pattern<Record<string, never>, Record<string, never>>(
+export default pattern<Record<string, never>, SimpleWisherOutput>(
   () => {
     const wishResult = wish<{ message: string }>({ query: "#simpleTarget" });
 

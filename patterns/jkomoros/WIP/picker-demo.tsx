@@ -2,13 +2,17 @@
  * Demo pattern to test ct-render variant="preview" support.
  * Creates multiple instances and displays them in a ct-picker.
  */
-import { Cell, NAME, pattern, UI } from "commonfabric";
+import { Cell, NAME, pattern, UI, type VNode } from "commonfabric";
 import PreviewTest from "./preview-test.tsx";
 
 type Input = Record<string, never>;
 
-export default pattern<Input>(
-  "picker-preview-demo",
+interface Output {
+  [NAME]: string;
+  [UI]: VNode;
+}
+
+export default pattern<Input, Output>(
   (_) => {
     // Create preview-test instances with different titles
     const item1 = PreviewTest({
@@ -55,7 +59,7 @@ export default pattern<Input>(
               Picker (should use previewUI)
             </h3>
             <cf-picker
-              $items={items as unknown}
+              $items={items as any}
               $selectedIndex={selectedIndex}
             />
           </div>

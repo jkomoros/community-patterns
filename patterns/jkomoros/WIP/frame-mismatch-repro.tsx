@@ -91,7 +91,7 @@ export default pattern<ReproInput, ReproOutput>(({ items }) => {
         {hasItems
           ? (
             <ul>
-              {items.map((item) => <li key={item.id}>{item.label}</li>)}
+              {items.map((item) => <li>{item.label}</li>)}
             </ul>
           )
           : <p>No items yet</p>}

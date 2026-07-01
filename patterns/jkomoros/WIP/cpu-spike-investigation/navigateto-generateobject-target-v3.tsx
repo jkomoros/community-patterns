@@ -15,6 +15,7 @@ import {
   safeDateNow,
   toSchema,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 // Inline the diff utilities to avoid import issues
@@ -133,12 +134,13 @@ interface Input {
 
 // Output type (what's exposed as cells)
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   notes: string;
 }
 
 // Use pattern() like person.tsx does
 const ExtractTargetV3 = pattern<Input, Output>(
-  "Extract Target V3",
   ({ notes }) => {
     const extractTrigger = Writable.of<string>("");
     const startTimeMs = Writable.of<number>(0);
@@ -164,7 +166,7 @@ const ExtractTargetV3 = pattern<Input, Output>(
       if (t && t.includes("---EXTRACT-")) {
         return t;
       }
-      return undefined;
+      return "";
     });
 
     const { result, pending } = generateObject({

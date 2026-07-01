@@ -1,7 +1,6 @@
 import {
   computed,
   Default,
-  derive,
   generateObject,
   handler,
   NAME,
@@ -9,6 +8,7 @@ import {
   safeDateNow,
   str,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -47,7 +47,25 @@ type Input = {
   computeTrigger: Default<number, 0>;
 };
 
-type Output = Input & {
+type Output = {
+  [NAME]: string;
+  [UI]: VNode;
+  field1: string;
+  field2: string;
+  field3: string;
+  field4: string;
+  field5: string;
+  field6: string;
+  field7: string;
+  field8: string;
+  field9: string;
+  field10: string;
+  field11: string;
+  field12: string;
+  field13: string;
+  field14: string;
+  useDerive: boolean;
+  computeTrigger: number;
   result: string;
 };
 
@@ -82,7 +100,6 @@ const updateField = handler<
 );
 
 const TestPattern = pattern<Input, Output>(
-  "TestPattern",
   ({
     field1,
     field2,
@@ -145,58 +162,38 @@ const TestPattern = pattern<Input, Output>(
       return result.result;
     });
 
-    // VERSION B: derive() with explicit parameters (14 explicit deps)
-    const resultWithDerive = derive(
-      {
-        field1,
-        field2,
-        field3,
-        field4,
-        field5,
-        field6,
-        field7,
-        field8,
-        field9,
-        field10,
-        field11,
-        field12,
-        field13,
-        field14,
+    // VERSION B: computed() reading the same explicit dependencies
+    const resultWithDerive = computed(() => {
+      if (!useDerive) return null;
+
+      const startTime = safeDateNow();
+      console.log(
+        "[Version B - derive()] Starting computation with explicit params...",
+      );
+
+      // The computed reads fullPrompt (which closes over all 14 fields),
+      // so the reactive system tracks the same dependencies.
+      const result = generateObject({
+        model: "anthropic:claude-sonnet-4-5",
         prompt: fullPrompt,
-        shouldCompute: computed(() => useDerive),
-      },
-      (params) => {
-        if (!params.shouldCompute) return null;
-
-        const startTime = safeDateNow();
-        console.log(
-          "[Version B - derive()] Starting computation with explicit params...",
-        );
-
-        // This derive() has explicit dependencies listed
-        // The reactive system knows exactly what to track
-        const result = generateObject({
-          model: "anthropic:claude-sonnet-4-5",
-          prompt: params.prompt,
-          schema: {
-            type: "object",
-            properties: {
-              summary: { type: "string" },
-              computationTime: { type: "number" },
-            },
+        schema: {
+          type: "object",
+          properties: {
+            summary: { type: "string" },
+            computationTime: { type: "number" },
           },
-        });
+        },
+      });
 
-        const reactiveOverhead = safeDateNow() - startTime;
-        console.log(
-          `[Version B - derive()] Reactive overhead: ${
-            reactiveOverhead.toFixed(2)
-          }ms`,
-        );
+      const reactiveOverhead = safeDateNow() - startTime;
+      console.log(
+        `[Version B - derive()] Reactive overhead: ${
+          reactiveOverhead.toFixed(2)
+        }ms`,
+      );
 
-        return result.result;
-      },
-    );
+      return result.result;
+    });
 
     // Select which result to display based on mode
     const activeResult = computed(() => {

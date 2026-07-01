@@ -16,7 +16,15 @@
  * IMPORTANT: This is the ACTUAL code structure from the problematic
  * pattern, simplified only by removing Gmail-specific logic.
  */
-import { Default, derive, NAME, pattern, UI, wish } from "commonfabric";
+import {
+  computed,
+  Default,
+  NAME,
+  pattern,
+  UI,
+  type VNode,
+  wish,
+} from "commonfabric";
 
 // ============================================================================
 // DATA STRUCTURES (simplified from MembershipRecord)
@@ -34,6 +42,8 @@ interface SelfWishReproInput {
 }
 
 interface SelfWishReproOutput {
+  [NAME]: string;
+  [UI]: VNode;
   items: ItemRecord[];
   lastScanAt: number;
   count: number;
@@ -57,55 +67,49 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
 
     // Extract wished items (if any)
     // EXACT CODE from hotel-membership-gmail-agent.tsx line 141-143
-    const wishedItems = derive(
-      wishedItemsCharm,
-      // deno-lint-ignore no-explicit-any
-      (wishState: { result?: SelfWishReproOutput; error?: any }) =>
-        wishState?.result?.items || [],
-    );
+    const wishedItems = computed(() => wishedItemsCharm?.result?.items || []);
 
     // Merge local items with wished items (deduplicated)
     // EXACT CODE STRUCTURE from hotel-membership-gmail-agent.tsx lines 146-172
-    const allItems = derive(
-      [items, wishedItems],
-      ([local, wished]: [ItemRecord[], ItemRecord[]]) => {
-        const seen = new Set<string>();
-        const merged: ItemRecord[] = [];
+    const allItems = computed(() => {
+      const local = items as ItemRecord[];
+      const wished = wishedItems as ItemRecord[];
+      const seen = new Set<string>();
+      const merged: ItemRecord[] = [];
 
-        // Add local items first (they take precedence)
-        for (const item of (local || [])) {
-          const key = `${item.name}:${item.id}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            merged.push(item);
-          }
+      // Add local items first (they take precedence)
+      for (const item of (local || [])) {
+        const key = `${item.name}:${item.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(item);
         }
+      }
 
-        // Add wished items that we don't already have
-        for (const item of (wished || [])) {
-          const key = `${item.name}:${item.id}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            merged.push(
-              { ...item, _fromWish: true } as ItemRecord & {
-                _fromWish?: boolean;
-              },
-            );
-          }
+      // Add wished items that we don't already have
+      for (const item of (wished || [])) {
+        const key = `${item.name}:${item.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(
+            { ...item, _fromWish: true } as ItemRecord & {
+              _fromWish?: boolean;
+            },
+          );
         }
+      }
 
-        return merged;
-      },
-    );
+      return merged;
+    });
 
     // Track counts
-    const localItemCount = derive(items, (list) => list?.length || 0);
-    const wishedItemCount = derive(wishedItems, (list) => list?.length || 0);
+    const localItemCount = computed(() => items?.length || 0);
+    const wishedItemCount = computed(() => wishedItems?.length || 0);
 
     // ========================================================================
     // DERIVED VALUES
     // ========================================================================
-    const totalItems = derive(allItems, (list) => list?.length || 0);
+    const totalItems = computed(() => allItems?.length || 0);
 
     // ========================================================================
     // UI
@@ -145,7 +149,8 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
           </div>
 
           <h3>Items</h3>
-          {derive(allItems, (list) => {
+          {computed(() => {
+            const list = allItems;
             if (!list || list.length === 0) {
               return <div style={{ color: "#999" }}>No items yet</div>;
             }

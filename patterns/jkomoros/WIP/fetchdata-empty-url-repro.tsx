@@ -7,13 +7,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -26,8 +27,10 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
-  enableFetching: Writable<boolean>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
+  enableFetching: boolean;
 }
 
 const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
@@ -55,29 +58,15 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
 
   const results = ids.map((idCell) => {
     // URL is EMPTY when enableFetching is false
-    const apiUrl = derive(
-      { enableFetching, idCell },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const enabled = (values.enableFetching as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.enableFetching as any).get()
-          : values.enableFetching;
-        // deno-lint-ignore no-explicit-any
-        const id = (values.idCell as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.idCell as any).get()
-          : values.idCell;
-
-        // THE BUG TRIGGER: Return empty string when not enabled
-        return enabled
-          ? `https://jsonplaceholder.typicode.com/users/${id}`
-          : "";
-      },
+    const apiUrl = computed(() =>
+      // THE BUG TRIGGER: Return empty string when not enabled
+      enableFetching
+        ? `https://jsonplaceholder.typicode.com/users/${idCell}`
+        : ""
     );
 
     // fetchData with potentially empty URL
-    const userData = fetchData<User>({ url: apiUrl, mode: "json" });
+    const userData = fetchJson<User>({ url: apiUrl });
 
     return {
       id: idCell,
@@ -115,9 +104,8 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
             type="button"
             onClick={toggleFetching({ enableFetching })}
             style={{
-              background: derive(
-                enableFetching,
-                (e) => e ? "#28a745" : "#dc3545",
+              background: computed(() =>
+                enableFetching ? "#28a745" : "#dc3545"
               ),
               color: "white",
               border: "none",
@@ -125,17 +113,20 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
               borderRadius: "4px",
             }}
           >
-            Fetching: {derive(enableFetching, (e) => e ? "ON" : "OFF")}
+            Fetching: {computed(() => enableFetching ? "ON" : "OFF")}
           </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() =>
+            ids.length === 0 ? "(empty)" : ids.join(", ")
+          )}
           {" | "}
-          <strong>Fetching Enabled:</strong> {derive(
-            enableFetching,
-            (e) => e ? "YES (URLs have data)" : "NO (URLs are empty)",
+          <strong>Fetching Enabled:</strong> {computed(() =>
+            enableFetching
+              ? "YES (URLs have data)"
+              : "NO (URLs are empty)"
           )}
         </div>
 
@@ -155,9 +146,12 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
                 ID: {item.id}
               </div>
               <div>
-                <strong>User:</strong> {derive(
-                  item.userData,
-                  (u) => u?.result ? u.result.name : u?.pending ? "..." : "—",
+                <strong>User:</strong> {computed(() =>
+                  item.userData.result
+                    ? item.userData.result.name
+                    : item.userData.pending
+                    ? "..."
+                    : "—"
                 )}
               </div>
             </div>

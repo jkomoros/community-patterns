@@ -8,8 +8,8 @@
  *   ./tools/apple-sync.ts notes
  */
 import {
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -109,14 +109,13 @@ export default pattern<{
 }>(({ notes }) => {
   const selectedNoteId = Writable.of<string | null>(null);
 
-  const noteCount = derive(
-    notes,
-    (n: NoteItem[]) => n?.filter((item) => item)?.length ?? 0,
+  const noteCount = computed(
+    () => notes?.filter((item) => item)?.length ?? 0,
   );
 
   // Get notes grouped by folder
-  const notesByFolder = derive(notes, (n: NoteItem[]) => {
-    const byFolder = groupByFolder((n || []).filter((item) => item));
+  const notesByFolder = computed(() => {
+    const byFolder = groupByFolder((notes || []).filter((item) => item));
     const groups: Array<{ folderName: string; notes: NoteItem[] }> = [];
 
     for (const [folderName, folderNotes] of byFolder) {
@@ -133,22 +132,14 @@ export default pattern<{
   });
 
   // Get selected note details
-  const selectedNote = derive(
-    { notes, selectedNoteId },
-    ({
-      notes,
-      selectedNoteId,
-    }: {
-      notes: NoteItem[];
-      selectedNoteId: string | null;
-    }) => {
-      if (!selectedNoteId || !notes) return null;
-      return notes.find((n: NoteItem) => n && n.id === selectedNoteId) || null;
-    },
-  );
+  const selectedNote = computed(() => {
+    const selectedId = selectedNoteId.get();
+    if (!selectedId || !notes) return null;
+    return notes.find((n: NoteItem) => n && n.id === selectedId) || null;
+  });
 
   return {
-    [NAME]: derive(noteCount, (count: number) => `Notes (${count})`),
+    [NAME]: computed(() => `Notes (${noteCount})`),
     [UI]: (
       <cf-screen
         style={{
@@ -169,7 +160,7 @@ export default pattern<{
           }}
         >
           {ifElse(
-            derive(selectedNoteId, (id: string | null) => id !== null),
+            computed(() => selectedNoteId.get() !== null),
             <button
               type="button"
               onClick={backToList({ selectedNoteId })}
@@ -190,7 +181,7 @@ export default pattern<{
         {/* Content */}
         <div style={{ flex: 1, overflow: "auto" }}>
           {ifElse(
-            derive(noteCount, (c: number) => c === 0),
+            computed(() => noteCount === 0),
             // Empty state
             <div
               style={{
@@ -233,11 +224,10 @@ export default pattern<{
             </div>,
             // Has notes
             ifElse(
-              derive(selectedNoteId, (id: string | null) => id === null),
+              computed(() => selectedNoteId.get() === null),
               // Note list view (grouped by folder)
               <div>
-                {derive(notesByFolder, (groups) =>
-                  groups.map((group, groupIdx: number) => (
+                {notesByFolder.map((group, groupIdx: number) => (
                     <div key={groupIdx}>
                       {/* Folder header */}
                       <div
@@ -294,9 +284,11 @@ export default pattern<{
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {n.body && n.body.length > 80
-                              ? n.body.substring(0, 80) + "..."
-                              : n.body || "No additional text"}
+                            {computed(() =>
+                              n.body && n.body.length > 80
+                                ? n.body.substring(0, 80) + "..."
+                                : n.body || "No additional text"
+                            )}
                           </div>
                           <div
                             style={{
@@ -310,12 +302,13 @@ export default pattern<{
                         </div>
                       ))}
                     </div>
-                  )))}
+                  ))}
               </div>,
               // Note detail view
               <div style={{ padding: "20px", backgroundColor: "#fff" }}>
-                {derive(selectedNote, (n: NoteItem | null) =>
-                  n
+                {computed(() => {
+                  const n: NoteItem | null = selectedNote;
+                  return n
                     ? (
                       <div>
                         {/* Folder indicator */}
@@ -374,7 +367,8 @@ export default pattern<{
                         </div>
                       </div>
                     )
-                    : <div>Note not found</div>)}
+                    : <div>Note not found</div>;
+                })}
               </div>,
             ),
           )}

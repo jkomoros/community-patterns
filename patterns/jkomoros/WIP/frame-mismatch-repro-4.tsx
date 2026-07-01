@@ -153,8 +153,8 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
             <h3>Assumptions</h3>
             {hasAssumptions
               ? (
-                assumptions.map((a) => (
-                  <div key={a.id}>
+                assumptions.map((a, i) => (
+                  <div key={i}>
                     {/* Only show label, NOT alternatives */}
                     <strong>{a.label}</strong>
                     <div>({a.alternatives.length} alternatives)</div>

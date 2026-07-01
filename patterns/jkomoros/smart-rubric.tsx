@@ -1,6 +1,6 @@
 import {
+  computed,
   Default,
-  derive,
   equals,
   generateObject,
   handler,
@@ -8,6 +8,7 @@ import {
   pattern,
   toSchema,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -70,6 +71,8 @@ interface RubricInput {
 }
 
 interface RubricOutput {
+  [NAME]: string;
+  [UI]: VNode;
   title: string;
   options: RubricOption[]; // Framework handles boxing
   dimensions: Dimension[];
@@ -433,27 +436,26 @@ const SmartRubric = pattern<RubricInput, RubricOutput>(
     // LLM Quick Add - Extract dimension values from description
     // ========================================================================
 
-    // Build system prompt with current dimensions using derive for reactivity
-    const quickAddSystemPrompt = derive(
-      { dims: dimensions },
-      ({ dims }: { dims: Dimension[] }) => {
-        if (dims.length === 0) {
-          return `You are helping extract information for a decision rubric.
+    // Build system prompt with current dimensions using computed for reactivity
+    const quickAddSystemPrompt = computed(() => {
+      const dims = dimensions;
+      if (dims.length === 0) {
+        return `You are helping extract information for a decision rubric.
 There are no dimensions defined yet. Extract a suitable name for the option and suggest what dimensions might be useful.`;
+      }
+
+      const dimDescriptions = dims.map((dim) => {
+        if (dim.type === "categorical") {
+          const cats = dim.categories.map((c) =>
+            `"${c.label}" (${c.score} pts)`
+          ).join(", ");
+          return `- ${dim.name} (categorical): Options are ${cats}`;
+        } else {
+          return `- ${dim.name} (numeric): Range ${dim.numericMin}-${dim.numericMax}`;
         }
+      }).join("\n");
 
-        const dimDescriptions = dims.map((dim) => {
-          if (dim.type === "categorical") {
-            const cats = dim.categories.map((c) =>
-              `"${c.label}" (${c.score} pts)`
-            ).join(", ");
-            return `- ${dim.name} (categorical): Options are ${cats}`;
-          } else {
-            return `- ${dim.name} (numeric): Range ${dim.numericMin}-${dim.numericMax}`;
-          }
-        }).join("\n");
-
-        return `You are helping extract dimension values for a decision rubric.
+      return `You are helping extract dimension values for a decision rubric.
 
 Current dimensions:
 ${dimDescriptions}
@@ -464,8 +466,7 @@ Given a description of an option, extract:
 3. Your confidence level for each extraction
 
 Be precise with categorical values - use exact label matches.`;
-      },
-    );
+    });
 
     // Call generateObject directly in pattern body (required by framework)
     // Use quickAddSubmitted (not quickAddPrompt) to avoid triggering on every keystroke
@@ -531,24 +532,14 @@ Be precise with categorical values - use exact label matches.`;
               </cf-button>
             </cf-hstack>
 
-            {/* LLM Extraction Results - Display only, no handlers inside derive */}
-            {derive(
-              {
-                pending: quickAddExtraction.pending,
-                error: quickAddExtraction.error,
-                result: quickAddExtraction.result,
-                submitted: quickAddSubmitted,
-              },
-              (
-                { pending, error, result, submitted }: {
-                  pending: boolean;
-                  // deno-lint-ignore no-explicit-any
-                  error: any;
-                  // deno-lint-ignore no-explicit-any
-                  result: any;
-                  submitted: string | null;
-                },
-              ) => {
+            {/* LLM Extraction Results - Display only, no handlers inside computed */}
+            {computed(() => {
+                const pending = quickAddExtraction.pending;
+                // deno-lint-ignore no-explicit-any
+                const error: any = quickAddExtraction.error;
+                // deno-lint-ignore no-explicit-any
+                const result: any = quickAddExtraction.result;
+                const submitted: string | null = quickAddSubmitted;
                 // Check if we have a submitted prompt (not the placeholder)
                 const hasSubmittedPrompt = submitted &&
                   submitted.trim() !== "" &&
@@ -682,10 +673,9 @@ Be precise with categorical values - use exact label matches.`;
                     dimension values with AI.
                   </div>
                 );
-              },
-            )}
+            })}
 
-            {/* Action buttons OUTSIDE derive to avoid ReadOnlyAddressError */}
+            {/* Action buttons OUTSIDE computed to avoid ReadOnlyAddressError */}
             <cf-hstack gap="1" style={{ marginTop: "0.5rem" }}>
               <cf-button
                 onClick={acceptQuickAddFromResult({
@@ -744,66 +734,29 @@ Be precise with categorical values - use exact label matches.`;
                 : (
                   // Boxing: optionCell is a Writable<RubricOption>
                   options.map((optionCell, index) => {
-                    // Use derive() to reactively compute score
-                    const score = derive(
-                      { opt: optionCell, dims: dimensions },
-                      (
-                        { opt, dims }: { opt: RubricOption; dims: Dimension[] },
-                      ) => {
-                        let totalScore = 0;
-                        dims.forEach((dim: Dimension) => {
-                          const valueRecord = opt.values.find((
-                            v: OptionValue,
-                          ) => v.dimensionName === dim.name);
-                          if (!valueRecord) return;
-
-                          let dimensionScore = 0;
-                          if (dim.type === "categorical") {
-                            const category = dim.categories.find((c) =>
-                              c.label === valueRecord.value
-                            );
-                            dimensionScore = category?.score || 0;
-                          } else {
-                            dimensionScore = Number(valueRecord.value) || 0;
-                          }
-
-                          totalScore += dimensionScore * dim.multiplier;
-                        });
-                        return totalScore;
-                      },
+                    // Use computed() to reactively compute score
+                    const score = computed(() =>
+                      _calculateScore(optionCell, dimensions)
                     );
 
-                    const optionName = derive(
-                      optionCell,
-                      (opt: RubricOption) => opt.name,
+                    const optionName = computed(() => optionCell.name);
+                    const isSelected = computed(() =>
+                      selection.value === optionName
                     );
-                    const isSelected = derive(
-                      { selected: selection, name: optionName },
-                      (
-                        { selected, name }: {
-                          selected: SelectionState;
-                          name: string;
-                        },
-                      ) => selected.value === name,
-                    );
-                    const hasManualRank = derive(
-                      optionCell,
-                      (opt: RubricOption) => opt.manualRank !== null,
+                    const hasManualRank = computed(() =>
+                      optionCell.manualRank !== null
                     );
 
                     return (
                       <div
                         style={{
                           padding: "0.75rem",
-                          border: derive(
-                            isSelected,
-                            (sel: boolean) =>
-                              sel ? "2px solid #007bff" : "1px solid #ddd",
+                          border: computed(() =>
+                            isSelected ? "2px solid #007bff" : "1px solid #ddd"
                           ),
                           borderRadius: "4px",
-                          background: derive(
-                            isSelected,
-                            (sel: boolean) => sel ? "#e7f3ff" : "white",
+                          background: computed(() =>
+                            isSelected ? "#e7f3ff" : "white"
                           ),
                           transition: "all 0.2s",
                         }}
@@ -859,10 +812,7 @@ Be precise with categorical values - use exact label matches.`;
                           {/* Option Name - Clickable */}
                           <span
                             onClick={selectOption({
-                              name: derive(
-                                optionCell,
-                                (opt: RubricOption) => opt.name,
-                              ),
+                              name: computed(() => optionCell.name),
                               selectionCell,
                             })}
                             style={{
@@ -889,10 +839,10 @@ Be precise with categorical values - use exact label matches.`;
                                 color: "#007bff",
                               }}
                             >
-                              {derive(score, (s: number) => s.toFixed(1))}
+                              {computed(() => score.toFixed(1))}
                             </span>
-                            {derive(hasManualRank, (manual: boolean) =>
-                              manual
+                            {computed(() =>
+                              hasManualRank
                                 ? (
                                   <span
                                     style={{
@@ -919,16 +869,11 @@ Be precise with categorical values - use exact label matches.`;
               gap="1"
               style="flex: 1; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa;"
             >
-              {derive(
-                { selectedState: selection, opts: options, dims: dimensions },
-                (
-                  { selectedState, opts, dims }: {
-                    selectedState: SelectionState;
-                    opts: RubricOption[];
-                    dims: Dimension[];
-                  },
-                ) => {
-                  // Inside derive(), opts is unwrapped to RubricOption[] (plain objects)
+              {computed(() => {
+                  const selectedState: SelectionState = selection;
+                  const opts: RubricOption[] = options;
+                  const dims: Dimension[] = dimensions;
+                  // Inside computed(), opts is a plain RubricOption[] (plain objects)
                   // No .get() needed - access properties directly
                   const selectedData = selectedState.value
                     ? opts.find((opt: RubricOption) =>
@@ -1152,8 +1097,7 @@ Be precise with categorical values - use exact label matches.`;
                         )}
                     </div>
                   );
-                },
-              )}
+              })}
             </cf-vstack>
           </cf-hstack>
 
@@ -1196,10 +1140,7 @@ Be precise with categorical values - use exact label matches.`;
 
                       <cf-hstack gap="1">
                         <span style={{ marginRight: "0.5rem" }}>
-                          Weight: {derive(
-                            dim.multiplier,
-                            (multiplier: number) => multiplier.toFixed(1),
-                          )}×
+                          Weight: {computed(() => dim.multiplier.toFixed(1))}×
                         </span>
                         <cf-button
                           onClick={changeDimensionMultiplier({

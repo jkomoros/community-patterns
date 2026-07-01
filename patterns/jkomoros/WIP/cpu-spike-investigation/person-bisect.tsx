@@ -11,6 +11,7 @@ import {
   safeDateNow,
   str,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -383,6 +384,8 @@ type Input = ProfileData;
 
 /** Person profile with contact info and relationship data. #person */
 type Output = ProfileData & {
+  [NAME]: string;
+  [UI]: VNode;
   profile: ProfileData;
 };
 
@@ -732,51 +735,59 @@ const applyExtractedData = handler<
 );
 
 // Pattern tool callbacks - must be at module scope (not created inside recipe)
-const getContactInfoCallback = (
-  { displayName, emails, phones }: {
+const getContactInfoCallback = pattern<
+  {
     displayName: string;
     emails: EmailEntry[];
     phones: PhoneEntry[];
   },
-) => {
-  return computed(() => {
-    const parts = [`Name: ${displayName || "Not provided"}`];
-    if (emails && emails.length > 0) {
-      parts.push(`Email: ${emails[0].value}`);
-    }
-    if (phones && phones.length > 0) {
-      parts.push(`Phone: ${phones[0].value}`);
-    }
-    return parts.join("\n");
-  });
-};
+  string
+>(
+  ({ displayName, emails, phones }) => {
+    return computed(() => {
+      const parts = [`Name: ${displayName || "Not provided"}`];
+      if (emails && emails.length > 0) {
+        parts.push(`Email: ${emails[0].value}`);
+      }
+      if (phones && phones.length > 0) {
+        parts.push(`Phone: ${phones[0].value}`);
+      }
+      return parts.join("\n");
+    });
+  },
+);
 
-const searchNotesCallback = (
-  { query, notes }: { query: string; notes: string },
-) => {
-  return computed(() => {
-    if (!query || !notes) return [];
-    return notes.split("\n").filter((line) =>
-      line.toLowerCase().includes(query.toLowerCase())
-    );
-  });
-};
+const searchNotesCallback = pattern<
+  { query: string; notes: string },
+  string[]
+>(
+  ({ query, notes }) => {
+    return computed(() => {
+      if (!query || !notes) return [];
+      return notes.split("\n").filter((line) =>
+        line.toLowerCase().includes(query.toLowerCase())
+      );
+    });
+  },
+);
 
-const getSocialLinksCallback = (
-  { socialLinks }: { socialLinks: SocialLink[] },
-) => {
-  return computed(() => {
-    if (!socialLinks || socialLinks.length === 0) {
-      return "No social media links";
-    }
-    return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join(
-      "\n",
-    );
-  });
-};
+const getSocialLinksCallback = pattern<
+  { socialLinks: SocialLink[] },
+  string
+>(
+  ({ socialLinks }) => {
+    return computed(() => {
+      if (!socialLinks || socialLinks.length === 0) {
+        return "No social media links";
+      }
+      return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join(
+        "\n",
+      );
+    });
+  },
+);
 
 const Person = pattern<Input, Output>(
-  "Person",
   ({
     displayName,
     givenName,
@@ -799,7 +810,8 @@ const Person = pattern<Input, Output>(
     professionalReference,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = wish<MentionablePiece[]>("#mentionable");
+    const mentionable = wish<MentionablePiece[]>({ query: "#mentionable" })
+      .result;
     const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // The only way to serialize a pattern, apparently?
@@ -858,7 +870,8 @@ const Person = pattern<Input, Output>(
       if (trigger && trigger.includes("---EXTRACT-")) {
         return trigger;
       }
-      return undefined;
+      // Empty content skips the LLM call (see lot-watch/main.tsx)
+      return [];
     });
 
     // LLM extraction for notes - runs when guardedPrompt has content
@@ -1032,9 +1045,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                     // instead of inline computeWordDiff call
                                     // This reduces calls from N (one per charm instance) to 1
                                     notesDiffChunks.map(
-                                      (part, i) => {
-                                        if (part.type === "removed") {
-                                          return (
+                                      (part, i) => (
+                                        part.type === "removed"
+                                          ? (
                                             <span
                                               style={{
                                                 color: "#dc2626",
@@ -1044,9 +1057,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             >
                                               {part.word}
                                             </span>
-                                          );
-                                        } else if (part.type === "added") {
-                                          return (
+                                          )
+                                          : part.type === "added"
+                                          ? (
                                             <span
                                               style={{
                                                 color: "#16a34a",
@@ -1055,13 +1068,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             >
                                               {part.word}
                                             </span>
-                                          );
-                                        } else {
-                                          return (
-                                            <span key={i}>{part.word}</span>
-                                          );
-                                        }
-                                      },
+                                          )
+                                          : <span key={i}>{part.word}</span>
+                                      ),
                                     )
                                   )
                                   : (
@@ -1468,11 +1477,13 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                   <h3 style="margin: 0; font-size: 14px;">Notes</h3>
                   <cf-code-editor
                     $value={notes}
-                    $mentionable={mentionable}
+                    $mentionable={mentionable!}
                     $mentioned={mentioned}
                     $pattern={pattern}
                     onbacklink-click={handleCharmLinkClick({})}
-                    onbacklink-create={handleNewBacklink({ mentionable })}
+                    onbacklink-create={handleNewBacklink({
+                      mentionable: mentionable!,
+                    })}
                     language="text/markdown"
                     theme="light"
                     wordWrap
