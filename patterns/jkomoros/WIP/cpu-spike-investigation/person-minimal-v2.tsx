@@ -14,6 +14,7 @@ import {
   safeDateNow,
   str,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -46,6 +47,8 @@ interface Input {
 
 // Output type
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   displayName?: string;
   givenName?: string;
   familyName?: string;
@@ -53,7 +56,6 @@ interface Output {
 }
 
 const PersonMinimalV2 = pattern<Input, Output>(
-  "Person Minimal V2",
   ({ displayName, givenName, familyName, notes }) => {
     const effectiveDisplayName = computed(() => {
       const name = displayName.trim() || `${givenName} ${familyName}`.trim();
@@ -67,7 +69,7 @@ const PersonMinimalV2 = pattern<Input, Output>(
       if (trigger && trigger.includes("---EXTRACT-")) {
         return trigger;
       }
-      return undefined;
+      return "";
     });
 
     const { result: extractionResult, pending: extractionPending } =

@@ -1,13 +1,14 @@
 import {
   computed,
   Default,
-  fetchData,
+  fetchJson,
   handler,
   ifElse,
   lift,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -71,6 +72,8 @@ interface CheeseboardScheduleInput {
 
 /** Cheeseboard pizza schedule tracker. #cheeseboardSchedule */
 interface CheeseboardScheduleOutput {
+  [NAME]: string;
+  [UI]: VNode;
   preferences: Writable<IngredientPreference[]>;
   history: Writable<PizzaHistory>;
 }
@@ -349,9 +352,8 @@ const CheeseboardSchedule = pattern<
     // Fetch pizza schedule
     const cheeseBoardUrl =
       "https://cheeseboardcollective.coop/home/pizza/pizza-schedule/";
-    const { result, pending } = fetchData<WebReadResult>({
+    const { result, pending } = fetchJson<WebReadResult>({
       url: "/api/agent-tools/web-read",
-      mode: "json",
       options: {
         method: "POST",
         headers: {

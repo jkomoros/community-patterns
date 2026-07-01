@@ -1,6 +1,5 @@
 import {
   computed,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -317,13 +316,10 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
     const importInput = Writable.of("");
 
     // Derive the links list
-    const links = derive(
-      collection,
-      (col: Collection) => col.links || [],
-    );
+    const links = computed(() => collection.get().links || []);
 
     return {
-      [NAME]: str`${derive(collection, (c: Collection) => c.name)}`,
+      [NAME]: str`${computed(() => collection.get().name)}`,
       [UI]: (
         <div
           style={{
@@ -342,7 +338,7 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                 color: "#1c1c1e",
               }}
             >
-              {derive(collection, (c: Collection) => c.name)}
+              {computed(() => collection.get().name)}
             </h1>
             <p
               style={{
@@ -350,7 +346,7 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                 color: "#666",
               }}
             >
-              {derive(collection, (c: Collection) => c.description)}
+              {computed(() => collection.get().description)}
             </p>
           </div>
 
@@ -403,7 +399,7 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                   Generate JSON
                 </button>
                 {ifElse(
-                  derive(exportOutput, (o: string) => o.length > 0),
+                  computed(() => exportOutput.get().length > 0),
                   <cf-textarea
                     $value={exportOutput}
                     style="width: 100%; min-height: 100px; font-family: monospace; font-size: 0.75rem;"
@@ -647,8 +643,8 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                       </div>
 
                       {/* Show existing related links */}
-                      {derive(link, (l: Link) => {
-                        const related = l.relatedLinks || [];
+                      {computed(() => {
+                        const related = (link as Link).relatedLinks || [];
                         if (related.length === 0) {
                           return (
                             <div
@@ -710,8 +706,8 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                               gap: "0.25rem",
                             }}
                           >
-                            {derive(links, (allLinksInCollection: Link[]) =>
-                              allLinksInCollection
+                            {computed(() =>
+                              links
                                 .filter((other) => {
                                   const currentUrl = (link as Link).url;
                                   const relatedUrls = (
@@ -798,8 +794,8 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
           </div>
 
           {/* Empty state */}
-          {derive(links, (l: Link[]) =>
-            l.length === 0
+          {computed(() =>
+            links.length === 0
               ? (
                 <div
                   style={{

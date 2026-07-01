@@ -9,13 +9,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -28,8 +29,10 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
-  enableFetching: Writable<boolean>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
+  enableFetching: boolean;
 }
 
 const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
@@ -61,70 +64,46 @@ function makeHeaders(token: string) {
 
 export default pattern<Input, Output>(({ ids, enableFetching }) => {
   // Simulate token (always returns a value, like inlineAuth.token)
-  const effectiveToken = derive(enableFetching, (e) => e ? "fake-token" : "");
+  const effectiveToken = computed(() => enableFetching ? "fake-token" : "");
 
-  const hasAuth = derive(effectiveToken, (t) => !!t);
+  const hasAuth = computed(() => !!effectiveToken);
 
   const results = ids.map((idCell) => {
-    const parsedRef = derive(idCell, (id) => ({ userId: id }));
+    const parsedRef = computed(() => ({ userId: idCell }));
 
     // URL is empty when hasAuth is false - EXACTLY like github-momentum-tracker
-    const apiUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && r
-          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
-          : "";
-      },
-    );
+    const apiUrl = computed(() => {
+      const auth = hasAuth;
+      const r = parsedRef;
+      return auth && r
+        ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+        : "";
+    });
 
     // THE KEY DIFFERENCE: fetchData with options.headers derived from cell
     // This is EXACTLY what github-momentum-tracker does
-    const userData = fetchData<User>({
+    const userData = fetchJson<User>({
       url: apiUrl,
-      mode: "json",
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
 
     // Add more fetchData with options (like commitActivity in momentum-tracker)
-    const todosUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && r
-          ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}`
-          : "";
-      },
-    );
+    const todosUrl = computed(() => {
+      const auth = hasAuth;
+      const r = parsedRef;
+      return auth && r
+        ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}`
+        : "";
+    });
 
-    const todosData = fetchData<{ id: number; title: string }[]>({
+    const todosData = fetchJson<{ id: number; title: string }[]>({
       url: todosUrl,
-      mode: "json",
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
 
@@ -166,9 +145,8 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
             type="button"
             onClick={toggleFetching({ enableFetching })}
             style={{
-              background: derive(
-                enableFetching,
-                (e) => e ? "#28a745" : "#dc3545",
+              background: computed(() =>
+                enableFetching ? "#28a745" : "#dc3545"
               ),
               color: "white",
               border: "none",
@@ -176,15 +154,17 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
               borderRadius: "4px",
             }}
           >
-            Fetching: {derive(enableFetching, (e) => e ? "ON" : "OFF")}
+            Fetching: {computed(() => enableFetching ? "ON" : "OFF")}
           </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() =>
+            ids.length === 0 ? "(empty)" : ids.join(", ")
+          )}
           {" | "}
-          <strong>hasAuth:</strong> {derive(hasAuth, (h) => h ? "YES" : "NO")}
+          <strong>hasAuth:</strong> {computed(() => hasAuth ? "YES" : "NO")}
         </div>
 
         <h2>Results:</h2>
@@ -203,16 +183,17 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
                 ID: {item.id}
               </div>
               <div>
-                <strong>User:</strong> {derive(
-                  item.userData,
-                  (u) => u?.result?.name || (u?.pending ? "..." : "—"),
+                <strong>User:</strong> {computed(() =>
+                  item.userData?.result?.name ||
+                  (item.userData?.pending ? "..." : "—")
                 )}
               </div>
               <div>
-                <strong>Todos:</strong> {derive(item.todosData, (t) =>
-                  t?.result?.length
-                    ? `${t.result.length} items`
-                    : (t?.pending ? "..." : "—"))}
+                <strong>Todos:</strong> {computed(() =>
+                  item.todosData?.result?.length
+                    ? `${item.todosData.result.length} items`
+                    : (item.todosData?.pending ? "..." : "—")
+                )}
               </div>
             </div>
           ))}

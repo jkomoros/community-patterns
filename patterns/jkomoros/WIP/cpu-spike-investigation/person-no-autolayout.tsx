@@ -11,6 +11,7 @@ import {
   safeDateNow,
   str,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -301,6 +302,8 @@ type Input = ProfileData;
 
 /** Person profile with contact info and relationship data. #person */
 type Output = ProfileData & {
+  [NAME]: string;
+  [UI]: VNode;
   profile: ProfileData;
 };
 
@@ -336,7 +339,7 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionablePiece);
+    mentionable.push(detail.charm);
   }
 });
 
@@ -648,8 +651,54 @@ const applyExtractedData = handler<
   },
 );
 
+// Pattern factories for omnibot tools. Defined at module scope so they don't
+// shadow (or get shadowed by) the pattern-body `pattern` local, and so each
+// tool is a proper addressable pattern (patternTool requires a PatternFactory).
+const getContactInfoPattern = pattern<{
+  displayName: string;
+  emails: EmailEntry[];
+  phones: PhoneEntry[];
+}, string>(
+  ({ displayName, emails, phones }) => {
+    return computed(() => {
+      const parts = [`Name: ${displayName || "Not provided"}`];
+      if (emails && emails.length > 0) {
+        parts.push(`Email: ${emails[0].value}`);
+      }
+      if (phones && phones.length > 0) {
+        parts.push(`Phone: ${phones[0].value}`);
+      }
+      return parts.join("\n");
+    });
+  },
+);
+
+const searchNotesPattern = pattern<{ query: string; notes: string }, string[]>(
+  ({ query, notes }) => {
+    return computed(() => {
+      if (!query || !notes) return [];
+      return notes.split("\n").filter((line: string) =>
+        line.toLowerCase().includes(query.toLowerCase())
+      );
+    });
+  },
+);
+
+const getSocialLinksPattern = pattern<{ socialLinks: SocialLink[] }, string>(
+  ({ socialLinks }) => {
+    return computed(() => {
+      if (!socialLinks || socialLinks.length === 0) {
+        return "No social media links";
+      }
+      return socialLinks.map((link: SocialLink) =>
+        `${link.platform}: ${link.handle}`
+      )
+        .join("\n");
+    });
+  },
+);
+
 const Person = pattern<Input, Output>(
-  "Person",
   ({
     displayName,
     givenName,
@@ -672,7 +721,8 @@ const Person = pattern<Input, Output>(
     professionalReference,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = wish<MentionablePiece[]>("#mentionable");
+    const mentionable = wish<MentionablePiece[]>({ query: "#mentionable" })
+      .result;
     const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // The only way to serialize a pattern, apparently?
@@ -700,22 +750,28 @@ const Person = pattern<Input, Output>(
     // Create derived values for each social platform
     const twitterHandle = computed(
       () =>
-        socialLinks.find((l) => l && l.platform === "twitter")?.handle ?? "",
+        socialLinks.find((l: SocialLink) => l && l.platform === "twitter")
+          ?.handle ?? "",
     );
     const linkedinHandle = computed(
       () =>
-        socialLinks.find((l) => l && l.platform === "linkedin")?.handle ?? "",
+        socialLinks.find((l: SocialLink) => l && l.platform === "linkedin")
+          ?.handle ?? "",
     );
     const githubHandle = computed(
-      () => socialLinks.find((l) => l && l.platform === "github")?.handle ?? "",
+      () =>
+        socialLinks.find((l: SocialLink) => l && l.platform === "github")
+          ?.handle ?? "",
     );
     const instagramHandle = computed(
       () =>
-        socialLinks.find((l) => l && l.platform === "instagram")?.handle ?? "",
+        socialLinks.find((l: SocialLink) => l && l.platform === "instagram")
+          ?.handle ?? "",
     );
     const mastodonHandle = computed(
       () =>
-        socialLinks.find((l) => l && l.platform === "mastodon")?.handle ?? "",
+        socialLinks.find((l: SocialLink) => l && l.platform === "mastodon")
+          ?.handle ?? "",
     );
 
     // Trigger for LLM extraction - cell that holds notes snapshot to extract
@@ -731,7 +787,7 @@ const Person = pattern<Input, Output>(
       if (trigger && trigger.includes("---EXTRACT-")) {
         return trigger;
       }
-      return undefined;
+      return "";
     });
 
     // LLM extraction for notes - runs when guardedPrompt has content
@@ -905,9 +961,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                     // instead of inline computeWordDiff call
                                     // This reduces calls from N (one per charm instance) to 1
                                     notesDiffChunks.map(
-                                      (part, i) => {
-                                        if (part.type === "removed") {
-                                          return (
+                                      (part, i) =>
+                                        part.type === "removed"
+                                          ? (
                                             <span
                                               style={{
                                                 color: "#dc2626",
@@ -917,9 +973,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             >
                                               {part.word}
                                             </span>
-                                          );
-                                        } else if (part.type === "added") {
-                                          return (
+                                          )
+                                          : part.type === "added"
+                                          ? (
                                             <span
                                               style={{
                                                 color: "#16a34a",
@@ -928,13 +984,8 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             >
                                               {part.word}
                                             </span>
-                                          );
-                                        } else {
-                                          return (
-                                            <span key={i}>{part.word}</span>
-                                          );
-                                        }
-                                      },
+                                          )
+                                          : <span key={i}>{part.word}</span>,
                                     )
                                   )
                                   : (
@@ -1269,9 +1320,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <cf-button
                             size="sm"
                             variant={computed(() =>
-                              (origins as unknown as Origin[]).includes(
-                                  origin as Origin,
-                                )
+                              origins.includes(origin as Origin)
                                 ? "primary"
                                 : "secondary"
                             )}
@@ -1353,7 +1402,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     $mentioned={mentioned}
                     $pattern={pattern}
                     onbacklink-click={handleCharmLinkClick({})}
-                    onbacklink-create={handleNewBacklink({ mentionable })}
+                    onbacklink-create={handleNewBacklink({
+                      mentionable: mentionable!,
+                    })}
                     language="text/markdown"
                     theme="light"
                     wordWrap
@@ -1422,47 +1473,15 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       triggerExtraction: triggerExtraction({ notes, extractTrigger }),
       // Pattern tools for omnibot
       getContactInfo: patternTool(
-        (
-          { displayName, emails, phones }: {
-            displayName: string;
-            emails: EmailEntry[];
-            phones: PhoneEntry[];
-          },
-        ) => {
-          return computed(() => {
-            const parts = [`Name: ${displayName || "Not provided"}`];
-            if (emails && emails.length > 0) {
-              parts.push(`Email: ${emails[0].value}`);
-            }
-            if (phones && phones.length > 0) {
-              parts.push(`Phone: ${phones[0].value}`);
-            }
-            return parts.join("\n");
-          });
-        },
+        getContactInfoPattern,
         { displayName: effectiveDisplayName, emails, phones },
       ),
       searchNotes: patternTool(
-        ({ query, notes }: { query: string; notes: string }) => {
-          return computed(() => {
-            if (!query || !notes) return [];
-            return notes.split("\n").filter((line) =>
-              line.toLowerCase().includes(query.toLowerCase())
-            );
-          });
-        },
+        searchNotesPattern,
         { notes },
       ),
       getSocialLinks: patternTool(
-        ({ socialLinks }: { socialLinks: SocialLink[] }) => {
-          return computed(() => {
-            if (!socialLinks || socialLinks.length === 0) {
-              return "No social media links";
-            }
-            return socialLinks.map((link) => `${link.platform}: ${link.handle}`)
-              .join("\n");
-          });
-        },
+        getSocialLinksPattern,
         { socialLinks },
       ),
     };

@@ -2,10 +2,13 @@
  * Test pattern to verify previewUI in the picker.
  * Uses wish("#googleAuth") to trigger the multi-account picker.
  */
-import { NAME, pattern, UI, wish } from "commonfabric";
+import { NAME, pattern, UI, type VNode, wish } from "commonfabric";
 
 type Input = Record<string, never>;
-type Output = Record<string, never>;
+interface Output {
+  [NAME]: string;
+  [UI]: VNode;
+}
 
 export default pattern<Input, Output>(() => {
   // This will show a picker when multiple #googleAuth charms are favorited

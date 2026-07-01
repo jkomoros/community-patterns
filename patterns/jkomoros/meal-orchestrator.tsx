@@ -5,11 +5,12 @@ import {
   handler,
   ifElse,
   NAME,
-  OpaqueRef,
   pattern,
+  Reactive,
   safeDateNow,
   str,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -99,14 +100,19 @@ interface MealOrchestratorInput {
   planningNotes?: Default<string, "">; // Free-form text for rough ideas
 
   // Recipes (@ references)
-  recipes?: Default<OpaqueRef<FoodRecipe>[], []>;
-  preparedFoods?: Default<OpaqueRef<PreparedFood>[], []>;
+  recipes?: Default<Reactive<FoodRecipe>[], []>;
+  preparedFoods?: Default<Reactive<PreparedFood>[], []>;
 
   notes?: Default<string, "">;
 }
 
 /** Meal planner that coordinates multiple recipes. #mealPlan */
-interface MealOrchestratorOutput extends MealOrchestratorInput {}
+interface MealOrchestratorOutput extends MealOrchestratorInput {
+  [NAME]: string;
+  [UI]: VNode;
+  // deno-lint-ignore no-explicit-any
+  mentionable: any[];
+}
 
 // Oven timeline event for visualization
 interface OvenTimelineEvent {
@@ -191,8 +197,8 @@ const removeDietaryRequirement = handler<
 const removeRecipe = handler<
   unknown,
   {
-    recipes: Writable<Array<Writable<OpaqueRef<FoodRecipe>>>>;
-    recipe: Writable<OpaqueRef<FoodRecipe>>;
+    recipes: Writable<Array<Writable<Reactive<FoodRecipe>>>>;
+    recipe: Writable<Reactive<FoodRecipe>>;
   }
 >((_event, { recipes, recipe }) => {
   recipes.remove(recipe);
@@ -202,8 +208,8 @@ const removeRecipe = handler<
 const removePreparedFood = handler<
   unknown,
   {
-    preparedFoods: Writable<Array<Writable<OpaqueRef<PreparedFood>>>>;
-    preparedFood: Writable<OpaqueRef<PreparedFood>>;
+    preparedFoods: Writable<Array<Writable<Reactive<PreparedFood>>>>;
+    preparedFood: Writable<Reactive<PreparedFood>>;
   }
 >((_event, { preparedFoods, preparedFood }) => {
   preparedFoods.remove(preparedFood);

@@ -18,6 +18,7 @@ import {
   safeDateNow,
   toSchema,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -60,17 +61,18 @@ interface Input {
 
 // Output type (what's exposed as cells)
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   notes: string;
 }
 
 // Use pattern() like person.tsx does
 const ExtractTargetV2 = pattern<Input, Output>(
-  "Extract Target V2",
   ({ notes }) => {
     const extractTrigger = Writable.of<string>("");
     const startTimeMs = Writable.of<number>(0);
 
-    const guardedPrompt = computed(() => {
+    const guardedPrompt = computed((): string | undefined => {
       const t = extractTrigger.get();
       if (t && t.includes("---EXTRACT-")) {
         return t;
@@ -80,7 +82,7 @@ const ExtractTargetV2 = pattern<Input, Output>(
 
     const { result, pending } = generateObject({
       system: "Extract profile data from the text. Fill in all 14 fields.",
-      prompt: guardedPrompt,
+      prompt: guardedPrompt as any,
       model: "anthropic:claude-sonnet-4-5",
       schema: toSchema<ExtractionResult>(),
     });

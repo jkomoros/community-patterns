@@ -6,13 +6,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -27,8 +28,10 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
-  enableFetching: Writable<boolean>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
+  enableFetching: boolean;
 }
 
 const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
@@ -52,110 +55,124 @@ const toggleFetching = handler<unknown, { enableFetching: Writable<boolean> }>(
 
 export default pattern<Input, Output>(({ ids, enableFetching }) => {
   // Derive hasAuth-like flag
-  const hasAuth = derive(enableFetching, (e) => e === true);
+  const hasAuth = computed(() => enableFetching === true);
 
   const results = ids.map((idCell) => {
     // Parse ref (like parsedRef in momentum-tracker)
-    const parsedRef = derive(idCell, (id) => ({ userId: id }));
+    const parsedRef = computed(() => ({ userId: idCell }));
 
     // ALL URLs depend on hasAuth - EMPTY when false
     // This mirrors github-momentum-tracker exactly
 
     // URL 1: User data (like metadata)
-    const userUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const ref = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && ref
-          ? `https://jsonplaceholder.typicode.com/users/${ref.userId}`
-          : "";
-      },
+    const userUrl = computed(() =>
+      hasAuth && parsedRef
+        ? `https://jsonplaceholder.typicode.com/users/${parsedRef.userId}`
+        : ""
     );
 
     // URL 2: Todos (like commitActivity)
-    const todosUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const ref = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && ref
-          ? `https://jsonplaceholder.typicode.com/todos?userId=${ref.userId}`
-          : "";
-      },
+    const todosUrl = computed(() =>
+      hasAuth && parsedRef
+        ? `https://jsonplaceholder.typicode.com/todos?userId=${parsedRef.userId}`
+        : ""
     );
 
     // URL 3: Posts (like another API call)
-    const postsUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const ref = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && ref
-          ? `https://jsonplaceholder.typicode.com/posts?userId=${ref.userId}`
-          : "";
-      },
+    const postsUrl = computed(() =>
+      hasAuth && parsedRef
+        ? `https://jsonplaceholder.typicode.com/posts?userId=${parsedRef.userId}`
+        : ""
     );
 
     // Create fetchData calls - ALL will be empty when hasAuth is false
-    const userData = fetchData<User>({ url: userUrl, mode: "json" });
-    const todosData = fetchData<Todo[]>({ url: todosUrl, mode: "json" });
-    const postsData = fetchData<Post[]>({ url: postsUrl, mode: "json" });
+    const userData = fetchJson<User>({ url: userUrl });
+    const todosData = fetchJson<Todo[]>({ url: todosUrl });
+    const postsData = fetchJson<Post[]>({ url: postsUrl });
 
     // Now create 10 MORE fetchData calls (like starSample0-9)
     // These depend on userData result - so they're also empty when no auth
-    const makeSlotUrl = (slotIndex: number) =>
-      derive({ hasAuth, userResult: userData }, (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const u = (values.userResult as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.userResult as any).get()
-          : values.userResult;
-        if (!auth || !u?.result?.id) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${
-          (u.result.id - 1) * 10 + slotIndex + 1
-        }`;
-      });
+    const slotUrl0 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 0 + 1
+        }`
+    );
+    const slotUrl1 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 1 + 1
+        }`
+    );
+    const slotUrl2 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 2 + 1
+        }`
+    );
+    const slotUrl3 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 3 + 1
+        }`
+    );
+    const slotUrl4 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 4 + 1
+        }`
+    );
+    const slotUrl5 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 5 + 1
+        }`
+    );
+    const slotUrl6 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 6 + 1
+        }`
+    );
+    const slotUrl7 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 7 + 1
+        }`
+    );
+    const slotUrl8 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 8 + 1
+        }`
+    );
+    const slotUrl9 = computed(() =>
+      !hasAuth || !userData?.result?.id
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${
+          (userData.result.id - 1) * 10 + 9 + 1
+        }`
+    );
 
-    const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json" });
-    const slot1 = fetchData<Todo>({ url: makeSlotUrl(1), mode: "json" });
-    const slot2 = fetchData<Todo>({ url: makeSlotUrl(2), mode: "json" });
-    const slot3 = fetchData<Todo>({ url: makeSlotUrl(3), mode: "json" });
-    const slot4 = fetchData<Todo>({ url: makeSlotUrl(4), mode: "json" });
-    const slot5 = fetchData<Todo>({ url: makeSlotUrl(5), mode: "json" });
-    const slot6 = fetchData<Todo>({ url: makeSlotUrl(6), mode: "json" });
-    const slot7 = fetchData<Todo>({ url: makeSlotUrl(7), mode: "json" });
-    const slot8 = fetchData<Todo>({ url: makeSlotUrl(8), mode: "json" });
-    const slot9 = fetchData<Todo>({ url: makeSlotUrl(9), mode: "json" });
+    const slot0 = fetchJson<Todo>({ url: slotUrl0 });
+    const slot1 = fetchJson<Todo>({ url: slotUrl1 });
+    const slot2 = fetchJson<Todo>({ url: slotUrl2 });
+    const slot3 = fetchJson<Todo>({ url: slotUrl3 });
+    const slot4 = fetchJson<Todo>({ url: slotUrl4 });
+    const slot5 = fetchJson<Todo>({ url: slotUrl5 });
+    const slot6 = fetchJson<Todo>({ url: slotUrl6 });
+    const slot7 = fetchJson<Todo>({ url: slotUrl7 });
+    const slot8 = fetchJson<Todo>({ url: slotUrl8 });
+    const slot9 = fetchJson<Todo>({ url: slotUrl9 });
 
     return {
       id: idCell,
@@ -207,9 +224,8 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
             type="button"
             onClick={toggleFetching({ enableFetching })}
             style={{
-              background: derive(
-                enableFetching,
-                (e) => e ? "#28a745" : "#dc3545",
+              background: computed(() =>
+                enableFetching ? "#28a745" : "#dc3545"
               ),
               color: "white",
               border: "none",
@@ -217,15 +233,17 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
               borderRadius: "4px",
             }}
           >
-            Fetching: {derive(enableFetching, (e) => e ? "ON" : "OFF")}
+            Fetching: {computed(() => enableFetching ? "ON" : "OFF")}
           </button>
         </div>
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() =>
+            ids.length === 0 ? "(empty)" : ids.join(", ")
+          )}
           {" | "}
-          <strong>hasAuth:</strong> {derive(hasAuth, (h) => h ? "YES" : "NO")}
+          <strong>hasAuth:</strong> {computed(() => hasAuth ? "YES" : "NO")}
           {" | "}
           <strong>fetchData per item:</strong> 13 (3 main + 10 slots)
         </div>
@@ -247,24 +265,24 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
               </div>
 
               <div style={{ marginBottom: "4px" }}>
-                <strong>User:</strong> {derive(
-                  item.userData,
-                  (u) => u?.result?.name || (u?.pending ? "..." : "—"),
+                <strong>User:</strong> {computed(() =>
+                  item.userData?.result?.name ||
+                  (item.userData?.pending ? "..." : "—")
                 )}
               </div>
 
               <div style={{ marginBottom: "4px" }}>
-                <strong>Todos:</strong> {derive(item.todosData, (t) =>
-                  t?.result?.length
-                    ? `${t.result.length} items`
-                    : (t?.pending ? "..." : "—"))}
+                <strong>Todos:</strong> {computed(() =>
+                  item.todosData?.result?.length
+                    ? `${item.todosData.result.length} items`
+                    : (item.todosData?.pending ? "..." : "—"))}
               </div>
 
               <div style={{ marginBottom: "4px" }}>
-                <strong>Posts:</strong> {derive(item.postsData, (p) =>
-                  p?.result?.length
-                    ? `${p.result.length} items`
-                    : (p?.pending ? "..." : "—"))}
+                <strong>Posts:</strong> {computed(() =>
+                  item.postsData?.result?.length
+                    ? `${item.postsData.result.length} items`
+                    : (item.postsData?.pending ? "..." : "—"))}
               </div>
 
               <div>
@@ -286,9 +304,8 @@ export default pattern<Input, Output>(({ ids, enableFetching }) => {
                         borderRadius: "2px",
                       }}
                     >
-                      #{i}: {derive(
-                        s,
-                        (r) => r?.result?.id || (r?.pending ? "..." : "—"),
+                      #{i}: {computed(() =>
+                        s?.result?.id || (s?.pending ? "..." : "—")
                       )}
                     </span>
                   ))}

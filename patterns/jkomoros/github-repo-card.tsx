@@ -1,4 +1,13 @@
-import { derive, fetchData, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  computed,
+  fetchJson,
+  ifElse,
+  NAME,
+  pattern,
+  Stream,
+  UI,
+  type VNode,
+} from "commonfabric";
 
 /**
  * GitHub Repo Card
@@ -60,11 +69,13 @@ interface MomentumAnalysis {
 interface Input {
   repoName: string;
   token: string;
-  onRemove?: unknown; // Handler result
+  onRemove?: Stream<void>; // Handler result
 }
 
 /** GitHub repository card with stats and momentum. #githubRepoCard */
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   repoName: string;
   metadata: unknown;
   momentum: MomentumAnalysis;
@@ -202,67 +213,41 @@ function makeSlotUrl(
 
 export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   // Parse repo name
-  const ref = derive(repoName, (name) => parseGitHubUrl(name));
+  const ref = computed(() => parseGitHubUrl(repoName));
 
   // Check if we have valid auth and ref
-  const hasAuth = derive(token, (t) => !!t && t.length > 0);
+  const hasAuth = computed(() => !!token && token.length > 0);
 
   // Derive URLs - empty string skips fetch
-  const apiUrl = derive(
-    { hasAuth, ref },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const auth = (values.hasAuth as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.hasAuth as any).get()
-        : values.hasAuth;
-      // deno-lint-ignore no-explicit-any
-      const r = (values.ref as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.ref as any).get()
-        : values.ref;
-      return (auth && r)
-        ? `https://api.github.com/repos/${r.owner}/${r.repo}`
-        : "";
-    },
-  );
+  const apiUrl = computed(() => {
+    const r = ref;
+    return (hasAuth && r)
+      ? `https://api.github.com/repos/${r.owner}/${r.repo}`
+      : "";
+  });
 
-  const commitActivityUrl = derive(
-    { hasAuth, ref },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const auth = (values.hasAuth as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.hasAuth as any).get()
-        : values.hasAuth;
-      // deno-lint-ignore no-explicit-any
-      const r = (values.ref as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.ref as any).get()
-        : values.ref;
-      return (auth && r)
-        ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity`
-        : "";
-    },
-  );
+  const commitActivityUrl = computed(() => {
+    const r = ref;
+    return (hasAuth && r)
+      ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity`
+      : "";
+  });
 
   // Fetch repo metadata
-  const metadata = fetchData<GitHubRepoMetadata>({
+  const metadata = fetchJson<GitHubRepoMetadata>({
     url: apiUrl,
-    mode: "json",
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeGitHubHeaders(t)),
+      headers: computed(() => makeGitHubHeaders(token)),
     },
   });
 
   // Fetch commit activity
-  const commitActivity = fetchData<CommitActivityWeek[]>({
+  const commitActivity = fetchJson<CommitActivityWeek[]>({
     url: commitActivityUrl,
-    mode: "json",
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeGitHubHeaders(t)),
+      headers: computed(() => makeGitHubHeaders(token)),
     },
   });
 
@@ -270,213 +255,161 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   // Star History Sampling
   // ==========================================================================
 
-  const samplePages = derive(
-    { hasAuth, parsedRef: ref, metadata },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const auth = (values.hasAuth as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.hasAuth as any).get()
-        : values.hasAuth;
-      // deno-lint-ignore no-explicit-any
-      const r = (values.parsedRef as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.parsedRef as any).get()
-        : values.parsedRef;
-      // deno-lint-ignore no-explicit-any
-      const m = (values.metadata as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.metadata as any).get()
-        : values.metadata;
+  const samplePages = computed(() => {
+    const r = ref;
+    const m = metadata;
 
-      if (!auth || !r || !m?.result?.stargazers_count) {
-        return { owner: "", repo: "", pages: [] as number[] };
-      }
+    if (!hasAuth || !r || !m?.result?.stargazers_count) {
+      return { owner: "", repo: "", pages: [] as number[] };
+    }
 
-      const totalStars = m.result.stargazers_count;
-      return {
-        owner: r.owner,
-        repo: r.repo,
-        pages: getSamplePageNumbers(totalStars),
-      };
-    },
-  );
+    const totalStars = m.result.stargazers_count;
+    return {
+      owner: r.owner,
+      repo: r.repo,
+      pages: getSamplePageNumbers(totalStars),
+    };
+  });
 
-  // 10 explicit fetchData slots for star samples
-  const starSample0 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 0)),
-    mode: "json",
+  // 10 explicit fetchJson slots for star samples
+  const starSample0 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 0)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample1 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 1)),
-    mode: "json",
+  const starSample1 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 1)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample2 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 2)),
-    mode: "json",
+  const starSample2 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 2)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample3 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 3)),
-    mode: "json",
+  const starSample3 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 3)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample4 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 4)),
-    mode: "json",
+  const starSample4 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 4)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample5 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 5)),
-    mode: "json",
+  const starSample5 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 5)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample6 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 6)),
-    mode: "json",
+  const starSample6 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 6)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample7 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 7)),
-    mode: "json",
+  const starSample7 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 7)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample8 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 8)),
-    mode: "json",
+  const starSample8 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 8)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
-  const starSample9 = fetchData<StargazerWithDate[]>({
-    url: derive(samplePages, (sp) => makeSlotUrl(sp, 9)),
-    mode: "json",
+  const starSample9 = fetchJson<StargazerWithDate[]>({
+    url: computed(() => makeSlotUrl(samplePages, 9)),
     options: {
       method: "GET",
-      headers: derive(token, (t) => makeStargazerHeaders(t)),
+      headers: computed(() => makeStargazerHeaders(token)),
     },
   });
 
   // Aggregate star history
-  const starHistory = derive(
-    {
-      samplePages,
-      s0: starSample0,
-      s1: starSample1,
-      s2: starSample2,
-      s3: starSample3,
-      s4: starSample4,
-      s5: starSample5,
-      s6: starSample6,
-      s7: starSample7,
-      s8: starSample8,
-      s9: starSample9,
-    },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const sp = (values.samplePages as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.samplePages as any).get()
-        : values.samplePages;
-      if (!sp.pages || sp.pages.length === 0) {
-        return { loading: false, data: [] as StarDataPoint[] };
+  const starHistory = computed(() => {
+    const sp = samplePages;
+    if (!sp.pages || sp.pages.length === 0) {
+      return { loading: false, data: [] as StarDataPoint[] };
+    }
+
+    const samples = [
+      starSample0,
+      starSample1,
+      starSample2,
+      starSample3,
+      starSample4,
+      starSample5,
+      starSample6,
+      starSample7,
+      starSample8,
+      starSample9,
+    ];
+
+    const pending = samples.some((sample, i) => {
+      if (i >= sp.pages.length) return false;
+      return sample?.pending === true;
+    });
+
+    if (pending) return { loading: true, data: [] as StarDataPoint[] };
+
+    const dataPoints: StarDataPoint[] = [];
+    for (let i = 0; i < sp.pages.length && i < 10; i++) {
+      const sample = samples[i];
+      const result = sample?.result;
+      if (result && result.length > 0 && result[0]?.starred_at) {
+        const pageNum = sp.pages[i];
+        dataPoints.push({
+          date: result[0].starred_at.split("T")[0],
+          count: (pageNum - 1) * 100,
+        });
       }
+    }
 
-      const samples = [
-        values.s0,
-        values.s1,
-        values.s2,
-        values.s3,
-        values.s4,
-        values.s5,
-        values.s6,
-        values.s7,
-        values.s8,
-        values.s9,
-      ];
-
-      const pending = samples.some((s, i) => {
-        if (i >= sp.pages.length) return false;
-        // deno-lint-ignore no-explicit-any
-        const sample = (s as any)?.get ? (s as any).get() : s;
-        return sample?.pending === true;
-      });
-
-      if (pending) return { loading: true, data: [] as StarDataPoint[] };
-
-      const dataPoints: StarDataPoint[] = [];
-      for (let i = 0; i < sp.pages.length && i < 10; i++) {
-        // deno-lint-ignore no-explicit-any
-        const sample = (samples[i] as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (samples[i] as any).get()
-          : samples[i];
-        const result = sample?.result;
-        if (result && result.length > 0 && result[0]?.starred_at) {
-          const pageNum = sp.pages[i];
-          dataPoints.push({
-            date: result[0].starred_at.split("T")[0],
-            count: (pageNum - 1) * 100,
-          });
-        }
-      }
-
-      dataPoints.sort((a, b) => a.date.localeCompare(b.date));
-      return { loading: false, data: dataPoints };
-    },
-  );
+    dataPoints.sort((a, b) => a.date.localeCompare(b.date));
+    return { loading: false, data: dataPoints };
+  });
 
   // ==========================================================================
   // Derived display values
   // ==========================================================================
 
-  // deno-lint-ignore no-explicit-any
-  const isLoading = derive(metadata, (m: any) => m?.pending === true);
-  // deno-lint-ignore no-explicit-any
-  const hasError = derive(metadata, (m: any) => !!m?.error);
-  const data = derive(metadata, (m) => m?.result);
-  const commitData = derive(commitActivity, (ca) => ca?.result || []);
-  const isCommitLoading = derive(commitActivity, (ca) => ca?.pending === true);
-  const momentum = derive(commitData, (weeks) => calculateMomentum(weeks));
+  const isLoading = computed(() => metadata?.pending === true);
+  const hasError = computed(() => !!metadata?.error);
+  const data = computed(() => metadata?.result);
+  const commitData = computed(() => commitActivity?.result || []);
+  const isCommitLoading = computed(() => commitActivity?.pending === true);
+  const momentum = computed(() => calculateMomentum(commitData));
 
-  const sparklineData = derive(commitData, (weeks) => {
+  const sparklineData = computed(() => {
+    const weeks = commitData;
     if (!weeks || weeks.length === 0) return [];
     return weeks.slice(-12).map((w) => w.total);
   });
 
-  const repoHref = derive(
-    { data, repoName },
-    ({ data, repoName }) => data?.html_url || `https://github.com/${repoName}`,
+  const repoHref = computed(() =>
+    data?.html_url || `https://github.com/${repoName}`
   );
 
-  const momentumBadge = derive(momentum, (m) => {
+  const momentumBadge = computed(() => {
+    const m = momentum;
     const styles: Record<
       string,
       { bg: string; color: string; label: string; icon: string }
@@ -504,7 +437,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
   // ==========================================================================
 
   return {
-    [NAME]: derive(repoName, (n) => `Repo: ${n}`),
+    [NAME]: computed(() => `Repo: ${repoName}`),
     [UI]: (
       <div
         style={{
@@ -545,11 +478,11 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                   borderRadius: "12px",
                   fontSize: "12px",
                   fontWeight: "500",
-                  backgroundColor: derive(momentumBadge, (b) => b.bg),
-                  color: derive(momentumBadge, (b) => b.color),
+                  backgroundColor: computed(() => momentumBadge.bg),
+                  color: computed(() => momentumBadge.color),
                 }}
               >
-                {derive(momentumBadge, (b) => `${b.icon} ${b.label}`)}
+                {computed(() => `${momentumBadge.icon} ${momentumBadge.label}`)}
               </span>
             </div>
             {ifElse(
@@ -562,7 +495,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                   maxWidth: "600px",
                 }}
               >
-                {derive(data, (d) => d?.description || "No description")}
+                {computed(() => data?.description || "No description")}
               </p>,
               null,
             )}
@@ -592,21 +525,20 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
               <div>
                 <span style={{ color: "#666" }}>Stars:</span>
                 <strong>
-                  {derive(
-                    data,
-                    (d) => d?.stargazers_count?.toLocaleString() || "—",
+                  {computed(() =>
+                    data?.stargazers_count?.toLocaleString() || "—"
                   )}
                 </strong>
               </div>
               <div>
                 <span style={{ color: "#666" }}>Forks:</span>
                 <strong>
-                  {derive(data, (d) => d?.forks_count?.toLocaleString() || "—")}
+                  {computed(() => data?.forks_count?.toLocaleString() || "—")}
                 </strong>
               </div>
               <div>
                 <span style={{ color: "#666" }}>Language:</span>
-                <strong>{derive(data, (d) => d?.language || "—")}</strong>
+                <strong>{computed(() => data?.language || "—")}</strong>
               </div>
             </div>,
           ),
@@ -636,7 +568,8 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
               Star Growth Over Time
             </span>
             <span style={{ fontSize: "12px", color: "#b45309" }}>
-              {derive(starHistory, (sh) => {
+              {computed(() => {
+                const sh = starHistory;
                 if (sh.loading) return "Loading...";
                 if (sh.data.length === 0) return "No data";
                 const first = sh.data[0];
@@ -646,7 +579,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
             </span>
           </div>
           {ifElse(
-            derive(starHistory, (sh) => sh.loading),
+            computed(() => starHistory.loading),
             <div
               style={{
                 color: "#b45309",
@@ -658,7 +591,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
               Loading star history...
             </div>,
             ifElse(
-              derive(starHistory, (sh) => sh.data.length > 0),
+              computed(() => starHistory.data.length > 0),
               <div
                 style={{
                   display: "flex",
@@ -667,7 +600,8 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                   height: "60px",
                 }}
               >
-                {derive(starHistory, (sh) => {
+                {computed(() => {
+                  const sh = starHistory;
                   const maxCount = Math.max(...sh.data.map((d) => d.count), 1);
                   return sh.data.map((point, i) => {
                     const heightPercent = (point.count / maxCount) * 100;
@@ -700,7 +634,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
             ),
           )}
           {ifElse(
-            derive(starHistory, (sh) => sh.data.length > 1),
+            computed(() => starHistory.data.length > 1),
             <div
               style={{
                 display: "flex",
@@ -710,14 +644,16 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                 color: "#92400e",
               }}
             >
-              {derive(starHistory, (sh) => {
+              {computed(() => {
+                const sh = starHistory;
                 if (sh.data.length === 0) return "";
                 return `~${sh.data[0].count.toLocaleString()} stars`;
               })}
-              {derive(data, (d) =>
-                d?.stargazers_count
-                  ? `${d.stargazers_count.toLocaleString()} stars now`
-                  : "")}
+              {computed(() =>
+                data?.stargazers_count
+                  ? `${data.stargazers_count.toLocaleString()} stars now`
+                  : ""
+              )}
             </div>,
             null,
           )}
@@ -746,12 +682,13 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
               Commit Activity (last 12 weeks)
             </span>
             <span style={{ fontSize: "12px", color: "#999" }}>
-              {derive(momentum, (m) =>
-                m.trend !== "unknown"
-                  ? `${m.changePercent > 0 ? "+" : ""}${
-                    m.changePercent.toFixed(0)
+              {computed(() =>
+                momentum.trend !== "unknown"
+                  ? `${momentum.changePercent > 0 ? "+" : ""}${
+                    momentum.changePercent.toFixed(0)
                   }% vs prior 8 weeks`
-                  : "Insufficient data")}
+                  : "Insufficient data"
+              )}
             </span>
           </div>
           {ifElse(
@@ -767,8 +704,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
               Loading commit data...
             </div>,
             ifElse(
-              derive(sparklineData, (d) =>
-                d.length > 0),
+              computed(() => sparklineData.length > 0),
               <div
                 style={{
                   display: "flex",
@@ -777,13 +713,11 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                   height: "50px",
                 }}
               >
-                {derive(
-                  { sparklineData, momentumBadge },
-                  ({ sparklineData, momentumBadge }) => {
-                    const data = sparklineData;
-                    const badgeColor = momentumBadge?.color || "#6c757d";
-                    const maxVal = Math.max(...data, 1);
-                    return data.map((val, i) => {
+                {computed(() => {
+                  const data = sparklineData;
+                  const badgeColor = momentumBadge?.color || "#6c757d";
+                  const maxVal = Math.max(...data, 1);
+                  return data.map((val, i) => {
                       const heightPercent = (val / maxVal) * 100;
                       const opacity = 0.5 + (i / data.length) * 0.5;
                       return (
@@ -801,8 +735,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
                         />
                       );
                     });
-                  },
-                )}
+                  })}
               </div>,
               <div
                 style={{
@@ -817,8 +750,7 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
             ),
           )}
           {ifElse(
-            derive(sparklineData, (d) =>
-              d.length > 0),
+            computed(() => sparklineData.length > 0),
             <div
               style={{
                 display: "flex",
@@ -830,8 +762,11 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
             >
               <span>12 weeks ago</span>
               <span>
-                {derive(sparklineData, (d) =>
-                  d.length > 0 ? `${d[d.length - 1]} commits this week` : "")}
+                {computed(() =>
+                  sparklineData.length > 0
+                    ? `${sparklineData[sparklineData.length - 1]} commits this week`
+                    : ""
+                )}
               </span>
               <span>now</span>
             </div>,

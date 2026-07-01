@@ -1,4 +1,4 @@
-import { _Writable, Default, NAME, pattern, UI } from "commonfabric";
+import { Default, NAME, pattern, UI } from "commonfabric";
 
 interface TestInput {
   value: Default<string, "Hello">;

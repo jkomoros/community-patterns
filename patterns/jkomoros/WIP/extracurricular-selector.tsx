@@ -16,7 +16,6 @@ import {
   Cell,
   computed,
   Default,
-  derive,
   generateObject,
   handler,
   ifElse,
@@ -1505,9 +1504,8 @@ If cost is not specified, use null.`;
       const r = (extractionResult as any)?.result;
       return (r?.suggestedNewTags as string[]) || [];
     });
-    const hasSuggestedNewTags = derive(
-      suggestedNewTags,
-      (tags) => tags.length > 0,
+    const hasSuggestedNewTags = computed(
+      () => suggestedNewTags.length > 0,
     );
 
     // Image OCR extraction - extracts text from uploaded photos
@@ -2243,12 +2241,6 @@ Return the complete extracted text.`,
       const pinned = pinnedClasses as Class[];
       const statuses = classStatuses as ClassStatus[];
 
-      // Helper to get status for a class
-      const getClassStatus = (classId: string): Record<string, boolean> => {
-        const status = statuses.find((s) => s.classId === classId);
-        return status?.statuses || {};
-      };
-
       return DAYS_OF_WEEK.map((day: DayOfWeek) => {
         const dayClasses = pinned.filter((c) =>
           c.timeSlots.some((slot) => slot.day === day)
@@ -2261,7 +2253,8 @@ Return the complete extracted text.`,
               {DAY_LABELS[day]}
             </div>
             {dayClasses.map((cls) => {
-              const clsStatuses = getClassStatus(cls.id);
+              const clsStatus = statuses.find((s) => s.classId === cls.id);
+              const clsStatuses = clsStatus?.statuses || {};
               return (
                 <div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -2553,13 +2546,13 @@ Return the complete extracted text.`,
                     Child Profile
                   </h3>
                   {ifElse(
-                    derive(childName, (name) => !!name),
+                    computed(() => !!childName.get()),
                     <div style="color: #6b7280;">
                       <div>
                         <strong>{childName}</strong> - Grade {childGrade}
                       </div>
                       {ifElse(
-                        derive(childEligibilityNotes, (notes) => !!notes),
+                        computed(() => !!childEligibilityNotes.get()),
                         <div style="font-size: 12px; margin-top: 4px;">
                           {childEligibilityNotes}
                         </div>,
@@ -2577,8 +2570,8 @@ Return the complete extracted text.`,
                   <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #374151;">
                     Weekly Schedule
                   </h3>
-                  {derive(classes, (cls) =>
-                    cls.length === 0
+                  {computed(() =>
+                    classes.length === 0
                       ? (
                         <div style="color: #9ca3af; font-style: italic;">
                           No classes added yet. Import classes from the Import
@@ -2587,7 +2580,7 @@ Return the complete extracted text.`,
                       )
                       : (
                         <div style="color: #6b7280;">
-                          {cls.length} classes available
+                          {classes.length} classes available
                         </div>
                       ))}
                 </div>
@@ -2667,7 +2660,8 @@ Return the complete extracted text.`,
                   </h3>
 
                   {/* Existing locations */}
-                  {derive(locations, (rawLocs) => {
+                  {computed(() => {
+                    const rawLocs = locations;
                     // Defensive filtering: arrays may contain undefined elements
                     const locs = (rawLocs || []).filter((l) =>
                       l != null
@@ -2808,7 +2802,7 @@ Return the complete extracted text.`,
                                 travelTimes,
                                 fromLocationId: pair.loc1Id,
                                 toLocationId: pair.loc2Id,
-                                minutes: pair.minutes + 5,
+                                minutes: Math.max(0, pair.minutes + 5),
                               })}
                             >
                               + 5 min
@@ -2882,11 +2876,11 @@ Return the complete extracted text.`,
                   </p>
 
                   {/* Existing friends */}
-                  {derive(friends, (f) =>
-                    f.length > 0
+                  {computed(() =>
+                    friends.length > 0
                       ? (
                         <cf-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                          {f.map((friend) => (
+                          {friends.map((friend) => (
                             <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
                               <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">
                                 {friend.name}
@@ -2951,22 +2945,24 @@ Return the complete extracted text.`,
                       Source Location
                     </label>
                     {ifElse(
-                      derive(locations, (locs) =>
-                        locs.length === 0),
+                      computed(() => locations.length === 0),
                       <div style="color: #f59e0b; font-size: 14px;">
                         Add locations in the Configure tab before importing
                         classes.
                       </div>,
                       <cf-select
                         $value={importLocationId}
-                        items={derive(locations, (locs: Location[]) => [
-                          { label: "Select a location...", value: "" },
-                          ...(locs || []).filter((l) =>
-                            l != null
-                          ).map((
-                            loc,
-                          ) => ({ label: loc.name, value: loc.id })),
-                        ])}
+                        items={computed(() => {
+                          const locs: Location[] = locations;
+                          return [
+                            { label: "Select a location...", value: "" },
+                            ...(locs || []).filter((l) =>
+                              l != null
+                            ).map((
+                              loc,
+                            ) => ({ label: loc.name, value: loc.id })),
+                          ];
+                        })}
                       />,
                     )}
                   </div>
@@ -2980,7 +2976,8 @@ Return the complete extracted text.`,
                         variant="outline"
                         size="sm"
                         showPreview={false}
-                        $files={uploadedFiles}
+                        // deno-lint-ignore no-explicit-any
+                        {...({ $files: uploadedFiles } as any)}
                         oncf-change={handleFileUploadChange({ importText })}
                       />
                       <span style="font-size: 12px; color: #6b7280;">
@@ -2988,11 +2985,7 @@ Return the complete extracted text.`,
                       </span>
                     </div>
                     {ifElse(
-                      derive(
-                        uploadedFiles,
-                        (files: Array<{ id: string; name: string }>) =>
-                          files.length > 0,
-                      ),
+                      computed(() => uploadedFiles.get().length > 0),
                       <div style="margin-top: 8px; font-size: 12px; color: #059669;">
                         ✓ File loaded - text extracted to field below
                       </div>,
@@ -3009,7 +3002,8 @@ Return the complete extracted text.`,
                         size="sm"
                         showPreview
                         previewSize="sm"
-                        $images={uploadedImagesForOcr}
+                        // deno-lint-ignore no-explicit-any
+                        {...({ $images: uploadedImagesForOcr } as any)}
                       />
                       <span style="font-size: 12px; color: #6b7280;">
                         Take a photo of a schedule for OCR extraction
@@ -3485,7 +3479,7 @@ Return the complete extracted text.`,
                     </div>
 
                     {ifElse(
-                      derive(importLocationId, (locId: string) => !locId),
+                      computed(() => !importLocationId.get()),
                       <div style="color: #f59e0b; font-size: 12px;">
                         Select a location above before adding a class.
                       </div>,

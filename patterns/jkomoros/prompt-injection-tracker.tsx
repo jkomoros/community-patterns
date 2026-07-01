@@ -106,7 +106,7 @@
 import {
   computed,
   Default,
-  fetchData,
+  fetchJson,
   generateObject,
   handler,
   ifElse,
@@ -114,6 +114,7 @@ import {
   pattern,
   str,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 import GmailImporter from "../../../labs/packages/patterns/google/core/gmail-importer.tsx";
@@ -528,9 +529,16 @@ interface TrackerInput {
 }
 
 interface TrackerOutput {
+  [NAME]: string;
+  [UI]: VNode;
   // Note: articles is the internal extraction structure, not raw Article[]
   articles: unknown;
   extractedLinks: string[];
+  contentClassifications: unknown;
+  originalReportUrls: unknown;
+  finalReportsWithSources: unknown;
+  readUrls: string[];
+  emails: unknown;
 }
 
 // ==========================================================================
@@ -593,9 +601,8 @@ const UrlSlotPattern = pattern<UrlSlotInput, UrlSlotOutput>(({ url }) => {
   }));
   const webContent = ifElse(
     url,
-    fetchData<{ content: string; title?: string }>({
+    fetchJson<{ content: string; title?: string }>({
       url: "/api/agent-tools/web-read",
-      mode: "json",
       options: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -654,9 +661,8 @@ const UrlSlotPattern = pattern<UrlSlotInput, UrlSlotOutput>(({ url }) => {
   }));
   const originalContent = ifElse(
     needsOriginalFetch,
-    fetchData<{ content: string; title?: string }>({
+    fetchJson<{ content: string; title?: string }>({
       url: "/api/agent-tools/web-read",
-      mode: "json",
       options: {
         method: "POST",
         headers: { "Content-Type": "application/json" },

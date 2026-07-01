@@ -1,5 +1,5 @@
 import {
-  derive,
+  computed,
   handler,
   NAME,
   navigateTo,
@@ -82,7 +82,7 @@ export default pattern<LinkCollectionsInput, LinkCollectionsOutput>(
     const descInput = Writable.of("");
 
     // Derived count for each collection
-    const collectionList = derive(collections, (cols) => cols || []);
+    const collectionList = computed(() => collections.get() || []);
 
     return {
       [NAME]: "Link Collections",
@@ -192,7 +192,7 @@ export default pattern<LinkCollectionsInput, LinkCollectionsOutput>(
                       marginTop: "0.25rem",
                     }}
                   >
-                    {derive(col, (c) => (c.links || []).length)} links
+                    {computed(() => (col.links || []).length)} links
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -236,8 +236,8 @@ export default pattern<LinkCollectionsInput, LinkCollectionsOutput>(
           </div>
 
           {/* Empty state */}
-          {derive(collectionList, (cols: Collection[]) =>
-            cols.length === 0
+          {computed(() =>
+            collectionList.length === 0
               ? (
                 <div
                   style={{

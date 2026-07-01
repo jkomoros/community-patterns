@@ -6,13 +6,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -27,8 +28,10 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
-  externalFlag: Writable<boolean>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
+  externalFlag: boolean;
 }
 
 // Handler to add a new ID
@@ -55,84 +58,77 @@ const toggleFlag = handler<unknown, { externalFlag: Writable<boolean> }>(
 
 export default pattern<Input, Output>(({ ids, externalFlag }) => {
   // Derive hasFlag similar to github-momentum-tracker's hasAuth pattern
-  const hasFlag = derive(externalFlag, (f) => f === true);
+  const hasFlag = computed(() => externalFlag === true);
 
   // Map over ids with THE EXACT PATTERN from github-momentum-tracker
   const results = ids.map((idCell) => {
     // Parse ref similar to github-momentum-tracker
-    const ref = derive(idCell, (id) => ({ userId: id }));
+    const ref = computed(() => ({ userId: idCell }));
 
     // THE CRITICAL PATTERN: derive with object params and .get() casting
     // This is EXACTLY how github-momentum-tracker does it
-    const apiUrl = derive(
-      { hasFlag, ref },
-      (values) => {
-        // This casting pattern is used in github-momentum-tracker
-        // deno-lint-ignore no-explicit-any
-        const flag = (values.hasFlag as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasFlag as any).get()
-          : values.hasFlag;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.ref as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.ref as any).get()
-          : values.ref;
-        return (flag && r)
-          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
-          : "";
-      },
-    );
+    const apiUrl = computed(() => {
+      const flag = hasFlag;
+      const r = ref;
+      return (flag && r)
+        ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+        : "";
+    });
 
     // First fetch with conditional URL
-    const userData = fetchData<User>({ url: apiUrl, mode: "json" });
+    const userData = fetchJson<User>({ url: apiUrl });
 
     // Derive dependent data from first fetch (like samplePages in github-momentum-tracker)
-    const samplePages = derive(
-      { hasFlag, parsedRef: ref, userData },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const flag = (values.hasFlag as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasFlag as any).get()
-          : values.hasFlag;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        // deno-lint-ignore no-explicit-any
-        const u = (values.userData as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.userData as any).get()
-          : values.userData;
+    const samplePages = computed(() => {
+      const flag = hasFlag;
+      const r = ref;
+      const u = userData;
 
-        if (!flag || !r || !u?.result?.id) {
-          return { userId: 0, pages: [] as number[] };
-        }
+      if (!flag || !r || !u?.result?.id) {
+        return { userId: 0, pages: [] as number[] };
+      }
 
-        return {
-          userId: u.result.id,
-          pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
-        };
-      },
-    );
+      return {
+        userId: u.result.id,
+        pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
+      };
+    });
 
-    // Create slot URL factory (like makeSlotUrl in github-momentum-tracker)
-    const makeSlotUrl = (slotIndex: number) =>
-      derive(samplePages, (sp) => {
-        if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${
-          sp.pages[slotIndex]
-        }`;
-      });
+    // Create slot URLs (like makeSlotUrl in github-momentum-tracker).
+    // Inlined per-slot because computed() is not allowed inside a standalone
+    // helper function in the new pattern context.
+    const slotUrl0 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 0 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[0]}`;
+    });
+    const slotUrl1 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 1 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[1]}`;
+    });
+    const slotUrl2 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 2 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[2]}`;
+    });
+    const slotUrl3 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 3 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[3]}`;
+    });
+    const slotUrl4 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 4 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[4]}`;
+    });
 
     // Create 5 fetchData slots (like starSample0-9 in github-momentum-tracker)
-    const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json" });
-    const slot1 = fetchData<Todo>({ url: makeSlotUrl(1), mode: "json" });
-    const slot2 = fetchData<Todo>({ url: makeSlotUrl(2), mode: "json" });
-    const slot3 = fetchData<Todo>({ url: makeSlotUrl(3), mode: "json" });
-    const slot4 = fetchData<Todo>({ url: makeSlotUrl(4), mode: "json" });
+    const slot0 = fetchJson<Todo>({ url: slotUrl0 });
+    const slot1 = fetchJson<Todo>({ url: slotUrl1 });
+    const slot2 = fetchJson<Todo>({ url: slotUrl2 });
+    const slot3 = fetchJson<Todo>({ url: slotUrl3 });
+    const slot4 = fetchJson<Todo>({ url: slotUrl4 });
 
     return {
       id: idCell,
@@ -170,9 +166,10 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() => ids.length === 0 ? "(empty)" : ids.join(", "))}
           {" | "}
-          <strong>Flag:</strong> {derive(externalFlag, (f) => f ? "ON" : "OFF")}
+          <strong>Flag:</strong>{" "}
+          {computed(() => externalFlag ? "ON" : "OFF")}
         </div>
 
         <h2>Results (check console for errors):</h2>
@@ -192,9 +189,12 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
               </div>
 
               <div style={{ marginBottom: "8px" }}>
-                <strong>User:</strong> {derive(
-                  item.userData,
-                  (u) => u?.result ? u.result.name : u?.pending ? "..." : "✗",
+                <strong>User:</strong> {computed(() =>
+                  item.userData?.result
+                    ? item.userData.result.name
+                    : item.userData?.pending
+                    ? "..."
+                    : "✗"
                 )}
               </div>
 
@@ -217,9 +217,9 @@ export default pattern<Input, Output>(({ ids, externalFlag }) => {
                         borderRadius: "3px",
                       }}
                     >
-                      #{i}: {derive(s, (r) =>
-                        r?.result?.title?.substring(0, 8) ||
-                        (r?.pending ? "..." : "✗"))}
+                      #{i}: {computed(() =>
+                        s?.result?.title?.substring(0, 8) ||
+                        (s?.pending ? "..." : "✗"))}
                     </span>
                   ))}
                 </div>

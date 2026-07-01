@@ -5,11 +5,12 @@ import {
   handler,
   ifElse,
   NAME,
-  OpaqueRef,
   pattern,
+  Reactive,
   safeDateNow,
   str,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -37,6 +38,8 @@ type FieldSuggestion = {
 type Input = Record<string, never>;
 
 type Output = {
+  [NAME]: string;
+  [UI]: VNode;
   suggestions: FieldSuggestion[];
   isAnalyzing: boolean;
   // deno-lint-ignore no-explicit-any
@@ -48,7 +51,7 @@ const triggerAnalysis = handler<
   Record<string, never>,
   {
     analysisInput: Writable<string>;
-    personCharms: Array<OpaqueRef<PersonCharm>>;
+    personCharms: Array<Reactive<PersonCharm>>;
     hasAnalyzed: Writable<boolean>;
   }
 >(

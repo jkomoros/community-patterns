@@ -10,7 +10,7 @@
  * 3. Array of LLM results (pending/result pattern)
  */
 
-import { computed, derive, NAME, pattern, UI, Writable } from "commonfabric";
+import { computed, NAME, pattern, UI, Writable } from "commonfabric";
 
 // Utility to check if something is a Cell/proxy
 // deno-lint-ignore no-explicit-any
@@ -69,9 +69,10 @@ export default pattern<Record<string, never>, { experiments: any }>((_) => {
 
   const simpleNumbers = Writable.of([1, 2, 3, 4, 5]);
 
-  // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
-  // deno-lint-ignore no-explicit-any
-  const simpleSum = derive([simpleNumbers], (nums: any) => {
+  // NOTE: computed() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+  const simpleSum = computed(() => {
+    // deno-lint-ignore no-explicit-any
+    const nums: any = simpleNumbers.get();
     console.log("[Exp1] nums type:", typeof nums);
     console.log("[Exp1] nums isArray:", Array.isArray(nums));
     console.log("[Exp1] nums[0] type:", typeof nums[0]);
@@ -106,10 +107,11 @@ export default pattern<Record<string, never>, { experiments: any }>((_) => {
   );
 
   // Try to reduce the mapped results
-  // NOTE: derive() receives Cell-wrapped array, items inside are also Cell-wrapped
+  // NOTE: computed() receives Cell-wrapped array, items inside are also Cell-wrapped
   // We use 'any' to bypass TypeScript since this is an experiment to test runtime behavior
-  // deno-lint-ignore no-explicit-any
-  const mapThenReduce = derive([doubled], (results: any) => {
+  const mapThenReduce = computed(() => {
+    // deno-lint-ignore no-explicit-any
+    const results: any = doubled;
     console.log("[Exp2] results type:", typeof results);
     console.log("[Exp2] results isArray:", Array.isArray(results));
     console.log("[Exp2] results.length:", results?.length);
@@ -148,9 +150,10 @@ export default pattern<Record<string, never>, { experiments: any }>((_) => {
     { pending: false, error: "failed" },
   ]);
 
-  // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
-  // deno-lint-ignore no-explicit-any
-  const aggregatedResults = derive([mockLLMResults], (results: any) => {
+  // NOTE: computed() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+  const aggregatedResults = computed(() => {
+    // deno-lint-ignore no-explicit-any
+    const results: any = mockLLMResults.get();
     console.log("[Exp3] results type:", typeof results);
     console.log("[Exp3] results isArray:", Array.isArray(results));
 
@@ -214,9 +217,10 @@ export default pattern<Record<string, never>, { experiments: any }>((_) => {
     }))
   );
 
-  // NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
-  // deno-lint-ignore no-explicit-any
-  const fetchAggregated = derive([fetched], (results: any) => {
+  // NOTE: computed() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+  const fetchAggregated = computed(() => {
+    // deno-lint-ignore no-explicit-any
+    const results: any = fetched;
     console.log("[Exp4] results:", results);
     console.log("[Exp4] results isArray:", Array.isArray(results));
 

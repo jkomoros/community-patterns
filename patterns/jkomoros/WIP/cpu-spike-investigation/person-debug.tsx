@@ -11,6 +11,7 @@ import {
   safeDateNow,
   str,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -301,6 +302,8 @@ type Input = ProfileData;
 
 /** Person profile with contact info and relationship data. #person */
 type Output = ProfileData & {
+  [NAME]: string;
+  [UI]: VNode;
   profile: ProfileData;
 };
 
@@ -336,7 +339,7 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionablePiece);
+    mentionable.push(detail.charm);
   }
 });
 
@@ -649,7 +652,6 @@ const applyExtractedData = handler<
 );
 
 const Person = pattern<Input, Output>(
-  "Person",
   ({
     displayName,
     givenName,
@@ -672,11 +674,12 @@ const Person = pattern<Input, Output>(
     professionalReference,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = wish<MentionablePiece[]>("#mentionable");
+    const mentionable = wish<MentionablePiece[]>({ query: "#mentionable" })
+      .result!;
     const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // The only way to serialize a pattern, apparently?
-    const pattern = computed(() => JSON.stringify(Person));
+    const patternJson = computed(() => JSON.stringify(Person));
 
     // Derive computed display name from first, nickname, and last name
     const computedDisplayName = computed(() => {
@@ -722,18 +725,6 @@ const Person = pattern<Input, Output>(
     // Uses marker string to ensure empty/initial state doesn't trigger extraction
     const extractTrigger = Writable.of<string>("");
 
-    // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
-    // The extraction marker (---EXTRACT-*---) indicates a real extraction request
-    // Without this guard, the reactive system may trigger spurious LLM calls during initialization
-    const guardedPrompt = computed(() => {
-      const trigger = extractTrigger.get();
-      // Only return a prompt if it contains the extraction marker
-      if (trigger && trigger.includes("---EXTRACT-")) {
-        return trigger;
-      }
-      return undefined;
-    });
-
     // LLM extraction for notes - runs when guardedPrompt has content
     const { result: extractionResult, pending: extractionPending } =
       generateObject({
@@ -756,7 +747,18 @@ Extract the following fields if present:
 - mastodon: Mastodon handle (with @user@instance)
 
 Return only the fields you can confidently extract. Leave remainingNotes with any content that doesn't fit into structured fields.`,
-        prompt: guardedPrompt,
+        // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
+        // The extraction marker (---EXTRACT-*---) indicates a real extraction request
+        // Without this guard, the reactive system may trigger spurious LLM calls during initialization
+        // deno-lint-ignore no-explicit-any
+        prompt: computed((): string | undefined => {
+          const trigger = extractTrigger.get();
+          // Only return a prompt if it contains the extraction marker
+          if (trigger && trigger.includes("---EXTRACT-")) {
+            return trigger;
+          }
+          return undefined;
+        }) as any,
         model: "anthropic:claude-sonnet-4-5",
         schema: {
           type: "object",
@@ -905,9 +907,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                     // instead of inline computeWordDiff call
                                     // This reduces calls from N (one per charm instance) to 1
                                     notesDiffChunks.map(
-                                      (part, i) => {
-                                        if (part.type === "removed") {
-                                          return (
+                                      (part, i) =>
+                                        part.type === "removed"
+                                          ? (
                                             <span
                                               style={{
                                                 color: "#dc2626",
@@ -917,9 +919,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             >
                                               {part.word}
                                             </span>
-                                          );
-                                        } else if (part.type === "added") {
-                                          return (
+                                          )
+                                          : part.type === "added"
+                                          ? (
                                             <span
                                               style={{
                                                 color: "#16a34a",
@@ -928,13 +930,10 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                             >
                                               {part.word}
                                             </span>
-                                          );
-                                        } else {
-                                          return (
+                                          )
+                                          : (
                                             <span key={i}>{part.word}</span>
-                                          );
-                                        }
-                                      },
+                                          ),
                                     )
                                   )
                                   : (
@@ -1262,7 +1261,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <cf-button
                             size="sm"
                             variant={computed(() =>
-                              (origins as unknown as Origin[]).includes(
+                              origins.includes(
                                   origin as Origin,
                                 )
                                 ? "primary"
@@ -1344,7 +1343,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     $value={notes}
                     $mentionable={mentionable}
                     $mentioned={mentioned}
-                    $pattern={pattern}
+                    $pattern={patternJson}
                     onbacklink-click={handleCharmLinkClick({})}
                     onbacklink-create={handleNewBacklink({ mentionable })}
                     language="text/markdown"
@@ -1415,39 +1414,41 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       triggerExtraction: triggerExtraction({ notes, extractTrigger }),
       // Pattern tools for omnibot
       getContactInfo: patternTool(
-        (
-          { displayName, emails, phones }: {
-            displayName: string;
-            emails: EmailEntry[];
-            phones: PhoneEntry[];
+        pattern(
+          (
+            { displayName, emails, phones }: {
+              displayName: string;
+              emails: EmailEntry[];
+              phones: PhoneEntry[];
+            },
+          ) => {
+            return computed(() => {
+              const parts = [`Name: ${displayName || "Not provided"}`];
+              if (emails && emails.length > 0) {
+                parts.push(`Email: ${emails[0].value}`);
+              }
+              if (phones && phones.length > 0) {
+                parts.push(`Phone: ${phones[0].value}`);
+              }
+              return parts.join("\n");
+            });
           },
-        ) => {
-          return computed(() => {
-            const parts = [`Name: ${displayName || "Not provided"}`];
-            if (emails && emails.length > 0) {
-              parts.push(`Email: ${emails[0].value}`);
-            }
-            if (phones && phones.length > 0) {
-              parts.push(`Phone: ${phones[0].value}`);
-            }
-            return parts.join("\n");
-          });
-        },
+        ),
         { displayName: effectiveDisplayName, emails, phones },
       ),
       searchNotes: patternTool(
-        ({ query, notes }: { query: string; notes: string }) => {
+        pattern(({ query, notes }: { query: string; notes: string }) => {
           return computed(() => {
             if (!query || !notes) return [];
             return notes.split("\n").filter((line) =>
               line.toLowerCase().includes(query.toLowerCase())
             );
           });
-        },
+        }),
         { notes },
       ),
       getSocialLinks: patternTool(
-        ({ socialLinks }: { socialLinks: SocialLink[] }) => {
+        pattern(({ socialLinks }: { socialLinks: SocialLink[] }) => {
           return computed(() => {
             if (!socialLinks || socialLinks.length === 0) {
               return "No social media links";
@@ -1455,7 +1456,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
             return socialLinks.map((link) => `${link.platform}: ${link.handle}`)
               .join("\n");
           });
-        },
+        }),
         { socialLinks },
       ),
     };

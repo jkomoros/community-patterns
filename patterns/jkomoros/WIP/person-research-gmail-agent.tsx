@@ -7,18 +7,19 @@
  * Outputs a markdown-formatted "agentic notes" blob with footnoted sources.
  */
 import {
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 import GmailAgenticSearch, {
   type DebugLogEntry,
   type SearchProgress,
-} from "../gmail-agentic-search.tsx";
+} from "../../../../labs/packages/patterns/google/core/experimental/gmail-agentic-search.tsx";
 
 // TODO: createReportTool was removed from gmail-agentic-search.tsx
 // This pattern needs refactoring to use inline handlers instead.
@@ -244,6 +245,8 @@ interface PersonResearchInput {
 
 /** Person research results from Gmail analysis. #personResearch */
 interface PersonResearchOutput {
+  [NAME]: string;
+  [UI]: VNode;
   findings: PersonFindings;
   agenticNotes: string;
   lastScanAt: number;
@@ -443,6 +446,91 @@ function generateAgenticNotes(
 }
 
 // ============================================================================
+// CUSTOM TOOLS (module scope: handlers cannot be defined in pattern body)
+// ============================================================================
+
+// Report Email Address
+const reportEmailAddressHandler = createReportTool<
+  EmailAddressInput,
+  EmailAddressFinding
+>({
+  idPrefix: "email",
+  dedupeKey: (input) => input.value.toLowerCase(),
+  toRecord: (input, id, timestamp) => ({
+    ...input,
+    id,
+    extractedAt: timestamp,
+  }),
+});
+
+// Report Phone Number
+const reportPhoneNumberHandler = createReportTool<
+  PhoneNumberInput,
+  PhoneNumberFinding
+>({
+  idPrefix: "phone",
+  dedupeKey: (input) => input.value.replace(/\D/g, ""), // Strip non-digits for dedup
+  toRecord: (input, id, timestamp) => ({
+    ...input,
+    id,
+    extractedAt: timestamp,
+  }),
+});
+
+// Report Relationship Type
+const reportRelationshipTypeHandler = createReportTool<
+  RelationshipTypeInput,
+  RelationshipTypeFinding
+>({
+  idPrefix: "relationship",
+  dedupeKey: (input) => input.type.toLowerCase(),
+  toRecord: (input, id, timestamp) => ({
+    ...input,
+    id,
+    extractedAt: timestamp,
+  }),
+});
+
+// Report Topic
+const reportTopicHandler = createReportTool<TopicInput, TopicFinding>({
+  idPrefix: "topic",
+  dedupeKey: (input) => input.topic.toLowerCase(),
+  toRecord: (input, id, timestamp) => ({
+    ...input,
+    id,
+    extractedAt: timestamp,
+  }),
+});
+
+// Report Organization
+const reportOrganizationHandler = createReportTool<
+  OrganizationInput,
+  OrganizationFinding
+>({
+  idPrefix: "org",
+  dedupeKey: (input) => input.name.toLowerCase(),
+  toRecord: (input, id, timestamp) => ({
+    ...input,
+    id,
+    extractedAt: timestamp,
+  }),
+});
+
+// Communication stats handler - not using createReportTool since it's singular
+const reportCommunicationStatsHandler = handler<
+  CommunicationStatsInput,
+  { stats: Writable<PersonFindings["communicationStats"]> }
+>((input, state) => {
+  state.stats.set({
+    totalEmails: input.totalEmails,
+    earliestDate: input.earliestDate,
+    latestDate: input.latestDate,
+    frequency: input.frequency,
+  });
+  return { success: true };
+});
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -485,108 +573,25 @@ const PersonResearchGmailAgent = pattern<
     const effectiveContext = localContextNotes;
 
     // Build suggested queries based on effective name/email
-    const suggestedQueries = derive(
-      [effectiveName, effectiveEmail],
-      ([name, email]: [string, string]) => buildPersonQueries(name, email),
+    const suggestedQueries = computed(() =>
+      buildPersonQueries(effectiveName.get(), effectiveEmail.get())
     );
-
-    // ========================================================================
-    // CUSTOM TOOLS
-    // ========================================================================
-
-    // Report Email Address
-    const reportEmailAddressHandler = createReportTool<
-      EmailAddressInput,
-      EmailAddressFinding
-    >({
-      idPrefix: "email",
-      dedupeKey: (input) => input.value.toLowerCase(),
-      toRecord: (input, id, timestamp) => ({
-        ...input,
-        id,
-        extractedAt: timestamp,
-      }),
-    });
-
-    // Report Phone Number
-    const reportPhoneNumberHandler = createReportTool<
-      PhoneNumberInput,
-      PhoneNumberFinding
-    >({
-      idPrefix: "phone",
-      dedupeKey: (input) => input.value.replace(/\D/g, ""), // Strip non-digits for dedup
-      toRecord: (input, id, timestamp) => ({
-        ...input,
-        id,
-        extractedAt: timestamp,
-      }),
-    });
-
-    // Report Relationship Type
-    const reportRelationshipTypeHandler = createReportTool<
-      RelationshipTypeInput,
-      RelationshipTypeFinding
-    >({
-      idPrefix: "relationship",
-      dedupeKey: (input) => input.type.toLowerCase(),
-      toRecord: (input, id, timestamp) => ({
-        ...input,
-        id,
-        extractedAt: timestamp,
-      }),
-    });
-
-    // Report Topic
-    const reportTopicHandler = createReportTool<TopicInput, TopicFinding>({
-      idPrefix: "topic",
-      dedupeKey: (input) => input.topic.toLowerCase(),
-      toRecord: (input, id, timestamp) => ({
-        ...input,
-        id,
-        extractedAt: timestamp,
-      }),
-    });
-
-    // Report Organization
-    const reportOrganizationHandler = createReportTool<
-      OrganizationInput,
-      OrganizationFinding
-    >({
-      idPrefix: "org",
-      dedupeKey: (input) => input.name.toLowerCase(),
-      toRecord: (input, id, timestamp) => ({
-        ...input,
-        id,
-        extractedAt: timestamp,
-      }),
-    });
-
-    // Communication stats handler - not using createReportTool since it's singular
-    const reportCommunicationStatsHandler = handler<
-      CommunicationStatsInput,
-      { stats: Writable<PersonFindings["communicationStats"]> }
-    >((input, state) => {
-      state.stats.set({
-        totalEmails: input.totalEmails,
-        earliestDate: input.earliestDate,
-        latestDate: input.latestDate,
-        frequency: input.frequency,
-      });
-      return { success: true };
-    });
 
     // ========================================================================
     // DYNAMIC AGENT GOAL
     // ========================================================================
 
-    const agentGoal = derive(
-      [effectiveName, effectiveEmail, effectiveContext, maxSearches],
-      ([name, email, context, max]: [string, string, string, number]) => {
-        if (!name) return ""; // Don't run without a name
+    const agentGoal = computed(() => {
+      const name = effectiveName.get();
+      const email = effectiveEmail.get();
+      const context = effectiveContext.get();
+      const max = maxSearches;
 
-        const isQuickMode = max > 0;
+      if (!name) return ""; // Don't run without a name
 
-        return `Research information about "${name}" from my Gmail.
+      const isQuickMode = max > 0;
+
+      return `Research information about "${name}" from my Gmail.
 
 ${
           email
@@ -626,8 +631,7 @@ Report each finding IMMEDIATELY as you discover it. Don't wait until the end!
 If you find emails from MULTIPLE different people with this name (different email domains, different contexts), report disambiguation details in your summary.
 
 When done, provide a summary of what you found.`;
-      },
-    );
+    });
 
     // ========================================================================
     // CREATE BASE SEARCHER
@@ -690,11 +694,10 @@ IMPORTANT: Report each finding immediately as you discover it!`,
           }),
         },
       },
-      title: derive(
-        [effectiveName],
-        ([name]: [string]) =>
-          name ? `Person Research: ${name}` : "Person Research",
-      ),
+      title: computed(() => {
+        const name = effectiveName.get();
+        return name ? `Person Research: ${name}` : "Person Research";
+      }),
       scanButtonLabel: "🔍 Research This Person",
       maxSearches,
       isScanning,
@@ -707,58 +710,39 @@ IMPORTANT: Report each finding immediately as you discover it!`,
     // AGGREGATE FINDINGS
     // ========================================================================
 
-    const findings = derive(
-      [
-        emailAddresses,
-        phoneNumbers,
-        relationshipTypes,
-        topics,
-        organizations,
-        communicationStats,
-      ],
-      ([emails, phones, rels, tops, orgs, stats]: [
-        EmailAddressFinding[],
-        PhoneNumberFinding[],
-        RelationshipTypeFinding[],
-        TopicFinding[],
-        OrganizationFinding[],
-        PersonFindings["communicationStats"],
-      ]): PersonFindings => ({
-        emailAddresses: emails || [],
-        phoneNumbers: phones || [],
-        relationshipTypes: rels || [],
-        topics: tops || [],
-        organizations: orgs || [],
-        communicationStats: stats || { totalEmails: 0, frequency: "unknown" },
-      }),
-    );
+    const findings = computed((): PersonFindings => ({
+      emailAddresses: emailAddresses || [],
+      phoneNumbers: phoneNumbers || [],
+      relationshipTypes: relationshipTypes || [],
+      topics: topics || [],
+      organizations: organizations || [],
+      communicationStats: communicationStats ||
+        { totalEmails: 0, frequency: "unknown" },
+    }));
 
     // Generate notes when findings change
-    const generatedNotes = derive(
-      [effectiveName, findings],
-      ([name, f]: [string, PersonFindings]) => {
-        if (!name) return "";
-        const hasFindings = f.emailAddresses.length > 0 ||
-          f.phoneNumbers.length > 0 ||
-          f.relationshipTypes.length > 0 ||
-          f.topics.length > 0 ||
-          f.organizations.length > 0 ||
-          f.communicationStats.totalEmails > 0;
+    const generatedNotes = computed(() => {
+      const name = effectiveName.get();
+      const f = findings;
+      if (!name) return "";
+      const hasFindings = f.emailAddresses.length > 0 ||
+        f.phoneNumbers.length > 0 ||
+        f.relationshipTypes.length > 0 ||
+        f.topics.length > 0 ||
+        f.organizations.length > 0 ||
+        f.communicationStats.totalEmails > 0;
 
-        if (!hasFindings) return "";
-        return generateAgenticNotes(name, f);
-      },
-    );
+      if (!hasFindings) return "";
+      return generateAgenticNotes(name, f);
+    });
 
     // Counts for display
-    const totalFindings = derive(
-      findings,
-      (f: PersonFindings) =>
-        f.emailAddresses.length +
-        f.phoneNumbers.length +
-        f.relationshipTypes.length +
-        f.topics.length +
-        f.organizations.length,
+    const totalFindings = computed(() =>
+      findings.emailAddresses.length +
+      findings.phoneNumbers.length +
+      findings.relationshipTypes.length +
+      findings.topics.length +
+      findings.organizations.length
     );
 
     // ========================================================================
@@ -766,11 +750,10 @@ IMPORTANT: Report each finding immediately as you discover it!`,
     // ========================================================================
 
     return {
-      [NAME]: derive(
-        [effectiveName],
-        ([name]: [string]) =>
-          name ? `🔍 Research: ${name}` : "🔍 Person Research",
-      ),
+      [NAME]: computed(() => {
+        const name = effectiveName.get();
+        return name ? `🔍 Research: ${name}` : "🔍 Person Research";
+      }),
 
       // Output
       findings,
@@ -843,8 +826,8 @@ IMPORTANT: Report each finding immediately as you discover it!`,
               </cf-card>
 
               {/* Embed the base searcher - provides auth + scan UI */}
-              {derive([effectiveName], ([name]: [string]) =>
-                name ? searcher : (
+              {computed(() =>
+                effectiveName.get() ? searcher : (
                   <div
                     style={{
                       padding: "24px",
@@ -856,11 +839,13 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                   >
                     Enter a person's name above to start research
                   </div>
-                ))}
+                )
+              )}
 
               {/* Findings Summary */}
-              {derive(totalFindings, (count: number) =>
-                count > 0
+              {computed(() => {
+                const count = totalFindings;
+                return count > 0
                   ? (
                     <cf-card>
                       <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
@@ -868,8 +853,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                       </h3>
 
                       {/* Email Addresses */}
-                      {derive(emailAddresses, (emails: EmailAddressFinding[]) =>
-                        emails.length > 0
+                      {emailAddresses.length > 0
                           ? (
                             <div style={{ marginBottom: "12px" }}>
                               <div
@@ -882,7 +866,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                               >
                                 Email Addresses
                               </div>
-                              {emails.map((e: EmailAddressFinding) => (
+                              {emailAddresses.map((e: EmailAddressFinding) => (
                                 <div
                                   style={{
                                     padding: "6px 8px",
@@ -905,11 +889,10 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                               ))}
                             </div>
                           )
-                          : null)}
+                          : null}
 
                       {/* Phone Numbers */}
-                      {derive(phoneNumbers, (phones: PhoneNumberFinding[]) =>
-                        phones.length > 0
+                      {phoneNumbers.length > 0
                           ? (
                             <div style={{ marginBottom: "12px" }}>
                               <div
@@ -922,7 +905,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                               >
                                 Phone Numbers
                               </div>
-                              {phones.map((p: PhoneNumberFinding) => (
+                              {phoneNumbers.map((p: PhoneNumberFinding) => (
                                 <div
                                   style={{
                                     padding: "6px 8px",
@@ -946,13 +929,10 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                               ))}
                             </div>
                           )
-                          : null)}
+                          : null}
 
                       {/* Relationship */}
-                      {derive(
-                        relationshipTypes,
-                        (rels: RelationshipTypeFinding[]) =>
-                          rels.length > 0
+                      {relationshipTypes.length > 0
                             ? (
                               <div style={{ marginBottom: "12px" }}>
                                 <div
@@ -973,14 +953,14 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                                     fontSize: "13px",
                                   }}
                                 >
-                                  {rels[0].type}{" "}
+                                  {relationshipTypes[0].type}{" "}
                                   <span
                                     style={{
                                       color: "#94a3b8",
                                       fontSize: "11px",
                                     }}
                                   >
-                                    ({rels[0].confidence})
+                                    ({relationshipTypes[0].confidence})
                                   </span>
                                   <div
                                     style={{
@@ -989,17 +969,15 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                                       marginTop: "4px",
                                     }}
                                   >
-                                    {rels[0].reasoning}
+                                    {relationshipTypes[0].reasoning}
                                   </div>
                                 </div>
                               </div>
                             )
-                            : null,
-                      )}
+                            : null}
 
                       {/* Topics */}
-                      {derive(topics, (tops: TopicFinding[]) =>
-                        tops.length > 0
+                      {topics.length > 0
                           ? (
                             <div style={{ marginBottom: "12px" }}>
                               <div
@@ -1019,7 +997,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                                   gap: "4px",
                                 }}
                               >
-                                {tops.slice(0, 5).map((t: TopicFinding) => (
+                                {topics.slice(0, 5).map((t: TopicFinding) => (
                                   <span
                                     style={{
                                       padding: "4px 8px",
@@ -1035,11 +1013,10 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                               </div>
                             </div>
                           )
-                          : null)}
+                          : null}
 
                       {/* Organization */}
-                      {derive(organizations, (orgs: OrganizationFinding[]) =>
-                        orgs.length > 0
+                      {organizations.length > 0
                           ? (
                             <div>
                               <div
@@ -1060,18 +1037,19 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                                   fontSize: "13px",
                                 }}
                               >
-                                {orgs[0].name}
+                                {organizations[0].name}
                               </div>
                             </div>
                           )
-                          : null)}
+                          : null}
                     </cf-card>
                   )
-                  : null)}
+                  : null;
+              })}
 
               {/* Generated Notes */}
-              {derive(generatedNotes, (notes: string) =>
-                notes
+              {computed(() =>
+                generatedNotes
                   ? (
                     <cf-card>
                       <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
@@ -1089,7 +1067,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                           overflow: "auto",
                         }}
                       >
-                        {notes}
+                        {generatedNotes}
                       </div>
                       <div
                         style={{
@@ -1102,7 +1080,8 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                       </div>
                     </cf-card>
                   )
-                  : null)}
+                  : null
+              )}
             </cf-vstack>
           </cf-vscroll>
         </cf-screen>

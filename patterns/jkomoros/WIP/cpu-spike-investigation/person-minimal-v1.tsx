@@ -17,6 +17,7 @@ import {
   safeDateNow,
   str,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -49,6 +50,8 @@ interface Input {
 
 // Output type
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
   displayName?: string;
   givenName?: string;
   familyName?: string;
@@ -56,7 +59,6 @@ interface Output {
 }
 
 const PersonMinimalV1 = pattern<Input, Output>(
-  "Person Minimal V1",
   ({ displayName, givenName, familyName, notes }) => {
     // Single computed for display name
     const effectiveDisplayName = computed(() => {
@@ -67,20 +69,20 @@ const PersonMinimalV1 = pattern<Input, Output>(
     // Extraction trigger cell
     const extractTrigger = Writable.of<string>("");
 
-    // Guarded prompt
-    const guardedPrompt = computed(() => {
-      const trigger = extractTrigger.get();
-      if (trigger && trigger.includes("---EXTRACT-")) {
-        return trigger;
-      }
-      return undefined;
-    });
-
     // generateObject call
     const { result: extractionResult, pending: extractionPending } =
-      generateObject({
+      generateObject<ExtractionResult>({
         system: "Extract profile data from the text.",
-        prompt: guardedPrompt,
+        // Guarded prompt: only fires the LLM once the extract trigger is set.
+        // Cast to any: an undefined-returning computed can't be assigned to the
+        // prompt union arm, matching the idiom in labs pattern extractors.
+        prompt: computed((): string | undefined => {
+          const trigger = extractTrigger.get();
+          if (trigger && trigger.includes("---EXTRACT-")) {
+            return trigger;
+          }
+          return undefined;
+        }) as any,
         model: "anthropic:claude-sonnet-4-5",
         schema: {
           type: "object",

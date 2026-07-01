@@ -3,15 +3,20 @@
  * Exports both [UI] (full) and previewUI (compact) to test that
  * ct-picker correctly uses previewUI when available.
  */
-import { Default, NAME, pattern, str, UI } from "commonfabric";
+import { Default, NAME, pattern, str, UI, type VNode } from "commonfabric";
 
 interface Input {
   title: Default<string, "Default Title">;
   content: Default<string, "Default content goes here.">;
 }
 
-export default pattern<Input>(
-  "preview-test",
+interface Output {
+  [NAME]: string;
+  [UI]: VNode;
+  previewUI: VNode;
+}
+
+export default pattern<Input, Output>(
   ({ title, content }) => {
     return {
       [NAME]: str`Preview Test: ${title}`,

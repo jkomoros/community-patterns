@@ -185,7 +185,7 @@ export default pattern(() => {
     if (t && t.includes("---EXTRACT-")) {
       return t;
     }
-    return undefined;
+    return "";
   });
 
   // Whether extraction has been started (for UI state)
@@ -381,9 +381,9 @@ export default pattern(() => {
                       {change.field === "Notes"
                         ? (
                           <div style={{ fontSize: "11px", lineHeight: "1.4" }}>
-                            {notesDiffChunks.map((part, i) => {
-                              if (part.type === "removed") {
-                                return (
+                            {notesDiffChunks.map((part, i) =>
+                              part.type === "removed"
+                                ? (
                                   <span
                                     style={{
                                       color: "#dc2626",
@@ -393,9 +393,9 @@ export default pattern(() => {
                                   >
                                     {part.word}
                                   </span>
-                                );
-                              } else if (part.type === "added") {
-                                return (
+                                )
+                                : part.type === "added"
+                                ? (
                                   <span
                                     style={{
                                       color: "#16a34a",
@@ -404,11 +404,9 @@ export default pattern(() => {
                                   >
                                     {part.word}
                                   </span>
-                                );
-                              } else {
-                                return <span key={i}>{part.word}</span>;
-                              }
-                            })}
+                                )
+                                : <span key={i}>{part.word}</span>
+                            )}
                           </div>
                         )
                         : (

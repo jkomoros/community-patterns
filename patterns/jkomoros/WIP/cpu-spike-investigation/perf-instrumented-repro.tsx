@@ -1,3 +1,4 @@
+// @cf-typecheck-skip  (reason: repro instruments reactivity via reassignment inside map callbacks, now disallowed)
 /**
  * @title Instrumented Performance Repro
  * @description CORRECT performance measurement using call counts, not timing in handlers

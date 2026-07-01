@@ -11,14 +11,15 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   ifElse,
   NAME,
   pattern,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -34,7 +35,9 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
 }
 
 // Handler to add a new ID
@@ -54,187 +57,163 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 
 export default pattern<Input, Output>(({ ids, linkedConfig }) => {
   // 1. WISH - discover existing config
-  const discoveredConfig = wish<{ multiplier: number }>("#testConfig");
+  const discoveredConfig = wish<{ multiplier: number }>({
+    query: "#testConfig",
+  });
 
   // 2. IMPORTED PATTERN - instantiate inline
   const inlineConfig = SimpleConfig({});
 
   // 3. THREE-WAY DERIVE - combine all sources (like effectiveToken in momentum tracker)
-  const effectiveMultiplier = derive(
-    {
-      discovered: discoveredConfig,
-      passed: linkedConfig,
-      inline: inlineConfig.multiplier,
-    },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const discovered = (values.discovered as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.discovered as any).get()
-        : values.discovered;
-      // deno-lint-ignore no-explicit-any
-      const passed = (values.passed as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.passed as any).get()
-        : values.passed;
-      // deno-lint-ignore no-explicit-any
-      const inline = (values.inline as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.inline as any).get()
-        : values.inline;
+  const effectiveMultiplier = computed(() => {
+    const discovered = discoveredConfig?.result;
+    const passed = linkedConfig?.get();
+    const inline = inlineConfig.multiplier;
 
-      if (discovered?.multiplier) return discovered.multiplier;
-      if (passed?.multiplier) return passed.multiplier;
-      if (typeof inline === "number") return inline;
-      return 1;
-    },
-  );
+    if (discovered?.multiplier) return discovered.multiplier;
+    if (passed?.multiplier) return passed.multiplier;
+    if (typeof inline === "number") return inline;
+    return 1;
+  });
 
-  const hasConfig = derive(effectiveMultiplier, (m: number) => m > 0);
+  const hasConfig = computed(() => effectiveMultiplier > 0);
 
   // Map over ids using the EXACT PATTERN from github-momentum-tracker
   const results = ids.map((idCell) => {
-    const ref = derive(idCell, (id) => ({ userId: id }));
+    const ref = computed(() => ({ userId: idCell }));
 
-    // THE PATTERN: derive with object params including hasConfig
-    const apiUrl = derive(
-      { hasConfig, ref },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const config = (values.hasConfig as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasConfig as any).get()
-          : values.hasConfig;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.ref as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.ref as any).get()
-          : values.ref;
-        return (config && r)
-          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
-          : "";
-      },
-    );
+    // THE PATTERN: derive combining hasConfig and ref
+    const apiUrl = computed(() => {
+      const config = hasConfig;
+      const r = ref;
+      return (config && r)
+        ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+        : "";
+    });
 
     // First fetch
-    const userData = fetchData<User>({ url: apiUrl, mode: "json" });
+    const userData = fetchJson<User>({ url: apiUrl });
 
     // Derive samplePages from userData (like in momentum tracker)
-    const samplePages = derive(
-      { hasConfig, parsedRef: ref, userData },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const config = (values.hasConfig as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasConfig as any).get()
-          : values.hasConfig;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        // deno-lint-ignore no-explicit-any
-        const u = (values.userData as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.userData as any).get()
-          : values.userData;
+    const samplePages = computed(() => {
+      const config = hasConfig;
+      const r = ref;
+      const u = userData;
 
-        if (!config || !r || !u?.result?.id) {
-          return { userId: 0, pages: [] as number[] };
-        }
+      if (!config || !r || !u?.result?.id) {
+        return { userId: 0, pages: [] as number[] };
+      }
 
-        return {
-          userId: u.result.id,
-          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) =>
-            (u.result.id - 1) * 10 + i
-          ),
-        };
-      },
+      return {
+        userId: u.result.id,
+        pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) =>
+          (u.result!.id - 1) * 10 + i
+        ),
+      };
+    });
+
+    // Create 10 explicit slot URLs (one computed per slot; computed() must be
+    // authored in an allowed context, so inline them rather than via a factory)
+    const slotUrl0 = computed(() =>
+      !samplePages.userId || 0 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[0]}`
     );
-
-    // Create slot URL factory
-    const makeSlotUrl = (slotIndex: number) =>
-      derive(samplePages, (sp) => {
-        if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${
-          sp.pages[slotIndex]
-        }`;
-      });
+    const slotUrl1 = computed(() =>
+      !samplePages.userId || 1 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[1]}`
+    );
+    const slotUrl2 = computed(() =>
+      !samplePages.userId || 2 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[2]}`
+    );
+    const slotUrl3 = computed(() =>
+      !samplePages.userId || 3 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[3]}`
+    );
+    const slotUrl4 = computed(() =>
+      !samplePages.userId || 4 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[4]}`
+    );
+    const slotUrl5 = computed(() =>
+      !samplePages.userId || 5 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[5]}`
+    );
+    const slotUrl6 = computed(() =>
+      !samplePages.userId || 6 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[6]}`
+    );
+    const slotUrl7 = computed(() =>
+      !samplePages.userId || 7 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[7]}`
+    );
+    const slotUrl8 = computed(() =>
+      !samplePages.userId || 8 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[8]}`
+    );
+    const slotUrl9 = computed(() =>
+      !samplePages.userId || 9 >= samplePages.pages.length
+        ? ""
+        : `https://jsonplaceholder.typicode.com/todos/${samplePages.pages[9]}`
+    );
 
     // Create 10 explicit fetchData slots (like starSample0-9)
-    const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json" });
-    const slot1 = fetchData<Todo>({ url: makeSlotUrl(1), mode: "json" });
-    const slot2 = fetchData<Todo>({ url: makeSlotUrl(2), mode: "json" });
-    const slot3 = fetchData<Todo>({ url: makeSlotUrl(3), mode: "json" });
-    const slot4 = fetchData<Todo>({ url: makeSlotUrl(4), mode: "json" });
-    const slot5 = fetchData<Todo>({ url: makeSlotUrl(5), mode: "json" });
-    const slot6 = fetchData<Todo>({ url: makeSlotUrl(6), mode: "json" });
-    const slot7 = fetchData<Todo>({ url: makeSlotUrl(7), mode: "json" });
-    const slot8 = fetchData<Todo>({ url: makeSlotUrl(8), mode: "json" });
-    const slot9 = fetchData<Todo>({ url: makeSlotUrl(9), mode: "json" });
+    const slot0 = fetchJson<Todo>({ url: slotUrl0 });
+    const slot1 = fetchJson<Todo>({ url: slotUrl1 });
+    const slot2 = fetchJson<Todo>({ url: slotUrl2 });
+    const slot3 = fetchJson<Todo>({ url: slotUrl3 });
+    const slot4 = fetchJson<Todo>({ url: slotUrl4 });
+    const slot5 = fetchJson<Todo>({ url: slotUrl5 });
+    const slot6 = fetchJson<Todo>({ url: slotUrl6 });
+    const slot7 = fetchJson<Todo>({ url: slotUrl7 });
+    const slot8 = fetchJson<Todo>({ url: slotUrl8 });
+    const slot9 = fetchJson<Todo>({ url: slotUrl9 });
 
     // Aggregate (like starHistory in momentum tracker)
-    const aggregated = derive(
-      {
-        samplePages,
-        s0: slot0,
-        s1: slot1,
-        s2: slot2,
-        s3: slot3,
-        s4: slot4,
-        s5: slot5,
-        s6: slot6,
-        s7: slot7,
-        s8: slot8,
-        s9: slot9,
-      },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const sp = (values.samplePages as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.samplePages as any).get()
-          : values.samplePages;
-        if (!sp.pages || sp.pages.length === 0) {
-          return { loading: false, data: [] as string[] };
+    const aggregated = computed(() => {
+      const sp = samplePages;
+      if (!sp.pages || sp.pages.length === 0) {
+        return { loading: false, data: [] as string[] };
+      }
+
+      const samples = [
+        slot0,
+        slot1,
+        slot2,
+        slot3,
+        slot4,
+        slot5,
+        slot6,
+        slot7,
+        slot8,
+        slot9,
+      ];
+
+      const pending = samples.some((sample, i) => {
+        if (i >= sp.pages.length) return false;
+        return sample?.pending === true;
+      });
+
+      if (pending) return { loading: true, data: [] as string[] };
+
+      const data: string[] = [];
+      for (let i = 0; i < sp.pages.length && i < 10; i++) {
+        const sample = samples[i];
+        if (sample?.result?.title) {
+          data.push(sample.result.title.substring(0, 15));
         }
+      }
 
-        const samples = [
-          values.s0,
-          values.s1,
-          values.s2,
-          values.s3,
-          values.s4,
-          values.s5,
-          values.s6,
-          values.s7,
-          values.s8,
-          values.s9,
-        ];
-
-        const pending = samples.some((s, i) => {
-          if (i >= sp.pages.length) return false;
-          // deno-lint-ignore no-explicit-any
-          const sample = (s as any)?.get ? (s as any).get() : s;
-          return sample?.pending === true;
-        });
-
-        if (pending) return { loading: true, data: [] as string[] };
-
-        const data: string[] = [];
-        for (let i = 0; i < sp.pages.length && i < 10; i++) {
-          // deno-lint-ignore no-explicit-any
-          const sample = (samples[i] as any)?.get
-            // deno-lint-ignore no-explicit-any
-            ? (samples[i] as any).get()
-            : samples[i];
-          if (sample?.result?.title) {
-            data.push(sample.result.title.substring(0, 15));
-          }
-        }
-
-        return { loading: false, data };
-      },
-    );
+      return { loading: false, data };
+    });
 
     return {
       id: idCell,
@@ -255,7 +234,7 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     };
   });
 
-  const itemCount = derive(ids, (arr) => arr.length);
+  const itemCount = computed(() => ids.length);
 
   return {
     [NAME]: "Combined fetchData Repro",
@@ -296,18 +275,18 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() => ids.length === 0 ? "(empty)" : ids.join(", "))}
           {" | "}
           <strong>effectiveMultiplier:</strong> {effectiveMultiplier}
           {" | "}
           <strong>hasConfig:</strong>{" "}
-          {derive(hasConfig, (c) => c ? "Yes" : "No")}
+          {computed(() => hasConfig ? "Yes" : "No")}
         </div>
 
         <h2>Results:</h2>
 
         {ifElse(
-          derive(itemCount, (c) => c === 0),
+          computed(() => itemCount === 0),
           <div
             style={{
               padding: "20px",
@@ -320,12 +299,11 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
           </div>,
           <div>
             {results.map((item) => {
-              const isLoading = derive(
-                item.userData,
-                (u) => u?.pending === true,
+              const isLoading = computed(() =>
+                item.userData?.pending === true
               );
-              const hasError = derive(item.userData, (u) => !!u?.error);
-              const data = derive(item.userData, (u) => u?.result);
+              const hasError = computed(() => !!item.userData?.error);
+              const data = computed(() => item.userData?.result);
 
               return (
                 <div
@@ -348,7 +326,7 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
                       <div style={{ color: "red" }}>Error loading data</div>,
                       <div style={{ marginBottom: "8px" }}>
                         <strong>User:</strong>{" "}
-                        {derive(data, (d) => d?.name || "—")}
+                        {computed(() => data?.name || "—")}
                       </div>,
                     ),
                   )}
@@ -372,9 +350,9 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
                             borderRadius: "2px",
                           }}
                         >
-                          #{i}: {derive(s, (r) =>
-                            r?.result?.title?.substring(0, 6) ||
-                            (r?.pending ? "..." : "✗"))}
+                          #{i}: {computed(() =>
+                            s?.result?.title?.substring(0, 6) ||
+                            (s?.pending ? "..." : "✗"))}
                         </span>
                       ))}
                     </div>
@@ -387,8 +365,10 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
                       color: "#666",
                     }}
                   >
-                    <strong>Aggregated:</strong> {derive(item.aggregated, (a) =>
-                      a.loading ? "Loading..." : `${a.data.length} items`)}
+                    <strong>Aggregated:</strong> {computed(() =>
+                      item.aggregated.loading
+                        ? "Loading..."
+                        : `${item.aggregated.data.length} items`)}
                   </div>
                 </div>
               );

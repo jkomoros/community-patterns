@@ -64,7 +64,7 @@ export default pattern<Props>(({ notes }) => {
     if (t && t.includes("---EXTRACT-")) {
       return t;
     }
-    return undefined;
+    return "";
   });
 
   const { result, pending } = generateObject({

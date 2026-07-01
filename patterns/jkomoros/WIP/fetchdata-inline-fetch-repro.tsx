@@ -10,13 +10,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   wish,
   Writable,
 } from "commonfabric";
@@ -32,7 +33,9 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
 }
 
 function makeHeaders(token: string) {
@@ -57,225 +60,195 @@ const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
 
 export default pattern<Input, Output>(({ ids, authCharm }) => {
   // 1. WISH - try to find existing auth (like discoveredAuth in momentum-tracker)
-  const discoveredAuth = wish<{ token: string }>("#testAuth");
+  const discoveredAuth = wish<{ token: string }>({ query: "#testAuth" });
 
   // 2. INLINE PATTERN WITH FETCHDATA - like GitHubAuth({}) in momentum-tracker
   const inlineAuth = AuthConfig({});
 
   // 3. THREE-WAY DERIVE - exactly like effectiveToken in momentum-tracker
-  const effectiveToken = derive(
-    { discovered: discoveredAuth, passed: authCharm, inline: inlineAuth.token },
-    (values) => {
-      // deno-lint-ignore no-explicit-any
-      const discovered = (values.discovered as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.discovered as any).get()
-        : values.discovered;
-      // deno-lint-ignore no-explicit-any
-      const passed = (values.passed as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.passed as any).get()
-        : values.passed;
-      // deno-lint-ignore no-explicit-any
-      const inline = (values.inline as any)?.get
-        // deno-lint-ignore no-explicit-any
-        ? (values.inline as any).get()
-        : values.inline;
+  const effectiveToken = computed(() => {
+    const discovered = discoveredAuth.result;
+    const passed = authCharm?.get();
+    const inline = inlineAuth.token;
 
-      if (discovered?.token) return discovered.token;
-      if (passed?.token) return passed.token;
-      if (inline) return inline;
-      return "";
-    },
-  );
+    if (discovered?.token) return discovered.token;
+    if (passed?.token) return passed.token;
+    if (inline) return inline;
+    return "";
+  });
 
-  const hasAuth = derive(effectiveToken, (t) => !!t);
+  const hasAuth = computed(() => !!effectiveToken);
 
   // 4. MAP WITH FETCHDATA - exactly like repos.map() in momentum-tracker
   const results = ids.map((idCell) => {
-    const parsedRef = derive(idCell, (id) => ({ userId: id }));
+    const parsedRef = computed(() => ({ userId: idCell }));
 
     // API URL - empty when no auth
-    const apiUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && r
-          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
-          : "";
-      },
-    );
+    const apiUrl = computed(() => {
+      const auth = hasAuth;
+      const r = parsedRef;
+      return auth && r
+        ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+        : "";
+    });
 
     // Todos URL - empty when no auth
-    const todosUrl = derive(
-      { hasAuth, parsedRef },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        return auth && r
-          ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}`
-          : "";
-      },
-    );
+    const todosUrl = computed(() => {
+      const auth = hasAuth;
+      const r = parsedRef;
+      return auth && r
+        ? `https://jsonplaceholder.typicode.com/todos?userId=${r.userId}`
+        : "";
+    });
 
     // FETCHDATA WITH OPTIONS - like metadata in momentum-tracker
-    const userData = fetchData<User>({
+    const userData = fetchJson<User>({
       url: apiUrl,
-      mode: "json",
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
 
     // SECOND FETCHDATA WITH OPTIONS - like commitActivity
-    const todosData = fetchData<Todo[]>({
+    const todosData = fetchJson<Todo[]>({
       url: todosUrl,
-      mode: "json",
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
 
     // 5. SAMPLE PAGES DERIVED FROM METADATA - like stargazerPages in momentum-tracker
-    const samplePages = derive(
-      { hasAuth, parsedRef, userData },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const auth = (values.hasAuth as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasAuth as any).get()
-          : values.hasAuth;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        // deno-lint-ignore no-explicit-any
-        const m = (values.userData as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.userData as any).get()
-          : values.userData;
+    const samplePages = computed(() => {
+      const auth = hasAuth;
+      const r = parsedRef;
+      const m = userData;
 
-        if (!auth || !r || !m?.result?.id) {
-          return { userId: 0, pages: [] as number[] };
-        }
+      if (!auth || !r || !m?.result?.id) {
+        return { userId: 0, pages: [] as number[] };
+      }
 
-        return {
-          userId: m.result.id,
-          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) =>
-            (m.result.id - 1) * 10 + i
-          ),
-        };
-      },
-    );
+      return {
+        userId: m.result.id,
+        pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) =>
+          (m.result!.id - 1) * 10 + i
+        ),
+      };
+    });
 
     // STAR SAMPLE URLS - like makeSlotUrl in momentum-tracker
-    const makeSlotUrl = (slotIndex: number) =>
-      derive(samplePages, (sp) => {
-        if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${
-          sp.pages[slotIndex]
-        }`;
-      });
+    // (inlined per slot: computed() must be authored directly in pattern context)
 
     // 10 EXPLICIT FETCHDATA SLOTS - like starSample0-9
-    const slot0 = fetchData<Todo>({
-      url: makeSlotUrl(0),
-      mode: "json",
+    const slot0 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 0 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[0]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot1 = fetchData<Todo>({
-      url: makeSlotUrl(1),
-      mode: "json",
+    const slot1 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 1 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[1]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot2 = fetchData<Todo>({
-      url: makeSlotUrl(2),
-      mode: "json",
+    const slot2 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 2 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[2]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot3 = fetchData<Todo>({
-      url: makeSlotUrl(3),
-      mode: "json",
+    const slot3 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 3 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[3]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot4 = fetchData<Todo>({
-      url: makeSlotUrl(4),
-      mode: "json",
+    const slot4 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 4 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[4]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot5 = fetchData<Todo>({
-      url: makeSlotUrl(5),
-      mode: "json",
+    const slot5 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 5 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[5]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot6 = fetchData<Todo>({
-      url: makeSlotUrl(6),
-      mode: "json",
+    const slot6 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 6 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[6]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot7 = fetchData<Todo>({
-      url: makeSlotUrl(7),
-      mode: "json",
+    const slot7 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 7 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[7]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot8 = fetchData<Todo>({
-      url: makeSlotUrl(8),
-      mode: "json",
+    const slot8 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 8 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[8]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
-    const slot9 = fetchData<Todo>({
-      url: makeSlotUrl(9),
-      mode: "json",
+    const slot9 = fetchJson<Todo>({
+      url: computed(() => {
+        const sp = samplePages;
+        if (!sp.userId || 9 >= sp.pages.length) return "";
+        return `https://jsonplaceholder.typicode.com/todos/${sp.pages[9]}`;
+      }),
       options: {
         method: "GET",
-        headers: derive(effectiveToken, (t) => makeHeaders(t)),
+        headers: computed(() => makeHeaders(effectiveToken)),
       },
     });
 
@@ -340,12 +313,13 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() =>
+            ids.length === 0 ? "(empty)" : ids.join(", "))}
           {" | "}
-          <strong>hasAuth:</strong> {derive(hasAuth, (h) => h ? "YES" : "NO")}
+          <strong>hasAuth:</strong> {computed(() => hasAuth ? "YES" : "NO")}
           {" | "}
           <strong>effectiveToken:</strong>{" "}
-          {derive(effectiveToken, (t) => t ? "***" : "(none)")}
+          {computed(() => effectiveToken ? "***" : "(none)")}
         </div>
 
         <h2>Results:</h2>
@@ -364,14 +338,15 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
                 ID: {item.id}
               </div>
               <div>
-                <strong>User:</strong> {derive(item.userData, (u) =>
-                  u?.result?.name || (u?.pending ? "..." : "—"))}
+                <strong>User:</strong> {computed(() =>
+                  item.userData?.result?.name ||
+                  (item.userData?.pending ? "..." : "—"))}
               </div>
               <div>
-                <strong>Todos:</strong> {derive(item.todosData, (t) =>
-                  t?.result?.length
-                    ? `${t.result.length} items`
-                    : (t?.pending ? "..." : "—"))}
+                <strong>Todos:</strong> {computed(() =>
+                  item.todosData?.result?.length
+                    ? `${item.todosData.result.length} items`
+                    : (item.todosData?.pending ? "..." : "—"))}
               </div>
               <div>
                 <strong>10 Slots:</strong>
@@ -392,8 +367,8 @@ export default pattern<Input, Output>(({ ids, authCharm }) => {
                         borderRadius: "2px",
                       }}
                     >
-                      #{i}: {derive(s, (r) =>
-                        r?.result?.id || (r?.pending ? "..." : "—"))}
+                      #{i}: {computed(() =>
+                        s?.result?.id || (s?.pending ? "..." : "—"))}
                     </span>
                   ))}
                 </div>

@@ -9,13 +9,14 @@
  */
 
 import {
+  computed,
   Default,
-  derive,
-  fetchData,
+  fetchJson,
   handler,
   NAME,
   pattern,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 import SimpleConfig from "./simple-config.tsx";
@@ -29,7 +30,9 @@ interface Input {
 }
 
 interface Output {
-  ids: Writable<number[]>;
+  [NAME]: string;
+  [UI]: VNode;
+  ids: number[];
 }
 
 // Handler to add a new ID
@@ -52,77 +55,72 @@ export default pattern<Input, Output>(({ ids }) => {
   const inlineConfig = SimpleConfig({});
 
   // Derive a value from the imported pattern's output
-  const hasConfig = derive(inlineConfig.multiplier, (m: number) => m > 0);
+  const hasConfig = computed(() => inlineConfig.multiplier > 0);
 
   // Map over ids using the pattern from github-momentum-tracker
   const results = ids.map((idCell) => {
     // Parse ref
-    const ref = derive(idCell, (id) => ({ userId: id }));
+    const ref = computed(() => ({ userId: idCell }));
 
     // THE PATTERN: derive with object params including imported pattern's value
-    const apiUrl = derive(
-      { hasConfig, ref },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const _config = (values.hasConfig as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.hasConfig as any).get()
-          : values.hasConfig;
-        // deno-lint-ignore no-explicit-any
-        const r = (values.ref as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.ref as any).get()
-          : values.ref;
-        return r
-          ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
-          : "";
-      },
-    );
+    const apiUrl = computed(() => {
+      const r = ref;
+      return r
+        ? `https://jsonplaceholder.typicode.com/users/${r.userId}`
+        : "";
+    });
 
     // First fetch
-    const userData = fetchData<User>({ url: apiUrl, mode: "json" });
+    const userData = fetchJson<User>({ url: apiUrl });
 
     // Derive dependent data
-    const samplePages = derive(
-      { hasConfig, parsedRef: ref, userData },
-      (values) => {
-        // deno-lint-ignore no-explicit-any
-        const r = (values.parsedRef as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.parsedRef as any).get()
-          : values.parsedRef;
-        // deno-lint-ignore no-explicit-any
-        const u = (values.userData as any)?.get
-          // deno-lint-ignore no-explicit-any
-          ? (values.userData as any).get()
-          : values.userData;
+    const samplePages = computed(() => {
+      const r = ref;
+      const u = userData;
 
-        if (!r || !u?.result?.id) {
-          return { userId: 0, pages: [] as number[] };
-        }
+      if (!r || !u?.result?.id) {
+        return { userId: 0, pages: [] as number[] };
+      }
 
-        return {
-          userId: u.result.id,
-          pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
-        };
-      },
-    );
+      return {
+        userId: u.result.id,
+        pages: [1, 2, 3, 4, 5].map((i) => (u.result.id - 1) * 5 + i),
+      };
+    });
 
-    // Create slot URL factory
-    const makeSlotUrl = (slotIndex: number) =>
-      derive(samplePages, (sp) => {
-        if (!sp.userId || slotIndex >= sp.pages.length) return "";
-        return `https://jsonplaceholder.typicode.com/todos/${
-          sp.pages[slotIndex]
-        }`;
-      });
+    // Create slot URLs (one computed per slot index)
+    const slotUrl0 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 0 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[0]}`;
+    });
+    const slotUrl1 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 1 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[1]}`;
+    });
+    const slotUrl2 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 2 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[2]}`;
+    });
+    const slotUrl3 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 3 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[3]}`;
+    });
+    const slotUrl4 = computed(() => {
+      const sp = samplePages;
+      if (!sp.userId || 4 >= sp.pages.length) return "";
+      return `https://jsonplaceholder.typicode.com/todos/${sp.pages[4]}`;
+    });
 
     // Create 5 fetchData slots
-    const slot0 = fetchData<Todo>({ url: makeSlotUrl(0), mode: "json" });
-    const slot1 = fetchData<Todo>({ url: makeSlotUrl(1), mode: "json" });
-    const slot2 = fetchData<Todo>({ url: makeSlotUrl(2), mode: "json" });
-    const slot3 = fetchData<Todo>({ url: makeSlotUrl(3), mode: "json" });
-    const slot4 = fetchData<Todo>({ url: makeSlotUrl(4), mode: "json" });
+    const slot0 = fetchJson<Todo>({ url: slotUrl0 });
+    const slot1 = fetchJson<Todo>({ url: slotUrl1 });
+    const slot2 = fetchJson<Todo>({ url: slotUrl2 });
+    const slot3 = fetchJson<Todo>({ url: slotUrl3 });
+    const slot4 = fetchJson<Todo>({ url: slotUrl4 });
 
     return {
       id: idCell,
@@ -159,10 +157,12 @@ export default pattern<Input, Output>(({ ids }) => {
 
         <div style={{ marginBottom: "10px" }}>
           <strong>IDs:</strong>{" "}
-          {derive(ids, (arr) => arr.length === 0 ? "(empty)" : arr.join(", "))}
+          {computed(() =>
+            ids.length === 0 ? "(empty)" : ids.join(", ")
+          )}
           {" | "}
           <strong>hasConfig:</strong>{" "}
-          {derive(hasConfig, (c) => c ? "Yes" : "No")}
+          {computed(() => hasConfig ? "Yes" : "No")}
         </div>
 
         <h2>Results (check console for errors):</h2>
@@ -182,8 +182,10 @@ export default pattern<Input, Output>(({ ids }) => {
               </div>
 
               <div style={{ marginBottom: "8px" }}>
-                <strong>User:</strong> {derive(item.userData, (u) =>
-                  u?.result ? u.result.name : u?.pending ? "..." : "✗")}
+                <strong>User:</strong> {computed(() => {
+                  const u = item.userData;
+                  return u?.result ? u.result.name : u?.pending ? "..." : "✗";
+                })}
               </div>
 
               <div>
@@ -205,9 +207,9 @@ export default pattern<Input, Output>(({ ids }) => {
                         borderRadius: "3px",
                       }}
                     >
-                      #{i}: {derive(s, (r) =>
-                        r?.result?.title?.substring(0, 8) ||
-                        (r?.pending ? "..." : "✗"))}
+                      #{i}: {computed(() =>
+                        s?.result?.title?.substring(0, 8) ||
+                        (s?.pending ? "..." : "✗"))}
                     </span>
                   ))}
                 </div>
